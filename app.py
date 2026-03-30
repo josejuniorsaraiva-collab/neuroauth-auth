@@ -39,7 +39,9 @@ def create_app() -> Flask:
 
 
 # Exportar instância para gunicorn (Render / WSGI)
+# Dois aliases: 'application' (Procfile) e 'app' (Render Start Command legado)
 application = create_app()
+app = application  # backward compat: gunicorn app:app
 
 if __name__ == "__main__":
     application.run(debug=True, port=5099)
