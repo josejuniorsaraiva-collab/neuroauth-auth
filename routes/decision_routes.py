@@ -1,0 +1,305 @@
+"""
+NEUROAUTH — Rotas: POST /decision/run/<episodio_id> + POST /decision/submit
+Versão: 2.1.0
+
+Responsabilidade: orquestrar o fluxo completo de decisão.
+NÃO contém lógica de decisão — delega tudo ao motor.
+NÃO acessa Sheets diretamente — delega aos repositórios.
+
+Rotas:
+  POST /decision/run/<episodio_id>   — episódio já existente
+  POST /decision/submit              — cria episódio + executa motor (frontend direto)
+  OPTIONS /decision/*                — CORS preflight
+
+SYS001 e SYS002 são persistidos como NO_GO — nunca silenciados.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+from datetime import datetime, timezone
+
+from flask import Blueprint, jsonify, request, make_response
+
+from motor import run_motor
+from repositories import (
+    create_episodio,
+    get_episodio,
+    get_proc_master_row,
+    get_convenio_row,
+    save_decision_run,
+    save_decision_result,
+    update_episodio_status,
+    log_case_result,
+    suggest_gap_candidates,
+    create_or_update_surgery_event,
+)
+
+logger = logging.getLogger("neuroauth.routes.decision")
+
+decision_bp = Blueprint("decision", __name__, url_prefix="/decision")
+
+
+# ─── CORS helper ─────────────────────────────────────────────────────────────
+
+def _cors(response):
+    response.headers["Access-Control-Allow-Origin"]  = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    return response
+
+
+@decision_bp.route("/<path:dummy>", methods=["OPTIONS"])
+def options_handler(dummy=""):
+    """CORS preflight handler para todas as sub-rotas de /decision/."""
+    return _cors(make_response("", 204))
+
+
+# ─── POST /decision/run/<episodio_id> ─────────────────────────────────────────
+
+@decision_bp.post("/run/<episodio_id>")
+def decision_run(episodio_id: str):
+    """
+    POST /decision/run/<episodio_id>
+
+    Executa o motor para um episódio já existente em 22_EPISODIOS.
+    Persiste o resultado — inclusive SYS001 e SYS002.
+    Retorna exatamente o output do motor.
+
+    Códigos de resposta:
+      200 — motor executou (resultado pode ser GO, NO_GO, etc.)
+      404 — episódio não encontrado
+    """
+    # 1. Carregar episódio
+    episodio = get_episodio(episodio_id)
+    if episodio is None:
+        return _cors(jsonify({"erro": f"episodio '{episodio_id}' nao encontrado"})), 404
+
+    # 2. Extrair identificadores
+    profile_id      = episodio.get("profile_id", "")
+    convenio_id     = episodio.get("convenio_id", "")
+    session_user_id = episodio.get("usuario_id", "")
+
+    # 3-4. Buscar dados mestres
+    proc_master_row = get_proc_master_row(profile_id) if profile_id else None
+    convenio_row    = get_convenio_row(convenio_id)   if convenio_id else None
+
+    if proc_master_row is None:
+        logger.warning(
+            "decision_run '%s': proc_master_row ausente para profile_id='%s' — motor retornara SYS001",
+            episodio_id, profile_id,
+        )
+
+    # 5. Montar raw_case
+    raw_case = {k: v for k, v in episodio.items() if k not in (
+        "decision_status", "score_confianca", "decision_run_id",
+        "sugestao_principal", "alternativas_json", "updated_at",
+    )}
+
+    payload = {
+        "raw_case":        raw_case,
+        "proc_master_row": proc_master_row,
+        "convenio_row":    convenio_row,
+        "session_user_id": session_user_id,
+    }
+
+    # 6. Chamar motor
+    result = run_motor(
+        raw_case=raw_case,
+        proc_master_row=proc_master_row,
+        convenio_row=convenio_row,
+        session_user_id=session_user_id,
+    )
+
+    # 7-8. Persistir
+    run_id = save_decision_run(episodio_id, payload, result)
+    result["_run_id"] = run_id
+
+    save_decision_result(episodio_id, result)
+    update_episodio_status(episodio_id, run_id, result)
+
+    # 9. Tracker pós-decisão (nunca interrompe a resposta ao frontend)
+    log_case_result(episodio_id, run_id, raw_case, result)
+    suggest_gap_candidates(episodio_id, run_id, result)
+
+    logger.info(
+        "decision_run '%s': status=%s run_id=%s confianca=%.3f",
+        episodio_id,
+        result.get("decision_status"),
+        run_id,
+        result.get("confidence_global", 0.0),
+    )
+
+    return _cors(jsonify(result)), 200
+
+
+# ─── POST /decision/submit ────────────────────────────────────────────────────
+
+@decision_bp.post("/submit")
+def decision_submit():
+    """
+    POST /decision/submit
+
+    Fluxo direto do frontend:
+      1. Recebe payload do formulário
+      2. Cria episódio em 22_EPISODIOS
+      3. Executa o motor completo
+      4. Persiste run em 21_DECISION_RUNS
+      5. Atualiza 22_EPISODIOS com resultado
+      6. Retorna resultado + episodio_id + run_id
+
+    Aceita o payload exatamente como enviado pelo frontend (collect() + profile_id).
+    O ALIAS_MAP do motor normaliza os campos automaticamente.
+
+    CORS habilitado para uso direto do browser.
+    """
+    body = request.get_json(silent=True)
+    if not body:
+        return _cors(jsonify({"erro": "payload JSON obrigatorio"})), 400
+
+    try:
+        # ── 1. Gerar episodio_id único ────────────────────────────────────────
+        episodio_id = f"EP_{uuid.uuid4().hex[:10].upper()}"
+        now = datetime.now(timezone.utc).isoformat()
+
+        # ── 2. Extrair campos de controle ─────────────────────────────────────
+        profile_id  = body.get("profile_id", "")
+        convenio_id = body.get("convenio_id", body.get("convenio", ""))
+
+        # ── 3. Gravar episódio em 22_EPISODIOS ────────────────────────────────
+        episodio_data = {
+            "episodio_id":         episodio_id,
+            "paciente_id":         body.get("nome_paciente", ""),
+            "profile_id":          profile_id,
+            "convenio_id":         convenio_id,
+            "hospital_id":         body.get("hospital", ""),
+            "carater":             body.get("carater_cod", body.get("carater", "")),
+            "niveis":              body.get("qtd_niveis", body.get("niveis", "")),
+            "cid_principal":       body.get("cid_principal", body.get("cid", "")),
+            "cid_secundarios_json": json.dumps(
+                [body.get("cid2")] if body.get("cid2") else []
+            ),
+            "cbo_executor":        body.get("cbo", body.get("cbo_executor", "")),
+            "opme_context_json":   json.dumps(
+                body.get("opmes_selecionados", body.get("opme_items", []))
+            ),
+            "clinical_context_json": json.dumps({
+                "indicacao_clinica":   body.get("indicacao_clinica", ""),
+                "justificativa_opme":  body.get("justificativa_opme", ""),
+                "procedimento":        body.get("procedimento", ""),
+                "medico_solicitante":  body.get("medico_solicitante", ""),
+            }),
+            "status_operacional":  "NOVO",
+            "created_at":          now,
+        }
+
+        create_episodio(episodio_data)
+
+        # ── 4. Montar raw_case (payload completo + episodio_id) ───────────────
+        # O ALIAS_MAP do motor normaliza automaticamente convenio→CONVENIO_ID,
+        # cod_tuss→COD_TUSS, cid_principal→CID_PRINCIPAL, profile_id→PROFILE_ID, etc.
+        #
+        # Garantia de OPME_JSON: o frontend pode enviar OPME via 'opmes_selecionados'
+        # (campo nomeado pelo formulário) ou via 'opme_context_json' (campo canônico do
+        # ALIAS_MAP). Aqui normalizamos para 'opme_context_json' antes de passar ao motor,
+        # preservando qualquer valor já presente no body.
+        opmes_payload = (
+            body.get("opme_context_json")
+            or body.get("opmes_selecionados")
+            or body.get("opme_items")
+            or []
+        )
+        raw_case = {**body, "episodio_id": episodio_id, "opme_context_json": opmes_payload}
+
+        # ── 5. Buscar dados mestres ───────────────────────────────────────────
+        proc_master_row = get_proc_master_row(profile_id) if profile_id else None
+        convenio_row    = get_convenio_row(convenio_id)   if convenio_id else None
+
+        if proc_master_row is None:
+            logger.warning(
+                "decision_submit '%s': proc_master_row ausente para profile_id='%s' — SYS001",
+                episodio_id, profile_id,
+            )
+
+        payload_persist = {
+            "raw_case":        raw_case,
+            "proc_master_row": proc_master_row,
+            "convenio_row":    convenio_row,
+            "session_user_id": body.get("medico_solicitante", ""),
+        }
+
+        # ── 6. Executar motor ─────────────────────────────────────────────────
+        result = run_motor(
+            raw_case=raw_case,
+            proc_master_row=proc_master_row,
+            convenio_row=convenio_row,
+            session_user_id=body.get("medico_solicitante", ""),
+        )
+
+        # ── 7. Persistir run + atualizar episódio ─────────────────────────────
+        run_id = save_decision_run(episodio_id, payload_persist, result)
+        result["_run_id"]      = run_id
+        result["episodio_id"]  = episodio_id
+
+        save_decision_result(episodio_id, result)
+        update_episodio_status(episodio_id, run_id, result)
+
+        # ── 8. Tracker pós-decisão (nunca interrompe a resposta ao frontend) ──
+        log_case_result(episodio_id, run_id, body, result)
+        suggest_gap_candidates(episodio_id, run_id, result)
+
+        # ── 9. Google Calendar — cria/atualiza evento se agendado ────────────
+        # Só dispara se status_agendamento estiver definido E decisão for GO/GO_COM_RESSALVAS
+        _status_ag = body.get("status_agendamento", "")
+        _dec_status = result.get("decision_status", "")
+        if _status_ag and _dec_status in ("GO", "GO_COM_RESSALVAS"):
+            try:
+                # Extrai proc_nome: tenta resultado do motor, depois campos_inferidos, fallback profile_id
+                _proc_nome = result.get("proc_nome", "")
+                if not _proc_nome:
+                    for _ci in result.get("campos_inferidos", []):
+                        if _ci.get("campo") == "PROC_NOME":
+                            _proc_nome = _ci.get("valor", "")
+                            break
+                if not _proc_nome:
+                    _proc_nome = body.get("profile_id", "")
+                _regras      = (proc_master_row or {}).get("regras_json", {})
+                _existing_eid = body.get("google_event_id", "")
+                _calendar_id  = body.get("google_calendar_id", "primary")
+                _episode_ctx  = {
+                    **body,
+                    "episodio_id":     episodio_id,
+                    "decision_status": _dec_status,
+                    "proc_nome":       _proc_nome,
+                    "_run_id":         result.get("_run_id", run_id),
+                }
+                create_or_update_surgery_event(
+                    episodio_id   = episodio_id,
+                    episode       = _episode_ctx,
+                    proc_nome     = _proc_nome,
+                    regras        = _regras,
+                    calendar_id   = _calendar_id,
+                    existing_event_id = _existing_eid,
+                )
+            except Exception as _cal_exc:
+                logger.warning("decision_submit: calendar hook falhou (não crítico) — %s", _cal_exc)
+
+        logger.info(
+            "decision_submit '%s': status=%s run_id=%s confianca=%.3f",
+            episodio_id,
+            result.get("decision_status"),
+            run_id,
+            result.get("confidence_global", 0.0),
+        )
+
+        return _cors(jsonify(result)), 200
+
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("decision_submit: erro interno — %s", exc)
+        err_body = {
+            "decision_status": "ERRO_INTERNO",
+            "erro":            str(exc),
+            "erro_tipo":       type(exc).__name__,
+        }
+        return _cors(jsonify(err_body)), 500
