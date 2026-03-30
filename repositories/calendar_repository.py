@@ -40,6 +40,10 @@ def _get_calendar_service():
     _CREDS_CANDIDATES = [
         os.path.expanduser("~/Downloads/neuroauth-auth-ae97fe63dec3.json"),
         "/etc/secrets/neuroauth-auth-ae97fe63dec3.json",
+        # Render (secrets file — nome genérico 'credentials.json')
+        "/etc/secrets/credentials.json",
+        # Variável de ambiente GOOGLE_APPLICATION_CREDENTIALS (padrão Google)
+        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", ""),
         os.environ.get("GOOGLE_SHEETS_CREDS_PATH", ""),
     ]
 
