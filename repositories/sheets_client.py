@@ -40,9 +40,13 @@ SCOPES = [
 _CREDS_CANDIDATES = [
     # Desenvolvimento local (Mac)
     os.path.expanduser("~/Downloads/neuroauth-auth-ae97fe63dec3.json"),
-    # Render (secrets file)
+    # Render (secrets file — nome explícito)
     "/etc/secrets/neuroauth-auth-ae97fe63dec3.json",
-    # Variável de ambiente (fallback universal)
+    # Render (secrets file — nome genérico 'credentials.json')
+    "/etc/secrets/credentials.json",
+    # Variável de ambiente GOOGLE_APPLICATION_CREDENTIALS (padrão Google)
+    os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", ""),
+    # Variável de ambiente personalizada NEUROAUTH
     os.environ.get("GOOGLE_SHEETS_CREDS_PATH", ""),
 ]
 
