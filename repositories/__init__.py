@@ -15,6 +15,7 @@ from .calendar_repository import (
     cancel_surgery_event,
     get_service_account_email,
 )
+from .feedback_repository import log_feedback
 
 __all__ = [
     "get_proc_master_row",
@@ -30,4 +31,5 @@ __all__ = [
     "create_or_update_surgery_event",
     "cancel_surgery_event",
     "get_service_account_email",
+    "log_feedback",
 ]

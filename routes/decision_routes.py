@@ -34,6 +34,7 @@ from repositories import (
     log_case_result,
     suggest_gap_candidates,
     create_or_update_surgery_event,
+    log_feedback,
 )
 
 logger = logging.getLogger("neuroauth.routes.decision")
@@ -122,6 +123,7 @@ def decision_run(episodio_id: str):
     # 9. Tracker pós-decisão (nunca interrompe a resposta ao frontend)
     log_case_result(episodio_id, run_id, raw_case, result)
     suggest_gap_candidates(episodio_id, run_id, result)
+    log_feedback(episodio_id, run_id, raw_case, result)   # Bloco 1: FEEDBACK ENGINE
 
     logger.info(
         "decision_run '%s': status=%s run_id=%s confianca=%.3f",
@@ -248,6 +250,7 @@ def decision_submit():
         # ── 8. Tracker pós-decisão (nunca interrompe a resposta ao frontend) ──
         log_case_result(episodio_id, run_id, body, result)
         suggest_gap_candidates(episodio_id, run_id, result)
+        log_feedback(episodio_id, run_id, body, result)   # Bloco 1: FEEDBACK ENGINE
 
         # ── 9. Google Calendar — cria/atualiza evento se agendado ────────────
         # Só dispara se status_agendamento estiver definido E decisão for GO/GO_COM_RESSALVAS
