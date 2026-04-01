@@ -30,7 +30,7 @@ ALIAS_MAP: dict[str, list[str]] = {
     "CID_PRINCIPAL":    ["cid_principal", "cid", "diagnostico_cid"],
     "CID_SECUNDARIOS":  ["cid_secundarios", "cids_secundarios", "cid_secundario"],
     "CONVENIO_ID":      ["convenio_id", "convenio", "operadora", "payer"],
-    "CARATER":          ["carater", "urgencia_eletivo", "tipo_atendimento"],
+    "CARATER":          ["carater", "urgencia_eletivo", "tipo_atendimento", "carater_cod"],
     "NIVEIS":           ["niveis", "quantidade_niveis", "num_niveis"],
     "LATERALIDADE":     ["lateralidade", "lado"],
     "TIPO_ANESTESIA":   ["tipo_anestesia", "anestesia"],
