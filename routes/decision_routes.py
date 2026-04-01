@@ -35,6 +35,7 @@ from repositories import (
     suggest_gap_candidates,
     create_or_update_surgery_event,
     log_feedback,
+    refresh_insights_sheet,
 )
 
 logger = logging.getLogger("neuroauth.routes.decision")
@@ -42,7 +43,7 @@ logger = logging.getLogger("neuroauth.routes.decision")
 decision_bp = Blueprint("decision", __name__, url_prefix="/decision")
 
 
-# ─── CORS helper ─────────────────────────────────────────────────────────────
+# ─── CORS helper ───────────────────────────────────────────────────────────────────────────────
 
 def _cors(response):
     response.headers["Access-Control-Allow-Origin"]  = "*"
@@ -57,7 +58,7 @@ def options_handler(dummy=""):
     return _cors(make_response("", 204))
 
 
-# ─── POST /decision/run/<episodio_id> ─────────────────────────────────────────
+# ─── POST /decision/run/<episodio_id> ─────────────────────────────────────────────────────
 
 @decision_bp.post("/run/<episodio_id>")
 def decision_run(episodio_id: str):
@@ -124,6 +125,7 @@ def decision_run(episodio_id: str):
     log_case_result(episodio_id, run_id, raw_case, result)
     suggest_gap_candidates(episodio_id, run_id, result)
     log_feedback(episodio_id, run_id, raw_case, result)   # Bloco 1: FEEDBACK ENGINE
+    refresh_insights_sheet()                               # Bloco 2: INSIGHTS ENGINE
 
     logger.info(
         "decision_run '%s': status=%s run_id=%s confianca=%.3f",
@@ -136,7 +138,7 @@ def decision_run(episodio_id: str):
     return _cors(jsonify(result)), 200
 
 
-# ─── POST /decision/submit ────────────────────────────────────────────────────
+# ─── POST /decision/submit ────────────────────────────────────────────────────────────────────────────
 
 @decision_bp.post("/submit")
 def decision_submit():
@@ -161,15 +163,15 @@ def decision_submit():
         return _cors(jsonify({"erro": "payload JSON obrigatorio"})), 400
 
     try:
-        # ── 1. Gerar episodio_id único ────────────────────────────────────────
+        # ── 1. Gerar episodio_id único ─────────────────────────────────────────────────────────────────────
         episodio_id = f"EP_{uuid.uuid4().hex[:10].upper()}"
         now = datetime.now(timezone.utc).isoformat()
 
-        # ── 2. Extrair campos de controle ─────────────────────────────────────
+        # ── 2. Extrair campos de controle ─────────────────────────────────────────────────────────────────
         profile_id  = body.get("profile_id", "")
         convenio_id = body.get("convenio_id", body.get("convenio", ""))
 
-        # ── 3. Gravar episódio em 22_EPISODIOS ────────────────────────────────
+        # ── 3. Gravar episódio em 22_EPISODIOS ────────────────────────────────────────────────────────
         episodio_data = {
             "episodio_id":         episodio_id,
             "paciente_id":         body.get("nome_paciente", ""),
@@ -198,7 +200,7 @@ def decision_submit():
 
         create_episodio(episodio_data)
 
-        # ── 4. Montar raw_case (payload completo + episodio_id) ───────────────
+        # ── 4. Montar raw_case (payload completo + episodio_id) ───────────────────────────────────────
         # O ALIAS_MAP do motor normaliza automaticamente convenio→CONVENIO_ID,
         # cod_tuss→COD_TUSS, cid_principal→CID_PRINCIPAL, profile_id→PROFILE_ID, etc.
         #
@@ -214,7 +216,7 @@ def decision_submit():
         )
         raw_case = {**body, "episodio_id": episodio_id, "opme_context_json": opmes_payload}
 
-        # ── 5. Buscar dados mestres ───────────────────────────────────────────
+        # ── 5. Buscar dados mestres ───────────────────────────────────────────────────────────────────
         proc_master_row = get_proc_master_row(profile_id) if profile_id else None
         convenio_row    = get_convenio_row(convenio_id)   if convenio_id else None
 
@@ -231,7 +233,7 @@ def decision_submit():
             "session_user_id": body.get("medico_solicitante", ""),
         }
 
-        # ── 6. Executar motor ─────────────────────────────────────────────────
+        # ── 6. Executar motor ───────────────────────────────────────────────────────────────────────────────
         result = run_motor(
             raw_case=raw_case,
             proc_master_row=proc_master_row,
@@ -239,7 +241,7 @@ def decision_submit():
             session_user_id=body.get("medico_solicitante", ""),
         )
 
-        # ── 7. Persistir run + atualizar episódio ─────────────────────────────
+        # ── 7. Persistir run + atualizar episódio ───────────────────────────────────────────────
         run_id = save_decision_run(episodio_id, payload_persist, result)
         result["_run_id"]      = run_id
         result["episodio_id"]  = episodio_id
@@ -251,8 +253,9 @@ def decision_submit():
         log_case_result(episodio_id, run_id, body, result)
         suggest_gap_candidates(episodio_id, run_id, result)
         log_feedback(episodio_id, run_id, body, result)   # Bloco 1: FEEDBACK ENGINE
+        refresh_insights_sheet()                           # Bloco 2: INSIGHTS ENGINE
 
-        # ── 9. Google Calendar — cria/atualiza evento se agendado ────────────
+        # ── 9. Google Calendar — cria/atualiza evento se agendado ────────────────────────────────
         # Só dispara se status_agendamento estiver definido E decisão for GO/GO_COM_RESSALVAS
         _status_ag = body.get("status_agendamento", "")
         _dec_status = result.get("decision_status", "")
