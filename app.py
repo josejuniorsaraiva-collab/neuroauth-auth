@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from flask import Flask
+import traceback
+from flask import Flask, jsonify
 
 from routes import motor_bp, decision_bp
 
@@ -34,6 +35,19 @@ def create_app() -> Flask:
         from flask import jsonify
         from motor.decision_classifier import ENGINE_VERSION
         return jsonify({"status": "ok", "engine_version": ENGINE_VERSION}), 200
+
+
+    # ── Global JSON error handler ──────────────────────────────────────
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(e: Exception):
+        logging.getLogger("neuroauth.app").error(
+            "handle_unhandled_exception: %s\n%s", e, traceback.format_exc()
+        )
+        return jsonify({
+            "decision_status": "ERRO_INTERNO",
+            "message":         "Erro interno inesperado no servidor.",
+            "error_code":      "SYS_GLOBAL_ERROR",
+        }), 500
 
     return app
 
