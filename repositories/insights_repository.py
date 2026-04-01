@@ -83,6 +83,9 @@ def _read_feedback_rows() -> list[dict]:
                 for i in range(len(headers))
                 if headers[i]
             }
+            # Ignorar linhas marcadas como dados de teste
+            if row_dict.get("is_test_data", "").strip().upper() == "TRUE":
+                continue
             if any(v for v in row_dict.values()):
                 records.append(row_dict)
 
