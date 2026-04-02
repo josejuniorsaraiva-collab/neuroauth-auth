@@ -37,6 +37,7 @@ from repositories import (
     create_or_update_surgery_event,
     log_feedback,
     refresh_insights_sheet,
+    run_precheck,
 )
 
 logger = logging.getLogger("neuroauth.routes.decision")
@@ -261,7 +262,25 @@ def decision_submit():
             "session_user_id": body.get("medico_solicitante", ""),
         }
 
-        # ── 6. Executar motor ───────────────────────────────────────────────────────────────────────────────
+        # ── 6. Bloco 3 — Precheck (shadow mode: loga, não bloqueia) ───────────────────────────────────
+        precheck = run_precheck(raw_case)
+        if precheck.warnings or precheck.blocking_issues:
+            logger.warning(
+                "PRECHECK '%s': rigor=%s warnings=%s blocking=%s",
+                episodio_id,
+                precheck.rigor_level,
+                precheck.warnings,
+                precheck.blocking_issues,
+            )
+        # Para ativar bloqueio real, descomentar:
+        # if not precheck.allow_submit:
+        #     return _cors(jsonify({
+        #         "decision_status": "PENDENCIA_OBRIGATORIA",
+        #         "precheck": precheck.to_dict(),
+        #         "motivos": precheck.blocking_issues,
+        #     })), 200
+
+        # ── 7. Executar motor ───────────────────────────────────────────────────────────────────────────────
         result = run_motor(
             raw_case=raw_case,
             proc_master_row=proc_master_row,
@@ -324,6 +343,9 @@ def decision_submit():
             run_id,
             result.get("confidence_global", 0.0),
         )
+
+        # Bloco 3 — expõe precheck no payload de resposta (shadow mode)
+        result["precheck"] = precheck.to_dict()
 
         return _cors(jsonify(result)), 200
 

@@ -17,6 +17,7 @@ from .calendar_repository import (
 )
 from .feedback_repository import log_feedback
 from .insights_repository import refresh_insights_sheet
+from .precheck_engine import run_precheck
 
 __all__ = [
     "get_proc_master_row",
@@ -34,4 +35,5 @@ __all__ = [
     "get_service_account_email",
     "log_feedback",
     "refresh_insights_sheet",
+    "run_precheck",
 ]
