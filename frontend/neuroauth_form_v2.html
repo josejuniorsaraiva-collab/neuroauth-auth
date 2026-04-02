@@ -48,7 +48,7 @@
       outline: none; border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(30,58,138,0.08);
     }
-    input.error, select.error { border-color: var(--danger); }
+    input.error, select.error { border-color: var(--danger); border-width: 2px; }
 
     .field-error { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
     .field-error.visible { display: block; }
@@ -173,7 +173,7 @@
       <!-- Lateralidade — só aparece quando o perfil exige -->
       <div class="field" id="lateralidade-group">
         <label>Lateralidade <span class="req">*</span>
-          <span class="hint">Obrigatório para o perfil selecionado</span>
+          <span class="hint">Este procedimento exige indicação do lado operado</span>
         </label>
         <select name="lateralidade" id="lateralidade">
           <option value="">Selecione o lado…</option>
@@ -307,11 +307,16 @@ function validate() {
   return ok;
 }
 
+// ── Trava de submit duplo — protege contra Enter + clique rápido ─────────
+let _submitting = false;
+
 // ── Submit ────────────────────────────────────────────────────────────────
 document.getElementById("form").addEventListener("submit", async function(e) {
   e.preventDefault();
+  if (_submitting) return;            // trava: Enter ou clique duplo ignorados
   if (!validate()) return;
 
+  _submitting = true;
   const btn = document.getElementById("btn-submit");
   btn.innerHTML = '<span class="spinner"></span>Processando…';
   btn.disabled = true;
@@ -343,11 +348,17 @@ document.getElementById("form").addEventListener("submit", async function(e) {
     const data = await r.json();
     showResult(data);
   } catch (err) {
-    showError("Erro de comunicação: " + err.message);
+    // Timeout → mensagem específica; outros erros → mensagem genérica
+    const msg = err.name === "TimeoutError" || err.name === "AbortError"
+      ? "Instabilidade de conexão. Verifique a rede e tente novamente."
+      : "Erro de comunicação: " + err.message;
+    showError(msg);
+  } finally {
+    // Sempre libera o botão — mesmo em exceção não antecipada
+    btn.innerHTML = "Enviar para Motor de Decisão →";
+    btn.disabled = false;
+    _submitting = false;
   }
-
-  btn.innerHTML = "Enviar para Motor de Decisão →";
-  btn.disabled = false;
 });
 
 // ── Renderizar resultado ──────────────────────────────────────────────────
