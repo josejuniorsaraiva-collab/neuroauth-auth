@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEUROAUTH — Solicitação Cirúrgica v2</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --border: #d1d9e0;
+      --accent: #1e3a8a;
+      --accent-hover: #172f6b;
+      --danger: #dc2626;
+      --warn: #d97706;
+      --success: #16a34a;
+      --text: #1a2332;
+      --muted: #6b7280;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+           background: var(--bg); min-height: 100vh; padding: 24px 16px; color: var(--text); }
+    .card {
+      max-width: 580px; margin: 0 auto;
+      background: var(--surface); border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;
+    }
+    .card-header {
+      background: var(--accent); color: white; padding: 20px 24px;
+    }
+    .card-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+    .card-header p  { font-size: 12px; opacity: 0.75; margin-top: 4px; }
+    .card-body { padding: 24px; }
+
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600;
+            margin-bottom: 5px; color: var(--text); }
+    label .req { color: var(--danger); margin-left: 2px; }
+    label .hint { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 6px; }
+
+    input, select, textarea {
+      width: 100%; padding: 9px 12px; border-radius: var(--radius);
+      border: 1px solid var(--border); font-size: 14px; color: var(--text);
+      background: #fff; transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(30,58,138,0.08);
+    }
+    input.error, select.error { border-color: var(--danger); }
+
+    .field-error { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
+    .field-error.visible { display: block; }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* Lateralidade condicional — oculto por padrão */
+    #lateralidade-group { display: none; }
+    #lateralidade-group.required { display: block; }
+
+    /* Divisor de seção */
+    .section-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      margin: 20px 0 12px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Botão */
+    .btn-submit {
+      width: 100%; padding: 13px; margin-top: 20px;
+      background: var(--accent); color: white; border: none;
+      border-radius: var(--radius); font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-submit:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* Resultado */
+    #result-box {
+      display: none; margin-top: 16px; padding: 16px;
+      border-radius: var(--radius); border: 1px solid var(--border);
+    }
+    #result-box.go      { border-color: var(--success); background: #f0fdf4; }
+    #result-box.nogo    { border-color: var(--danger);  background: #fef2f2; }
+    #result-box.pending { border-color: var(--warn);    background: #fffbeb; }
+    #result-box.precheck{ border-color: var(--warn);    background: #fffbeb; }
+
+    .result-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+    .result-title.go      { color: var(--success); }
+    .result-title.nogo    { color: var(--danger);  }
+    .result-title.pending { color: var(--warn);    }
+    .result-title.precheck{ color: var(--warn);    }
+
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      font-size: 11px; font-weight: 600; padding: 3px 8px;
+      border-radius: 4px; letter-spacing: 0.03em;
+    }
+    .tag.block  { background: #fee2e2; color: var(--danger); }
+    .tag.pend   { background: #fef3c7; color: var(--warn); }
+    .tag.warn   { background: #dbeafe; color: #1d4ed8; }
+
+    .result-meta { font-size: 11px; color: var(--muted); margin-top: 10px; }
+
+    /* Spinner */
+    .spinner { display: inline-block; width: 14px; height: 14px; vertical-align: middle;
+               border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+               border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <h1>NEUROAUTH — Solicitação Cirúrgica</h1>
+    <p>Motor de Decisão Clínica v2.0 · Validação automática</p>
+  </div>
+
+  <div class="card-body">
+    <form id="form" novalidate>
+
+      <!-- ── PACIENTE ────────────────────────────────────────────────── -->
+      <div class="section-title">Paciente</div>
+      <div class="field">
+        <label>Nome do Paciente <span class="req">*</span></label>
+        <input type="text" name="nome_paciente" id="nome_paciente" autocomplete="off">
+        <div class="field-error" id="err-nome">Campo obrigatório.</div>
+      </div>
+
+      <!-- ── SOLICITAÇÃO ────────────────────────────────────────────── -->
+      <div class="section-title">Solicitação</div>
+
+      <div class="field">
+        <label>Profile ID (Perfil do Procedimento) <span class="req">*</span>
+          <span class="hint">ex: PROF_ACDF_01 · MICRODISCECTOMIA_LOMBAR</span>
+        </label>
+        <input type="text" name="profile_id" id="profile_id" autocomplete="off">
+        <div class="field-error" id="err-profile">Campo obrigatório.</div>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label>Código TUSS <span class="req">*</span></label>
+          <input type="text" name="codigo_tuss" id="codigo_tuss" placeholder="ex: 40808505">
+          <div class="field-error" id="err-tuss">Campo obrigatório.</div>
+        </div>
+        <div class="field">
+          <label>CID Principal <span class="req">*</span></label>
+          <input type="text" name="cid_principal" id="cid_principal" placeholder="ex: M50.1">
+          <div class="field-error" id="err-cid">Campo obrigatório.</div>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label>Caráter do Atendimento <span class="req">*</span></label>
+          <!-- Preenchido via /decision/config — fonte única de verdade -->
+          <select name="carater_cod" id="carater_cod">
+            <option value="">Carregando…</option>
+          </select>
+          <div class="field-error" id="err-carater">Selecione o caráter.</div>
+        </div>
+        <div class="field">
+          <label>Convênio <span class="req">*</span></label>
+          <input type="text" name="convenio_id" id="convenio_id" placeholder="ex: UNIMED_CARIRI">
+          <div class="field-error" id="err-convenio">Campo obrigatório.</div>
+        </div>
+      </div>
+
+      <!-- Lateralidade — só aparece quando o perfil exige -->
+      <div class="field" id="lateralidade-group">
+        <label>Lateralidade <span class="req">*</span>
+          <span class="hint">Obrigatório para o perfil selecionado</span>
+        </label>
+        <select name="lateralidade" id="lateralidade">
+          <option value="">Selecione o lado…</option>
+        </select>
+        <div class="field-error" id="err-lateralidade">Selecione a lateralidade.</div>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label>Qtd. Níveis <span class="hint">quando aplicável</span></label>
+          <input type="number" name="niveis" id="niveis" min="1" max="10" placeholder="1">
+        </div>
+        <div class="field">
+          <label>Hospital</label>
+          <input type="text" name="hospital" id="hospital" placeholder="ex: HSJ">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Indicação Clínica</label>
+        <textarea name="indicacao_clinica" id="indicacao_clinica" rows="3"
+                  placeholder="Descreva a indicação clínica…"></textarea>
+      </div>
+
+      <button class="btn-submit" type="submit" id="btn-submit">
+        Enviar para Motor de Decisão →
+      </button>
+
+    </form>
+
+    <!-- ── RESULTADO ─────────────────────────────────────────────────── -->
+    <div id="result-box">
+      <div class="result-title" id="res-title">—</div>
+      <div id="res-motivos" class="tag-list"></div>
+      <div class="result-meta" id="res-meta"></div>
+    </div>
+
+  </div><!-- /.card-body -->
+</div>
+
+<script>
+"use strict";
+const API = "https://neuroauth-auth.onrender.com";
+
+// ── Config vinda do backend (única fonte de verdade) ──────────────────────
+let CONFIG = {
+  valid_carater_values: [],
+  profiles_requiring_laterality: [],
+  valid_laterality_values: [],
+};
+
+async function loadConfig() {
+  try {
+    const r = await fetch(API + "/decision/config", { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error("status " + r.status);
+    CONFIG = await r.json();
+  } catch (e) {
+    // Fallback conservador — espelha VALID_CARATER_VALUES do backend
+    CONFIG = {
+      valid_carater_values: ["ELETIVO", "ELE", "URGENTE", "URGENCIA", "URG"],
+      profiles_requiring_laterality: ["MICRODISCECTOMIA_LOMBAR", "HERNIA_DISCAL_LOMBAR", "HERNIA_DISCAL_CERVICAL"],
+      valid_laterality_values: ["DIREITA", "ESQUERDA", "BILATERAL"],
+    };
+    console.warn("NEUROAUTH: /decision/config falhou — usando fallback", e.message);
+  }
+  populateCarater();
+  populateLateralidade();
+}
+
+function populateCarater() {
+  const sel = document.getElementById("carater_cod");
+  sel.innerHTML = '<option value="">Selecione o caráter…</option>';
+  CONFIG.valid_carater_values.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+function populateLateralidade() {
+  const sel = document.getElementById("lateralidade");
+  sel.innerHTML = '<option value="">Selecione o lado…</option>';
+  CONFIG.valid_laterality_values.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Lateralidade condicional ──────────────────────────────────────────────
+document.getElementById("profile_id").addEventListener("input", function() {
+  const pid = this.value.trim().toUpperCase();
+  const group = document.getElementById("lateralidade-group");
+  const requires = CONFIG.profiles_requiring_laterality.includes(pid);
+  group.classList.toggle("required", requires);
+  if (!requires) document.getElementById("lateralidade").value = "";
+});
+
+// ── Validação client-side ─────────────────────────────────────────────────
+function validate() {
+  let ok = true;
+  const checks = [
+    ["nome_paciente",  "err-nome",       v => v.trim().length > 0],
+    ["profile_id",     "err-profile",    v => v.trim().length > 0],
+    ["codigo_tuss",    "err-tuss",       v => v.trim().length > 0],
+    ["cid_principal",  "err-cid",        v => v.trim().length > 0],
+    ["carater_cod",    "err-carater",    v => v !== ""],
+    ["convenio_id",    "err-convenio",   v => v.trim().length > 0],
+  ];
+  checks.forEach(([fieldId, errId, fn]) => {
+    const el  = document.getElementById(fieldId);
+    const err = document.getElementById(errId);
+    const val = el.value;
+    const pass = fn(val);
+    el.classList.toggle("error", !pass);
+    err.classList.toggle("visible", !pass);
+    if (!pass) ok = false;
+  });
+  // Lateralidade condicional
+  const latGroup = document.getElementById("lateralidade-group");
+  if (latGroup.classList.contains("required")) {
+    const latEl  = document.getElementById("lateralidade");
+    const latErr = document.getElementById("err-lateralidade");
+    const pass   = latEl.value !== "";
+    latEl.classList.toggle("error", !pass);
+    latErr.classList.toggle("visible", !pass);
+    if (!pass) ok = false;
+  }
+  return ok;
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────
+document.getElementById("form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  if (!validate()) return;
+
+  const btn = document.getElementById("btn-submit");
+  btn.innerHTML = '<span class="spinner"></span>Processando…';
+  btn.disabled = true;
+  document.getElementById("result-box").style.display = "none";
+
+  const f = id => document.getElementById(id).value.trim();
+  const payload = {
+    nome_paciente:     f("nome_paciente"),
+    profile_id:        f("profile_id").toUpperCase(),
+    codigo_tuss:       f("codigo_tuss"),
+    cid_principal:     f("cid_principal"),
+    carater_cod:       f("carater_cod"),
+    convenio_id:       f("convenio_id"),
+    lateralidade:      f("lateralidade") || undefined,
+    niveis:            f("niveis") || undefined,
+    hospital:          f("hospital") || undefined,
+    indicacao_clinica: f("indicacao_clinica") || undefined,
+  };
+  // Limpar undefined
+  Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+
+  try {
+    const r = await fetch(API + "/decision/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = await r.json();
+    showResult(data);
+  } catch (err) {
+    showError("Erro de comunicação: " + err.message);
+  }
+
+  btn.innerHTML = "Enviar para Motor de Decisão →";
+  btn.disabled = false;
+});
+
+// ── Renderizar resultado ──────────────────────────────────────────────────
+function showResult(data) {
+  const box    = document.getElementById("result-box");
+  const title  = document.getElementById("res-title");
+  const tags   = document.getElementById("res-motivos");
+  const meta   = document.getElementById("res-meta");
+
+  const status = data.decision_status || "ERRO";
+  const pcheck = data.precheck || {};
+
+  // Detecta se foi bloqueio de precheck (sem episodio_id)
+  const isPrecheck = !!(pcheck.blocking_issues && pcheck.blocking_issues.length &&
+                        data.motivos && !data.episodio_id);
+
+  let cls, label;
+  if (isPrecheck) {
+    cls = "precheck"; label = "⚠ Precheck — Corrija antes de enviar";
+  } else if (status === "GO" || status === "GO_COM_RESSALVAS") {
+    cls = "go";      label = status === "GO" ? "✓ GO — Envio liberado" : "✓ GO com ressalvas";
+  } else if (status === "NO_GO") {
+    cls = "nogo";    label = "✗ NO-GO — Envio bloqueado";
+  } else if (status === "PENDENCIA_OBRIGATORIA") {
+    cls = "pending"; label = "⚠ Pendência — Campos obrigatórios ausentes";
+  } else {
+    cls = "nogo";    label = "Erro — " + status;
+  }
+
+  box.className = "";
+  box.classList.add(cls);
+  title.className = "result-title " + cls;
+  title.textContent = label;
+  tags.innerHTML = "";
+
+  // Motivos do precheck (bloqueio antecipado)
+  const motivos = data.motivos || pcheck.blocking_issues || [];
+  motivos.forEach(m => {
+    const t = document.createElement("span");
+    t.className = "tag block";
+    t.textContent = m.split(":")[0];
+    tags.appendChild(t);
+  });
+
+  // Warnings do precheck
+  (pcheck.warnings || []).forEach(w => {
+    const t = document.createElement("span");
+    t.className = "tag warn";
+    t.textContent = w.split(":")[0];
+    tags.appendChild(t);
+  });
+
+  // Bloqueios do motor
+  (data.bloqueios || []).forEach(b => {
+    const t = document.createElement("span");
+    t.className = "tag block";
+    t.textContent = b.codigo || b.regra || JSON.stringify(b);
+    tags.appendChild(t);
+  });
+
+  // Pendências do motor
+  (data.pendencias || []).forEach(p => {
+    const t = document.createElement("span");
+    t.className = "tag pend";
+    t.textContent = p.codigo || p.campo || JSON.stringify(p);
+    tags.appendChild(t);
+  });
+
+  const epId  = data.episodio_id || "—";
+  const runId = data._run_id      || "—";
+  meta.textContent = `Episódio: ${epId} · Run: ${runId} · Rigor: ${pcheck.rigor_level || "—"}`;
+
+  box.style.display = "block";
+}
+
+function showError(msg) {
+  const box = document.getElementById("result-box");
+  box.className = "nogo";
+  box.style.display = "block";
+  document.getElementById("res-title").className = "result-title nogo";
+  document.getElementById("res-title").textContent = "✗ " + msg;
+  document.getElementById("res-motivos").innerHTML = "";
+  document.getElementById("res-meta").textContent = "";
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadConfig();
+</script>
+</body>
+</html>

@@ -90,6 +90,40 @@ def options_handler(dummy=""):
     return _cors(make_response("", 204))
 
 
+# ─── GET /decision/config ──────────────────────────────────────────────────────────────────
+
+@decision_bp.get("/config")
+def decision_config():
+    """
+    GET /decision/config
+
+    Fonte única de verdade para o frontend:
+      - valid_carater_values: lista ordenada de valores aceitos pelo precheck
+      - profiles_requiring_laterality: perfis que exigem campo lateralidade
+      - valid_laterality_values: opções de lado aceitas
+
+    CORS habilitado — consumido diretamente pelo browser.
+    Sem autenticação: dados de configuração, não sensíveis.
+    """
+    from repositories.precheck_engine import (
+        VALID_CARATER_VALUES,
+        _profile_requires_laterality,
+    )
+
+    # Perfis com lateralidade obrigatória — espelha _profile_requires_laterality()
+    profiles_requiring_laterality = [
+        "MICRODISCECTOMIA_LOMBAR",
+        "HERNIA_DISCAL_LOMBAR",
+        "HERNIA_DISCAL_CERVICAL",
+    ]
+
+    return _cors(jsonify({
+        "valid_carater_values":          sorted(VALID_CARATER_VALUES),
+        "profiles_requiring_laterality": profiles_requiring_laterality,
+        "valid_laterality_values":       ["DIREITA", "ESQUERDA", "BILATERAL"],
+    }))
+
+
 # ─── POST /decision/run/<episodio_id> ─────────────────────────────────────────────────────
 
 @decision_bp.post("/run/<episodio_id>")
