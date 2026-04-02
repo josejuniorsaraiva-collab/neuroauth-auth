@@ -298,7 +298,9 @@ def decision_submit():
         }
 
         # ── 6. Bloco 3 — Precheck (bloqueio: CARATER_AUSENTE, LATERALIDADE_OBRIGATORIA, TUSS_AUSENTE) ──
-        precheck = run_precheck(raw_case)
+        # Etapa 3: passa proc_master_row para habilitar Regra 7 (OPME_OBRIGATORIA_AUSENTE)
+        # master é Optional — se None, Regra 7 fica dormente sem efeito
+        precheck = run_precheck(raw_case, master=proc_master_row)
         if precheck.warnings or precheck.blocking_issues:
             logger.warning(
                 "PRECHECK '%s': rigor=%s warnings=%s blocking=%s",
@@ -309,8 +311,14 @@ def decision_submit():
             )
 
         # Bloqueio parcial — regras validadas em shadow com FP=0
-        # TUSS_AUSENTE adicionado após shadow: 5/5 RGL005 antecipados, FP=0
-        _BLOQUEIOS_ATIVOS = {"CARATER_AUSENTE", "LATERALIDADE_OBRIGATORIA", "TUSS_AUSENTE"}
+        # TUSS_AUSENTE:             shadow 5/5 RGL005 antecipados, FP=0
+        # OPME_OBRIGATORIA_AUSENTE: shadow 3/4 RGL040 antecipados, FP=0
+        _BLOQUEIOS_ATIVOS = {
+            "CARATER_AUSENTE",
+            "LATERALIDADE_OBRIGATORIA",
+            "TUSS_AUSENTE",
+            "OPME_OBRIGATORIA_AUSENTE",
+        }
         active_blocks = [
             b for b in precheck.blocking_issues
             if any(tag in b for tag in _BLOQUEIOS_ATIVOS)
