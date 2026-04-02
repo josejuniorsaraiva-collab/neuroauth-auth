@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+import threading
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request, make_response
@@ -39,6 +40,35 @@ from repositories import (
 )
 
 logger = logging.getLogger("neuroauth.routes.decision")
+
+# ─── Pós-processamento assíncrono ─────────────────────────────────────────────
+def _launch_post_decision_tasks(
+    episodio_id: str, run_id: str, case_body: dict, result: dict,
+) -> None:
+    """Dispara tarefas analíticas em thread daemon — nunca bloqueia a resposta.
+
+    Tarefas: log_case_result, suggest_gap_candidates, log_feedback,
+    refresh_insights_sheet.
+    Falhas capturadas e logadas como POST_DECISION_TASK_FAIL — nunca propagadas.
+    """
+    def _run() -> None:
+        tasks = [
+            ("log_case_result",        lambda: log_case_result(episodio_id, run_id, case_body, result)),
+            ("suggest_gap_candidates", lambda: suggest_gap_candidates(episodio_id, run_id, result)),
+            ("log_feedback",           lambda: log_feedback(episodio_id, run_id, case_body, result)),
+            ("refresh_insights_sheet", lambda: refresh_insights_sheet()),
+        ]
+        for task_name, task_fn in tasks:
+            try:
+                task_fn()
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "POST_DECISION_TASK_FAIL episodio_id=%s task=%s error=%s",
+                    episodio_id, task_name, exc,
+                )
+
+    threading.Thread(target=_run, daemon=True).start()
+
 
 decision_bp = Blueprint("decision", __name__, url_prefix="/decision")
 
@@ -122,10 +152,8 @@ def decision_run(episodio_id: str):
     update_episodio_status(episodio_id, run_id, result)
 
     # 9. Tracker pós-decisão (nunca interrompe a resposta ao frontend)
-    log_case_result(episodio_id, run_id, raw_case, result)
-    suggest_gap_candidates(episodio_id, run_id, result)
-    log_feedback(episodio_id, run_id, raw_case, result)   # Bloco 1: FEEDBACK ENGINE
-    refresh_insights_sheet()                               # Bloco 2: INSIGHTS ENGINE
+    # 9. Pós-processamento assíncrono (feedback + insights — não bloqueia resposta)
+    _launch_post_decision_tasks(episodio_id, run_id, raw_case, result)
 
     logger.info(
         "decision_run '%s': status=%s run_id=%s confianca=%.3f",
@@ -250,10 +278,8 @@ def decision_submit():
         update_episodio_status(episodio_id, run_id, result)
 
         # ── 8. Tracker pós-decisão (nunca interrompe a resposta ao frontend) ──
-        log_case_result(episodio_id, run_id, body, result)
-        suggest_gap_candidates(episodio_id, run_id, result)
-        log_feedback(episodio_id, run_id, body, result)   # Bloco 1: FEEDBACK ENGINE
-        refresh_insights_sheet()                           # Bloco 2: INSIGHTS ENGINE
+        # ── 8. Pós-processamento assíncrono (feedback + insights — não bloqueia resposta) ──
+        _launch_post_decision_tasks(episodio_id, run_id, body, result)
 
         # ── 9. Google Calendar — cria/atualiza evento se agendado ────────────────────────────────
         # Só dispara se status_agendamento estiver definido E decisão for GO/GO_COM_RESSALVAS
