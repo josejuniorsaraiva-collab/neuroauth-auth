@@ -214,3 +214,58 @@ def log_feedback(
             "log_feedback: falha ao gravar — episodio=%s erro=%s",
             episodio_id, exc,
         )
+
+
+def log_precheck_block(
+    episodio_id: str,
+    raw_case: dict,
+    blocking_issues: list,
+) -> None:
+    """
+    Grava no 23_FEEDBACK_LOOP quando o Precheck (Bloco 3) bloqueia um envio
+    ANTES de o motor executar.
+
+    Diferente de log_feedback (que roda pós-motor), esta função é chamada
+    diretamente na rota quando active_blocks não está vazio.
+
+    Nunca lança exceção — graceful degradation total.
+    """
+    try:
+        ws = _get_feedback_sheet()
+
+        now = datetime.datetime.utcnow().isoformat() + "Z"
+        motivos = "; ".join(blocking_issues)
+
+        row = {
+            "episodio_id":           episodio_id,
+            "run_id":                "PRECHECK_BLOCK",
+            "created_at":            now,
+            "profile_id":            raw_case.get("profile_id", ""),
+            "convenio_id":           raw_case.get("convenio_id", raw_case.get("convenio", "")),
+            "procedimento":          raw_case.get("profile_id", ""),
+            "status_agendamento":    raw_case.get("status_agendamento", ""),
+            "decision_status":       "PENDENCIA_OBRIGATORIA",
+            "go_class":              "PRECHECK_BLOCK",
+            "confidence_global":     "0",
+            "rigor_aplicado":        "HARD",
+            "n_bloqueios":           str(len(blocking_issues)),
+            "n_pendencias":          "0",
+            "n_alertas":             "0",
+            "motivos_no_go":         motivos,
+            "pendencias_detectadas": "",
+            "observacao_operacional": f"PRECHECK_BLOCKED: {motivos}",
+        }
+
+        row_values = [row.get(h, "") for h in FEEDBACK_HEADERS]
+        ws.append_row(row_values, value_input_option="USER_ENTERED")
+
+        logger.warning(
+            "log_precheck_block: gravado → %s motivos=%s",
+            episodio_id, motivos,
+        )
+
+    except Exception as exc:
+        logger.error(
+            "log_precheck_block: falha ao gravar — episodio=%s erro=%s",
+            episodio_id, exc,
+        )

@@ -15,7 +15,7 @@ from .calendar_repository import (
     cancel_surgery_event,
     get_service_account_email,
 )
-from .feedback_repository import log_feedback
+from .feedback_repository import log_feedback, log_precheck_block
 from .insights_repository import refresh_insights_sheet
 from .precheck_engine import run_precheck
 
@@ -34,6 +34,7 @@ __all__ = [
     "cancel_surgery_event",
     "get_service_account_email",
     "log_feedback",
+    "log_precheck_block",
     "refresh_insights_sheet",
     "run_precheck",
 ]

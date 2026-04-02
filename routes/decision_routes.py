@@ -36,6 +36,7 @@ from repositories import (
     suggest_gap_candidates,
     create_or_update_surgery_event,
     log_feedback,
+    log_precheck_block,
     refresh_insights_sheet,
     run_precheck,
 )
@@ -262,7 +263,7 @@ def decision_submit():
             "session_user_id": body.get("medico_solicitante", ""),
         }
 
-        # ── 6. Bloco 3 — Precheck (shadow mode: loga, não bloqueia) ───────────────────────────────────
+        # ── 6. Bloco 3 — Precheck (bloqueio parcial ativo: CARATER_AUSENTE + LATERALIDADE_OBRIGATORIA) ──
         precheck = run_precheck(raw_case)
         if precheck.warnings or precheck.blocking_issues:
             logger.warning(
@@ -272,13 +273,34 @@ def decision_submit():
                 precheck.warnings,
                 precheck.blocking_issues,
             )
-        # Para ativar bloqueio real, descomentar:
-        # if not precheck.allow_submit:
-        #     return _cors(jsonify({
-        #         "decision_status": "PENDENCIA_OBRIGATORIA",
-        #         "precheck": precheck.to_dict(),
-        #         "motivos": precheck.blocking_issues,
-        #     })), 200
+
+        # Bloqueio parcial — apenas regras com 100% de acerto e zero falso positivo confirmados
+        _BLOQUEIOS_ATIVOS = {"CARATER_AUSENTE", "LATERALIDADE_OBRIGATORIA"}
+        active_blocks = [
+            b for b in precheck.blocking_issues
+            if any(tag in b for tag in _BLOQUEIOS_ATIVOS)
+        ]
+        if active_blocks:
+            logger.warning(
+                "PRECHECK_BLOCKED: episodio_id=%s motivos=%s",
+                episodio_id, active_blocks,
+            )
+            # FASE 4 — log persistente no 23_FEEDBACK_LOOP (thread daemon)
+            import threading as _threading
+            _threading.Thread(
+                target=log_precheck_block,
+                args=(episodio_id, raw_case, active_blocks),
+                daemon=True,
+            ).start()
+            return _cors(jsonify({
+                "decision_status": "PENDENCIA_OBRIGATORIA",
+                "precheck": precheck.to_dict(),
+                "motivos": active_blocks,
+                "mensagem": "Corrija os campos obrigatórios antes de enviar",
+                "can_send": False,
+            })), 200
+        # Demais blocking_issues permanecem em shadow mode (só log, não bloqueiam)
+        # Para ativar bloqueio total: substituir active_blocks por precheck.blocking_issues
 
         # ── 7. Executar motor ───────────────────────────────────────────────────────────────────────────────
         result = run_motor(
