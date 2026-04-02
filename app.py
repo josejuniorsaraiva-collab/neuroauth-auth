@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 import traceback
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 
 from routes import motor_bp, decision_bp
 
@@ -35,6 +35,17 @@ def create_app() -> Flask:
         from flask import jsonify
         from motor.decision_classifier import ENGINE_VERSION
         return jsonify({"status": "ok", "engine_version": ENGINE_VERSION}), 200
+
+    @app.get("/form")
+    def serve_form():
+        """
+        GET /form — Formulário oficial de entrada v2.
+        Serve neuroauth_form_v2.html diretamente do diretório frontend/.
+        URL pública: https://neuroauth-auth.onrender.com/form
+        """
+        import os
+        frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
+        return send_from_directory(frontend_dir, "neuroauth_form_v2.html")
 
 
     # ── Global JSON error handler ──────────────────────────────────────

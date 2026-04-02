@@ -257,6 +257,8 @@ def decision_submit():
                 "justificativa_opme":  body.get("justificativa_opme", ""),
                 "procedimento":        body.get("procedimento", ""),
                 "medico_solicitante":  body.get("medico_solicitante", ""),
+                "form_version":        body.get("form_version", ""),
+                "source":              body.get("source", ""),
             }),
             "status_operacional":  "NOVO",
             "created_at":          now,

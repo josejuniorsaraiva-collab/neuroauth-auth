@@ -334,6 +334,9 @@ document.getElementById("form").addEventListener("submit", async function(e) {
     niveis:            f("niveis") || undefined,
     hospital:          f("hospital") || undefined,
     indicacao_clinica: f("indicacao_clinica") || undefined,
+    // Rastreabilidade de origem — identificação automática da versão do form
+    form_version:      "v2",
+    source:            "frontend_v2",
   };
   // Limpar undefined
   Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);

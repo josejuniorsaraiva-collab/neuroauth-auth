@@ -73,6 +73,8 @@ FEEDBACK_HEADERS = [
     "pontos_de_espera",         # texto livre — onde o processo ficou travado
     "necessidade_de_opme_extra",  # SIM | NAO
     "tempo_ate_autorizacao_horas",  # número
+    # ── Rastreabilidade de origem ─────────────────────────────────────────────
+    "form_source",                  # frontend_v2 | api_direta | legado | PRECHECK_BLOCK
 ]
 
 
@@ -198,6 +200,8 @@ def log_feedback(
             "pontos_de_espera":             "",
             "necessidade_de_opme_extra":    "",
             "tempo_ate_autorizacao_horas":  "",
+            # Rastreabilidade de origem — vem do payload via raw_case
+            "form_source": raw_case.get("source", raw_case.get("form_source", "")),
         }
 
         # Montar linha na ordem exata dos headers
@@ -254,6 +258,7 @@ def log_precheck_block(
             "motivos_no_go":         motivos,
             "pendencias_detectadas": "",
             "observacao_operacional": f"PRECHECK_BLOCKED: {motivos}",
+            "form_source":           raw_case.get("source", raw_case.get("form_source", "PRECHECK_BLOCK")),
         }
 
         row_values = [row.get(h, "") for h in FEEDBACK_HEADERS]
