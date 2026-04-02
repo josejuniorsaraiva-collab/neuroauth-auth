@@ -263,7 +263,7 @@ def decision_submit():
             "session_user_id": body.get("medico_solicitante", ""),
         }
 
-        # ── 6. Bloco 3 — Precheck (bloqueio parcial ativo: CARATER_AUSENTE + LATERALIDADE_OBRIGATORIA) ──
+        # ── 6. Bloco 3 — Precheck (bloqueio: CARATER_AUSENTE, LATERALIDADE_OBRIGATORIA, TUSS_AUSENTE) ──
         precheck = run_precheck(raw_case)
         if precheck.warnings or precheck.blocking_issues:
             logger.warning(
@@ -274,8 +274,9 @@ def decision_submit():
                 precheck.blocking_issues,
             )
 
-        # Bloqueio parcial — apenas regras com 100% de acerto e zero falso positivo confirmados
-        _BLOQUEIOS_ATIVOS = {"CARATER_AUSENTE", "LATERALIDADE_OBRIGATORIA"}
+        # Bloqueio parcial — regras validadas em shadow com FP=0
+        # TUSS_AUSENTE adicionado após shadow: 5/5 RGL005 antecipados, FP=0
+        _BLOQUEIOS_ATIVOS = {"CARATER_AUSENTE", "LATERALIDADE_OBRIGATORIA", "TUSS_AUSENTE"}
         active_blocks = [
             b for b in precheck.blocking_issues
             if any(tag in b for tag in _BLOQUEIOS_ATIVOS)

@@ -54,19 +54,29 @@ def _known_rgl005_sensitive_profiles(profile_id: str) -> bool:
     return _norm(profile_id) in profiles
 
 
-def run_precheck(payload: Dict[str, Any]) -> PrecheckResult:
+def run_precheck(
+    payload: Dict[str, Any],
+    master: Optional[Dict[str, Any]] = None,
+) -> PrecheckResult:
     """
     Bloco 3 — Decision Engine 2.0 (Rigor Adaptativo Leve)
-    Roda ANTES do motor. Em shadow mode: só loga, não bloqueia.
-    Para ativar bloqueio real, descomentar em decision_routes.py.
+    Roda ANTES do motor. Bloqueio parcial ativo (CARATER_AUSENTE,
+    LATERALIDADE_OBRIGATORIA, TUSS_AUSENTE quando ativado em decision_routes).
+    Demais regras: shadow mode (só loga, não bloqueia).
+
+    Args:
+        payload: raw_case completo enviado pelo frontend/rota.
+        master:  proc_master_row (opcional). Quando presente, habilita
+                 regras contextuais (ex: OPME_OBRIGATORIA_AUSENTE).
     """
-    profile_id = _norm(_get(payload, "profile_id", "procedimento"))
+    profile_id  = _norm(_get(payload, "profile_id", "procedimento"))
     convenio_id = _norm(_get(payload, "convenio_id", "convenio"))
     carater_cod = _norm(
         _get(payload, "carater_cod", "carater", "carater_atendimento")
     )
     lateralidade = _norm(_get(payload, "lateralidade", "lado"))
-    opmes = _get(payload, "opmes_selecionados", "opme_items", "opme_context_json")
+    tuss_cod     = _norm(_get(payload, "codigo_tuss", "cod_tuss", "tuss"))
+    opmes        = _get(payload, "opmes_selecionados", "opme_items", "opme_context_json")
 
     warnings: List[str] = []
     blocking_issues: List[str] = []
@@ -99,6 +109,29 @@ def run_precheck(payload: Dict[str, Any]) -> PrecheckResult:
     if opmes is not None and not isinstance(opmes, (list, dict)):
         warnings.append("OPME_ESTRUTURA_NAO_PADRONIZADA")
 
+    # Regra 6 — TUSS ausente (espelha RGL005 do motor — campo estrutural universal)
+    if not tuss_cod:
+        blocking_issues.append("TUSS_AUSENTE")
+
+    # Regra 7 — OPME obrigatória ausente (contextual: requer dado mestre)
+    if master is not None:
+        regras = master.get("regras_json", {})
+        if isinstance(regras, str):
+            import json as _json
+            try:
+                regras = _json.loads(regras)
+            except Exception:
+                regras = {}
+        opme_obrigatoria = regras.get("opme_obrigatoria", False)
+        if opme_obrigatoria:
+            opme_valida = (
+                isinstance(opmes, list) and len(opmes) > 0
+            ) or (
+                isinstance(opmes, dict) and opmes
+            )
+            if not opme_valida:
+                blocking_issues.append("OPME_OBRIGATORIA_AUSENTE")
+
     # Determinar nível de rigor
     rigor_level = "STANDARD"
     if warnings:
@@ -112,9 +145,10 @@ def run_precheck(payload: Dict[str, Any]) -> PrecheckResult:
         warnings=warnings,
         blocking_issues=blocking_issues,
         metadata={
-            "profile_id": profile_id,
-            "convenio_id": convenio_id,
-            "carater_cod": carater_cod,
+            "profile_id":   profile_id,
+            "convenio_id":  convenio_id,
+            "carater_cod":  carater_cod,
             "lateralidade": lateralidade,
+            "tuss_cod":     tuss_cod,
         },
     )
