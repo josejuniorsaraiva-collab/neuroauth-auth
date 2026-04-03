@@ -109,6 +109,24 @@
                border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
                border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Bloco OPME */
+    #opme-block { display: none; }
+    .opme-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .opme-row input[type="text"]   { flex: 1; }
+    .opme-row input[type="number"] { width: 80px; }
+    .opme-row .btn-rm {
+      padding: 6px 10px; background: #fee2e2; color: var(--danger);
+      border: 1px solid #fca5a5; border-radius: var(--radius); cursor: pointer;
+      font-size: 13px; line-height: 1;
+    }
+    .opme-row .btn-rm:hover { background: #fca5a5; }
+    .btn-add-opme {
+      margin-top: 4px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+      background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+      border-radius: var(--radius); cursor: pointer;
+    }
+    .btn-add-opme:hover { background: #dbeafe; }
   </style>
 </head>
 <body>
@@ -198,6 +216,16 @@
                   placeholder="Descreva a indicação clínica…"></textarea>
       </div>
 
+      <!-- OPME — só aparece quando o perfil exige (permite_opme=TRUE) -->
+      <div class="field" id="opme-block">
+        <label>Materiais / OPME <span class="req">*</span>
+          <span class="hint">Este procedimento exige declaração de materiais</span>
+        </label>
+        <div id="opme-list"></div>
+        <button type="button" class="btn-add-opme" onclick="addOpmeItem()">+ Adicionar material</button>
+        <div class="field-error" id="err-opme">Adicione ao menos um material com descrição.</div>
+      </div>
+
       <button class="btn-submit" type="submit" id="btn-submit">
         Enviar para Motor de Decisão →
       </button>
@@ -223,6 +251,7 @@ let CONFIG = {
   valid_carater_values: [],
   profiles_requiring_laterality: [],
   valid_laterality_values: [],
+  profiles_requiring_opme: [],
 };
 
 async function loadConfig() {
@@ -236,11 +265,67 @@ async function loadConfig() {
       valid_carater_values: ["ELETIVO", "ELE", "URGENTE", "URGENCIA", "URG"],
       profiles_requiring_laterality: ["MICRODISCECTOMIA_LOMBAR", "HERNIA_DISCAL_LOMBAR", "HERNIA_DISCAL_CERVICAL"],
       valid_laterality_values: ["DIREITA", "ESQUERDA", "BILATERAL"],
+      profiles_requiring_opme: ["ACDF_1_NIVEL", "ACDF_2_NIVEIS", "MICRODISCECTOMIA_LOMBAR",
+                                 "TUMOR_CEREBRAL_RESECCAO", "PROF_ACDF_01"],
     };
     console.warn("NEUROAUTH: /decision/config falhou — usando fallback", e.message);
   }
   populateCarater();
   populateLateralidade();
+}
+
+// ── OPME — estado e funções ───────────────────────────────────────────────
+let opmeItems = [];
+
+function profileRequiresOpme(profileId) {
+  return (CONFIG.profiles_requiring_opme || []).includes((profileId || "").trim().toUpperCase());
+}
+
+function updateOpmeVisibility(profileId) {
+  const block  = document.getElementById("opme-block");
+  const errEl  = document.getElementById("err-opme");
+  const needs  = profileRequiresOpme(profileId);
+
+  block.style.display = needs ? "block" : "none";
+
+  if (needs && opmeItems.length === 0) {
+    opmeItems = [{ descricao: "", quantidade: 1 }];
+    renderOpmeList();
+  }
+  if (!needs) {
+    opmeItems = [];
+    document.getElementById("opme-list").innerHTML = "";
+    errEl.classList.remove("visible");
+    block.querySelector(".btn-add-opme") && block.querySelector("input") &&
+      block.querySelectorAll("input").forEach(el => el.classList.remove("error"));
+  }
+}
+
+function addOpmeItem() {
+  opmeItems.push({ descricao: "", quantidade: 1 });
+  renderOpmeList();
+}
+
+function removeOpmeItem(idx) {
+  opmeItems.splice(idx, 1);
+  renderOpmeList();
+}
+
+function renderOpmeList() {
+  const container = document.getElementById("opme-list");
+  container.innerHTML = opmeItems.map((item, idx) => `
+    <div class="opme-row">
+      <input type="text"
+             placeholder="Descrição do material (ex: Cage PEEK 0° 7x14mm)"
+             value="${(item.descricao || "").replace(/"/g, "&quot;")}"
+             oninput="opmeItems[${idx}].descricao=this.value"
+             autocomplete="off">
+      <input type="number" min="1" max="99"
+             value="${item.quantidade || 1}"
+             oninput="opmeItems[${idx}].quantidade=parseInt(this.value)||1">
+      <button type="button" class="btn-rm" onclick="removeOpmeItem(${idx})">✕</button>
+    </div>
+  `).join("");
 }
 
 function populateCarater() {
@@ -265,13 +350,16 @@ function populateLateralidade() {
   });
 }
 
-// ── Lateralidade condicional ──────────────────────────────────────────────
+// ── Lateralidade + OPME condicional (evento unificado) ───────────────────
 document.getElementById("profile_id").addEventListener("input", function() {
   const pid = this.value.trim().toUpperCase();
+  // Lateralidade
   const group = document.getElementById("lateralidade-group");
-  const requires = CONFIG.profiles_requiring_laterality.includes(pid);
-  group.classList.toggle("required", requires);
-  if (!requires) document.getElementById("lateralidade").value = "";
+  const requiresLat = CONFIG.profiles_requiring_laterality.includes(pid);
+  group.classList.toggle("required", requiresLat);
+  if (!requiresLat) document.getElementById("lateralidade").value = "";
+  // OPME
+  updateOpmeVisibility(pid);
 });
 
 // ── Validação client-side ─────────────────────────────────────────────────
@@ -304,6 +392,14 @@ function validate() {
     latErr.classList.toggle("visible", !pass);
     if (!pass) ok = false;
   }
+  // OPME condicional — validação separada (é div, não input)
+  const f2 = id => document.getElementById(id).value.trim();
+  if (profileRequiresOpme(f2("profile_id"))) {
+    const errOpme = document.getElementById("err-opme");
+    const passOpme = opmeItems.length > 0 && opmeItems.every(i => (i.descricao || "").trim().length > 0);
+    errOpme.classList.toggle("visible", !passOpme);
+    if (!passOpme) ok = false;
+  }
   return ok;
 }
 
@@ -330,13 +426,14 @@ document.getElementById("form").addEventListener("submit", async function(e) {
     cid_principal:     f("cid_principal"),
     carater_cod:       f("carater_cod"),
     convenio_id:       f("convenio_id"),
-    lateralidade:      f("lateralidade") || undefined,
-    niveis:            f("niveis") || undefined,
-    hospital:          f("hospital") || undefined,
-    indicacao_clinica: f("indicacao_clinica") || undefined,
+    lateralidade:        f("lateralidade") || undefined,
+    niveis:              f("niveis") || undefined,
+    hospital:            f("hospital") || undefined,
+    indicacao_clinica:   f("indicacao_clinica") || undefined,
+    opmes_selecionados:  opmeItems.length > 0 ? opmeItems : undefined,
     // Rastreabilidade de origem — identificação automática da versão do form
-    form_version:      "v2",
-    source:            "frontend_v2",
+    form_version:        "v2",
+    source:              "frontend_v2",
   };
   // Limpar undefined
   Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);

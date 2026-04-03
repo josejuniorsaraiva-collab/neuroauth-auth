@@ -101,6 +101,7 @@ def decision_config():
       - valid_carater_values: lista ordenada de valores aceitos pelo precheck
       - profiles_requiring_laterality: perfis que exigem campo lateralidade
       - valid_laterality_values: opções de lado aceitas
+      - profiles_requiring_opme: perfis onde permite_opme=TRUE (exige bloco OPME no form)
 
     CORS habilitado — consumido diretamente pelo browser.
     Sem autenticação: dados de configuração, não sensíveis.
@@ -109,6 +110,7 @@ def decision_config():
         VALID_CARATER_VALUES,
         _profile_requires_laterality,
     )
+    from repositories.proc_master_repository import get_profiles_requiring_opme
 
     # Perfis com lateralidade obrigatória — espelha _profile_requires_laterality()
     profiles_requiring_laterality = [
@@ -121,6 +123,7 @@ def decision_config():
         "valid_carater_values":          sorted(VALID_CARATER_VALUES),
         "profiles_requiring_laterality": profiles_requiring_laterality,
         "valid_laterality_values":       ["DIREITA", "ESQUERDA", "BILATERAL"],
+        "profiles_requiring_opme":       get_profiles_requiring_opme(),
     }))
 
 

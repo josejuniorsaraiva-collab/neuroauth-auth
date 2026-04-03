@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 
-from .sheets_client import get_worksheet, find_row_by_col
+from .sheets_client import get_worksheet, find_row_by_col, read_all_records
 
 logger = logging.getLogger("neuroauth.repo.proc_master")
 
@@ -140,3 +140,36 @@ def get_proc_master_row(profile_id: str) -> dict | None:
         "_grupo_documental":    row.get("grupo_documental_padrao", ""),
         "_versao_regra":        row.get("versao_regra", ""),
     }
+
+
+def get_profiles_requiring_opme() -> list[str]:
+    """
+    Retorna lista de profile_ids ativos onde permite_opme=TRUE.
+    Usado pelo /decision/config para informar o frontend quais
+    perfis devem exibir o bloco OPME.
+    Fallback hardcoded se a planilha não estiver acessível.
+    """
+    _FALLBACK = [
+        "ACDF_1_NIVEL",
+        "ACDF_2_NIVEIS",
+        "MICRODISCECTOMIA_LOMBAR",
+        "TUMOR_CEREBRAL_RESECCAO",
+        "PROF_ACDF_01",
+    ]
+    try:
+        ws = get_worksheet(_SHEET)
+        records = read_all_records(ws, head=_HEAD)
+        result = [
+            r["profile_id"]
+            for r in records
+            if _bool(r.get("permite_opme", ""))
+            and str(r.get("ativo", "TRUE")).strip().upper() != "FALSE"
+            and r.get("profile_id", "").strip()
+        ]
+        if result:
+            logger.info("get_profiles_requiring_opme: %d perfis com OPME obrigatória", len(result))
+            return result
+        logger.warning("get_profiles_requiring_opme: planilha vazia — usando fallback")
+    except Exception as exc:
+        logger.error("get_profiles_requiring_opme: erro ao acessar planilha: %s — usando fallback", exc)
+    return _FALLBACK
