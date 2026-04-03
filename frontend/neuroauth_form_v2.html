@@ -161,12 +161,12 @@
 
       <div class="row-2">
         <div class="field">
-          <label>Código TUSS <span class="req">*</span></label>
+          <label>Código TUSS <span class="hint">(opcional)</span></label>
           <input type="text" name="codigo_tuss" id="codigo_tuss" placeholder="ex: 40808505">
           <div class="field-error" id="err-tuss">Campo obrigatório.</div>
         </div>
         <div class="field">
-          <label>CID Principal <span class="req">*</span></label>
+          <label>CID Principal <span class="hint">(sugestão automática)</span></label>
           <input type="text" name="cid_principal" id="cid_principal" placeholder="ex: M50.1">
           <div class="field-error" id="err-cid">Campo obrigatório.</div>
         </div>
@@ -201,7 +201,7 @@
 
       <div class="row-2">
         <div class="field">
-          <label>Qtd. Níveis <span class="hint">quando aplicável</span></label>
+          <label>Número de Níveis <span class="hint">obrigatório para multinível</span></label>
           <input type="number" name="niveis" id="niveis" min="1" max="10" placeholder="1">
         </div>
         <div class="field">
@@ -546,6 +546,138 @@ function showError(msg) {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 loadConfig();
+</script>
+
+<script>
+/* NEUROAUTH v3 — Interface Clínica */
+(function() {
+  var CID_RULES = [
+    {terms:['mielopatia cervical','mielopatia','espondilose cervical','hernia cervical','hérnia cervical'], cid:'M50.1', label:'M50.1 — Mielopatia/hérnia cervical'},
+    {terms:['hernia lombar','hérnia lombar','espondilose lombar','microdiscectomia'], cid:'M51.1', label:'M51.1 — Hérnia disco lombar'},
+    {terms:['tumor cerebral','neoplasia cerebral','glioma','meningioma','craniotomia'], cid:'C71.9', label:'C71.9 — Tumor cerebral'},
+    {terms:['metástase cerebral','metastase cerebral','metástase cerebelar'], cid:'C79.3', label:'C79.3 — Metástase cerebral'},
+    {terms:['radiculopatia cervical','cervicobraquialgia'], cid:'M54.2', label:'M54.2 — Cervicalgia radicular'},
+    {terms:['estenose lombar','estenose do canal'], cid:'M48.0', label:'M48.0 — Estenose canal lombar'}
+  ];
+  function suggestCid(text) {
+    var t = text.toLowerCase();
+    for (var i=0;i<CID_RULES.length;i++) {
+      var r = CID_RULES[i];
+      for (var j=0;j<r.terms.length;j++) { if (t.indexOf(r.terms[j])>-1) return r; }
+    }
+    return null;
+  }
+  function suggestNiveis(text) {
+    var t = text.toLowerCase();
+    var m = t.match(/(\d+)\s*n[\u00ed]ve[il]s?/);
+    if (m) return parseInt(m[1]);
+    if (t.indexOf('c5')>-1 && t.indexOf('c6')>-1 && t.indexOf('c7')>-1) return 3;
+    if ((t.indexOf('c5')>-1&&t.indexOf('c6')>-1)||(t.indexOf('c6')>-1&&t.indexOf('c7')>-1)||(t.indexOf('l4')>-1&&t.indexOf('l5')>-1)||(t.indexOf('l5')>-1&&t.indexOf('s1')>-1)) return 2;
+    return null;
+  }
+  function patchResultDisplay(data) {
+    var box = document.getElementById('res-motivos');
+    if (!box) return;
+    box.innerHTML = '';
+    var bl = data.bloqueios || [];
+    var pe = data.pendencias || [];
+    if (!bl.length && !pe.length) {
+      box.innerHTML = '<span style="color:#27ae60;font-weight:600;">✓ Sem bloqueios</span>';
+      return;
+    }
+    bl.forEach(function(b) {
+      var d = document.createElement('div');
+      d.style.cssText = 'background:#fdecea;border-left:3px solid #e74c3c;padding:6px 10px;margin:3px 0;border-radius:3px;font-size:13px;';
+      d.innerHTML = '<span style="background:#e74c3c;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;margin-right:6px;">'+(b.codigo||'')+'</span><strong>BLOQUEIO:</strong> '+(b.motivo||'');
+      box.appendChild(d);
+    });
+    pe.forEach(function(p) {
+      var d = document.createElement('div');
+      d.style.cssText = 'background:#fff8e1;border-left:3px solid #f39c12;padding:6px 10px;margin:3px 0;border-radius:3px;font-size:13px;';
+      d.innerHTML = '<span style="background:#f39c12;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;margin-right:6px;">'+(p.codigo||'')+'</span><strong>PENDÊNCIA:</strong> '+(p.motivo||'');
+      box.appendChild(d);
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    var indicacao = document.getElementById('indicacao_clinica');
+    var cidField = document.getElementById('cid_principal');
+    var niveisField = document.getElementById('niveis');
+    var cidHint = document.createElement('div');
+    cidHint.id='cid-sug';
+    cidHint.style.cssText='background:#e8f4fd;border:1px solid #2196F3;border-radius:4px;padding:5px 9px;margin-top:3px;cursor:pointer;font-size:12px;display:none;';
+    if (cidField && cidField.parentNode) cidField.parentNode.appendChild(cidHint);
+    var niveisHint = document.createElement('div');
+    niveisHint.id='niveis-sug';
+    niveisHint.style.cssText='background:#e8f4fd;border:1px solid #2196F3;border-radius:4px;padding:5px 9px;margin-top:3px;cursor:pointer;font-size:12px;display:none;';
+    if (niveisField && niveisField.parentNode) niveisField.parentNode.appendChild(niveisHint);
+    var niveisGuard = document.createElement('div');
+    niveisGuard.id='err-niveis-guard';
+    niveisGuard.style.cssText='color:#c0392b;font-size:13px;margin-top:4px;display:none;';
+    niveisGuard.textContent='⚠ Perfil multinível: preencha o número de níveis.';
+    if (niveisField && niveisField.parentNode) niveisField.parentNode.appendChild(niveisGuard);
+    if (indicacao) {
+      indicacao.addEventListener('input', function() {
+        var txt = this.value;
+        var cs = suggestCid(txt);
+        if (cs && cidField && !cidField.value) {
+          cidHint.textContent = '💡 CID: '+cs.label+' — clique para usar';
+          cidHint.style.display='block';
+          cidHint.onclick=function(){cidField.value=cs.cid;cidHint.style.display='none';};
+        } else { cidHint.style.display='none'; }
+        var ns = suggestNiveis(txt);
+        if (ns && niveisField && !niveisField.value) {
+          niveisHint.textContent='💡 Níveis: '+ns+' — clique para usar';
+          niveisHint.style.display='block';
+          niveisHint.onclick=function(){niveisField.value=ns;niveisHint.style.display='none';};
+        } else { niveisHint.style.display='none'; }
+      });
+    }
+    var form = document.getElementById('surgical-form') || document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        var pid = (document.getElementById('profile_id')||{value:''}).value.toUpperCase();
+        var isML = pid.indexOf('2_NIVEIS')>-1||pid.indexOf('3_NIVEIS')>-1||pid.indexOf('MULTINIVEL')>-1;
+        if (isML && niveisField && !niveisField.value) {
+          e.preventDefault(); e.stopPropagation();
+          niveisGuard.style.display='block';
+          if (niveisField) niveisField.focus();
+          return false;
+        }
+        niveisGuard.style.display='none';
+      }, true);
+    }
+    var errCid = document.getElementById('err-cid');
+    var errTuss = document.getElementById('err-tuss');
+    if (errCid) errCid.style.display='none';
+    if (errTuss) errTuss.style.display='none';
+    var _origValidate = window.validate;
+    window.validate = function() {
+      var c = document.getElementById('cid_principal');
+      var t = document.getElementById('codigo_tuss');
+      var ec = document.getElementById('err-cid');
+      var et = document.getElementById('err-tuss');
+      var _cv = c ? c.value : '';
+      var _tv = t ? t.value : '';
+      if (c) c.value = c.value || '_skip_';
+      if (t) t.value = t.value || '_skip_';
+      var r = _origValidate ? _origValidate.apply(this, arguments) : true;
+      if (c && c.value === '_skip_') c.value = _cv;
+      if (t && t.value === '_skip_') t.value = _tv;
+      if (ec) ec.style.display='none';
+      if (et) et.style.display='none';
+      return r;
+    };
+    var _oFetch = window.fetch;
+    window.fetch = function(url, opts) {
+      return _oFetch.apply(this, arguments).then(function(resp) {
+        resp.clone().json().then(function(data) {
+          if (data && (data.bloqueios !== undefined || data.pendencias !== undefined)) patchResultDisplay(data);
+        }).catch(function(){});
+        return resp;
+      });
+    };
+  });
+})();
 </script>
 </body>
 </html>
