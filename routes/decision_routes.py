@@ -184,12 +184,18 @@ def decision_run(episodio_id: str):
         session_user_id=session_user_id,
     )
 
-    # 7-8. Persistir
-    run_id = save_decision_run(episodio_id, payload, result)
-    result["_run_id"] = run_id
-
-    save_decision_result(episodio_id, result)
-    update_episodio_status(episodio_id, run_id, result)
+    # 7-8. Persistir (isolado — Sheets nunca retorna ERRO_INTERNO)
+    run_id = None
+    try:
+        run_id = save_decision_run(episodio_id, payload, result)
+        result["_run_id"] = run_id
+        save_decision_result(episodio_id, result)
+        update_episodio_status(episodio_id, run_id, result)
+    except Exception as _pe:
+        import traceback as _tb
+        logger.error("PERSISTENCE_FAIL episodio_id=%s error=%s\n%s", episodio_id, _pe, _tb.format_exc())
+        result["_run_id"] = run_id or "ERR_PERSIST"
+        result["_persistence_warning"] = f"{type(_pe).__name__}: {str(_pe)[:200]}"
 
     # 9. Tracker pós-decisão (nunca interrompe a resposta ao frontend)
     # 9. Pós-processamento assíncrono (feedback + insights — não bloqueia resposta)
@@ -360,12 +366,20 @@ def decision_submit():
         )
 
         # ── 7. Persistir run + atualizar episódio ───────────────────────────────────────────────
-        run_id = save_decision_run(episodio_id, payload_persist, result)
-        result["_run_id"]      = run_id
-        result["episodio_id"]  = episodio_id
-
-        save_decision_result(episodio_id, result)
-        update_episodio_status(episodio_id, run_id, result)
+        # ── 7. Persistir run (isolado — Sheets nunca bloqueia resposta) ───────────────
+        run_id = None
+        try:
+            run_id = save_decision_run(episodio_id, payload_persist, result)
+            result["_run_id"]     = run_id
+            result["episodio_id"] = episodio_id
+            save_decision_result(episodio_id, result)
+            update_episodio_status(episodio_id, run_id, result)
+        except Exception as _pe:
+            import traceback as _tb
+            logger.error("PERSISTENCE_FAIL episodio_id=%s error=%s\n%s", episodio_id, _pe, _tb.format_exc())
+            result["_run_id"]              = run_id or "ERR_PERSIST"
+            result["episodio_id"]          = episodio_id
+            result["_persistence_warning"] = f"{type(_pe).__name__}: {str(_pe)[:200]}"
 
         # ── 8. Tracker pós-decisão (nunca interrompe a resposta ao frontend) ──
         # ── 8. Pós-processamento assíncrono (feedback + insights — não bloqueia resposta) ──
