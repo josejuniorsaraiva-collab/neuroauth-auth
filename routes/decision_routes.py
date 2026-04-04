@@ -19,6 +19,7 @@ import json
 import logging
 import uuid
 import threading
+import os
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request, make_response
@@ -85,6 +86,29 @@ def _cors(response):
 
 
 @decision_bp.route("/<path:dummy>", methods=["OPTIONS"])
+
+# ─── API Key auth ────────────────────────────────────────────────────────────────────────────────────────
+
+_NEUROAUTH_KEY: str | None = os.getenv("NEUROAUTH_API_KEY")
+
+
+def _check_api_key():
+    """Valida X-Neuroauth-Key. Retorna None se OK; 401 se invalido."""
+    if not _NEUROAUTH_KEY:
+        return None  # chave nao configurada -> modo aberto (dev)
+    key = request.headers.get("X-Neuroauth-Key", "")
+    if key != _NEUROAUTH_KEY:
+        logger.warning(
+            "_check_api_key: chave invalida ip=%s prefix=%s",
+            request.remote_addr, (key[:6] if key else "(vazio)"),
+        )
+        return _cors(jsonify({
+            "decision_status": "ERRO_AUTORIZACAO",
+            "error_code":      "SYS_API_KEY_INVALID",
+            "erro":            "X-Neuroauth-Key ausente ou invalida.",
+        })), 401
+    return None
+
 def options_handler(dummy=""):
     """CORS preflight handler para todas as sub-rotas de /decision/."""
     return _cors(make_response("", 204))
@@ -142,7 +166,10 @@ def decision_run(episodio_id: str):
       200 — motor executou (resultado pode ser GO, NO_GO, etc.)
       404 — episódio não encontrado
     """
-    # 1. Carregar episódio
+    key_err = _check_api_key()
+    if key_err:
+        return key_err
+        # 1. Carregar episódio
     episodio = get_episodio(episodio_id)
     if episodio is None:
         return _cors(jsonify({"erro": f"episodio '{episodio_id}' nao encontrado"})), 404
@@ -245,7 +272,10 @@ def decision_submit():
 
     CORS habilitado para uso direto do browser.
     """
-    body = request.get_json(silent=True)
+    key_err = _check_api_key()
+    if key_err:
+        return key_err
+        body = request.get_json(silent=True)
     if not body:
         return _cors(jsonify({"erro": "payload JSON obrigatorio"})), 400
 
