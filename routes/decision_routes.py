@@ -176,6 +176,7 @@ def decision_run(episodio_id: str):
     }
 
     # 6. Chamar motor
+    print("INPUT:", payload)
     result = run_motor(
         raw_case=raw_case,
         proc_master_row=proc_master_row,
