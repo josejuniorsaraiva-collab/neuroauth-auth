@@ -188,7 +188,7 @@ def decision_run(episodio_id: str):
     }
 
     # 6. Chamar motor
-    print("INPUT:", payload)
+    logger.debug("decision_run: invoking motor for episodio_id=%s", episodio_id)
     result = run_motor(
         raw_case=raw_case,
         proc_master_row=proc_master_row,
@@ -221,6 +221,7 @@ def decision_run(episodio_id: str):
         result.get("confidence_global", 0.0),
     )
 
+    result["motor_version"] = "2.1.0"
     return _cors(jsonify(result)), 200
 
 
@@ -443,6 +444,7 @@ def decision_submit():
 
         # Bloco 3 — expõe precheck no payload de resposta (shadow mode)
         result["precheck"] = precheck.to_dict()
+        result["motor_version"] = "2.1.0"
 
         return _cors(jsonify(result)), 200
 
