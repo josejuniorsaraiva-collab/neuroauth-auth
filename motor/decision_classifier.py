@@ -47,4 +47,8 @@ def run_motor(raw_case: dict, proc_master_row: dict|None=None, convenio_row: dic
         validation = validate_case(canonical, extra_rules)
         return classify_case(validation)
     except Exception as e:
-        return {"decision_status":"NO_GO","go_class":"NO_GO","confidence_global":0.0,"can_send":False,"can_autofill":False,"resumo_operacional":f"Erro interno do motor: {e}","bloqueios":[{"codigo":"SYS002","campo":"motor","motivo":f"Excecao interna: {e}"}],"pendencias":[],"alertas":[],"campos_ok":[],"campos_inferidos":[],"autopreenchimentos":[],"proxima_acao_sugerida":"Reportar erro ao time tecnico com payload completo","engine_version":ENGINE_VERSION}
+        import traceback as _tb
+        import logging as _log
+        _log.getLogger("neuroauth.motor").exception("SYS002 EXCECAO INTERNA: %s", e)
+        print("SYS002 TRACEBACK:\n" + _tb.format_exc())
+        return {"decision_status":"NO_GO","go_class":"NO_GO","confidence_global":0.0,"can_send":False,"can_autofill":False,"resumo_operacional":f"Erro interno do motor: {type(e).__name__}: {e}","bloqueios":[{"codigo":"SYS002","campo":"motor","motivo":f"{type(e).__name__}: {e}"}],"pendencias":[],"alertas":[],"campos_ok":[],"campos_inferidos":[],"autopreenchimentos":[],"proxima_acao_sugerida":"Reportar erro ao time tecnico com payload completo","engine_version":ENGINE_VERSION}
