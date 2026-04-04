@@ -152,9 +152,21 @@ def decision_run(episodio_id: str):
     convenio_id     = episodio.get("convenio_id", "")
     session_user_id = episodio.get("usuario_id", "")
 
-    # 3-4. Buscar dados mestres
-    proc_master_row = get_proc_master_row(profile_id) if profile_id else None
-    convenio_row    = get_convenio_row(convenio_id)   if convenio_id else None
+    # 3-4. Buscar dados mestres (protegido — falha de Sheets não vira ERRO_INTERNO genérico)
+    try:
+        proc_master_row = get_proc_master_row(profile_id) if profile_id else None
+        convenio_row    = get_convenio_row(convenio_id)   if convenio_id else None
+    except Exception as _me:
+        import traceback as _tb2
+        _tb2_short = _tb2.format_exc()[-600:]
+        logger.error("MASTER_LOOKUP_FAIL epis=%s err=%s\n%s", episodio_id, _me, _tb2_short)
+        return _cors(jsonify({
+            "decision_status": "ERRO_INTERNO",
+            "error_code":      "SYS_MASTER_LOOKUP_FAIL",
+            "erro":            str(_me),
+            "erro_tipo":       type(_me).__name__,
+            "traceback_short": _tb2_short,
+        })), 500
 
     if proc_master_row is None:
         logger.warning(
@@ -435,10 +447,14 @@ def decision_submit():
         return _cors(jsonify(result)), 200
 
     except Exception as exc:  # noqa: BLE001
-        logger.exception("decision_submit: erro interno — %s", exc)
+        import traceback as _tb
+        _tb_short = _tb.format_exc()[-600:]
+        logger.exception("decision_submit: erro interno [SYS_ROUTE_UNHANDLED] — %s\n%s", exc, _tb_short)
         err_body = {
             "decision_status": "ERRO_INTERNO",
+            "error_code":      "SYS_ROUTE_UNHANDLED",
             "erro":            str(exc),
             "erro_tipo":       type(exc).__name__,
+            "traceback_short": _tb_short,
         }
         return _cors(jsonify(err_body)), 500
