@@ -3,681 +3,119 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NEUROAUTH — Solicitação Cirúrgica v2</title>
+  <title>NEUROAUTH â SolicitaÃ§Ã£o CirÃºrgica v2</title>
   <style>
     :root {
-      --bg: #f0f4f8;
-      --surface: #ffffff;
-      --border: #d1d9e0;
-      --accent: #1e3a8a;
-      --accent-hover: #172f6b;
-      --danger: #dc2626;
-      --warn: #d97706;
-      --success: #16a34a;
-      --text: #1a2332;
-      --muted: #6b7280;
-      --radius: 8px;
+      --bg: #f0f4f8; --surface: #ffffff; --border: #d1d9e0;
+      --accent: #1e3a8a; --accent-hover: #172f6b;
+      --danger: #dc2626; --warn: #d97706; --success: #16a34a;
+      --text: #1a2332; --muted: #6b7280; --radius: 8px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
            background: var(--bg); min-height: 100vh; padding: 24px 16px; color: var(--text); }
-    .card {
-      max-width: 580px; margin: 0 auto;
-      background: var(--surface); border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;
-    }
-    .card-header {
-      background: var(--accent); color: white; padding: 20px 24px;
-    }
+    .card { max-width: 580px; margin: 0 auto; background: var(--surface);
+            border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden; }
+    .card-header { background: var(--accent); color: white; padding: 20px 24px; }
     .card-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
-    .card-header p  { font-size: 12px; opacity: 0.75; margin-top: 4px; }
+    .card-header p { font-size: 12px; opacity: 0.75; margin-top: 4px; }
     .card-body { padding: 24px; }
-
     .field { margin-bottom: 16px; }
-    label { display: block; font-size: 13px; font-weight: 600;
-            margin-bottom: 5px; color: var(--text); }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--text); }
     label .req { color: var(--danger); margin-left: 2px; }
     label .hint { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 6px; }
-
-    input, select, textarea {
-      width: 100%; padding: 9px 12px; border-radius: var(--radius);
+    input, select, textarea { width: 100%; padding: 9px 12px; border-radius: var(--radius);
       border: 1px solid var(--border); font-size: 14px; color: var(--text);
-      background: #fff; transition: border-color 0.15s;
-    }
-    input:focus, select:focus, textarea:focus {
-      outline: none; border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(30,58,138,0.08);
-    }
+      background: #fff; transition: border-color 0.15s; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(30,58,138,0.08); }
     input.error, select.error { border-color: var(--danger); border-width: 2px; }
-
+    input[readonly] { background: #f8fafc; cursor: default; color: var(--muted); }
     .field-error { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
     .field-error.visible { display: block; }
-
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-    /* Lateralidade condicional — oculto por padrão */
     #lateralidade-group { display: none; }
     #lateralidade-group.required { display: block; }
-
-    /* Divisor de seção */
-    .section-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--muted);
-      margin: 20px 0 12px; padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    /* Botão */
-    .btn-submit {
-      width: 100%; padding: 13px; margin-top: 20px;
-      background: var(--accent); color: white; border: none;
-      border-radius: var(--radius); font-size: 15px; font-weight: 600;
-      cursor: pointer; transition: background 0.15s;
-    }
+    #niveis-row { display: none; }
+    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin: 20px 0 12px;
+      padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .btn-submit { width: 100%; padding: 13px; margin-top: 20px; background: var(--accent);
+      color: white; border: none; border-radius: var(--radius);
+      font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
     .btn-submit:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
-
-    /* Resultado */
-    #result-box {
-      display: none; margin-top: 16px; padding: 16px;
-      border-radius: var(--radius); border: 1px solid var(--border);
-    }
-    #result-box.go      { border-color: var(--success); background: #f0fdf4; }
-    #result-box.nogo    { border-color: var(--danger);  background: #fef2f2; }
-    #result-box.pending { border-color: var(--warn);    background: #fffbeb; }
-    #result-box.precheck{ border-color: var(--warn);    background: #fffbeb; }
-
+    #result-box { display: none; margin-top: 16px; padding: 16px;
+      border-radius: var(--radius); border: 1px solid var(--border); }
+    #result-box.go    { border-color: var(--success); background: #f0fdf4; }
+    #result-box.nogo  { border-color: var(--danger);  background: #fef2f2; }
+    #result-box.pending { border-color: var(--warn);  background: #fffbeb; }
+    #result-box.precheck{ border-color: var(--warn);  background: #fffbeb; }
     .result-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-    .result-title.go      { color: var(--success); }
-    .result-title.nogo    { color: var(--danger);  }
-    .result-title.pending { color: var(--warn);    }
-    .result-title.precheck{ color: var(--warn);    }
-
+    .result-title.go    { color: var(--success); }
+    .result-title.nogo  { color: var(--danger); }
+    .result-title.pending { color: var(--warn); }
+    .result-title.precheck{ color: var(--warn); }
     .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .tag {
-      font-size: 11px; font-weight: 600; padding: 3px 8px;
-      border-radius: 4px; letter-spacing: 0.03em;
-    }
-    .tag.block  { background: #fee2e2; color: var(--danger); }
-    .tag.pend   { background: #fef3c7; color: var(--warn); }
-    .tag.warn   { background: #dbeafe; color: #1d4ed8; }
-
+    .tag { font-size: 11px; font-weight: 600; padding: 3px 8px;
+           border-radius: 4px; letter-spacing: 0.03em; }
+    .tag.block { background: #fee2e2; color: var(--danger); }
+    .tag.pend  { background: #fef3c7; color: var(--warn); }
+    .tag.warn  { background: #dbeafe; color: #1d4ed8; }
     .result-meta { font-size: 11px; color: var(--muted); margin-top: 10px; }
-
-    /* Spinner */
     .spinner { display: inline-block; width: 14px; height: 14px; vertical-align: middle;
-               border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-               border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+      border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Bloco OPME */
     #opme-block { display: none; }
     .opme-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
     .opme-row input[type="text"]   { flex: 1; }
     .opme-row input[type="number"] { width: 80px; }
-    .opme-row .btn-rm {
-      padding: 6px 10px; background: #fee2e2; color: var(--danger);
-      border: 1px solid #fca5a5; border-radius: var(--radius); cursor: pointer;
-      font-size: 13px; line-height: 1;
-    }
+    .opme-row .btn-rm { padding: 6px 10px; background: #fee2e2; color: var(--danger);
+      border: 1px solid #fca5a5; border-radius: var(--radius); cursor: pointer; font-size: 13px; }
     .opme-row .btn-rm:hover { background: #fca5a5; }
-    .btn-add-opme {
-      margin-top: 4px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+    .btn-add-opme { margin-top: 4px; padding: 7px 14px; font-size: 13px; font-weight: 600;
       background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
-      border-radius: var(--radius); cursor: pointer;
-    }
+      border-radius: var(--radius); cursor: pointer; }
     .btn-add-opme:hover { background: #dbeafe; }
   </style>
 </head>
 <body>
-
 <div class="card">
   <div class="card-header">
-    <h1>NEUROAUTH — Solicitação Cirúrgica</h1>
-    <p>Motor de Decisão Clínica v2.0 · Validação automática</p>
+    <h1>NEUROAUTH â SolicitaÃ§Ã£o CirÃºrgica</h1>
+    <p>Motor de DecisÃ£o ClÃ­nica v2.1 Â· ValidaÃ§Ã£o automÃ¡tica</p>
   </div>
-
   <div class="card-body">
     <form id="form" novalidate>
 
-      <!-- ── PACIENTE ────────────────────────────────────────────────── -->
+      <!-- ââ PACIENTE ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ -->
       <div class="section-title">Paciente</div>
       <div class="field">
         <label>Nome do Paciente <span class="req">*</span></label>
         <input type="text" name="nome_paciente" id="nome_paciente" autocomplete="off">
-        <div class="field-error" id="err-nome">Campo obrigatório.</div>
+        <div class="field-error" id="err-nome">Campo obrigatÃ³rio.</div>
       </div>
 
-      <!-- ── SOLICITAÇÃO ────────────────────────────────────────────── -->
-      <div class="section-title">Solicitação</div>
+      <!-- ââ SOLICITAÃÃO âââââââââââââââââââââââââââââââââââââââââââââââââââââ -->
+      <div class="section-title">SolicitaÃ§Ã£o</div>
 
+      <!-- Procedimento â dropdown dinÃ¢mico carregado via /clinical/protocols -->
       <div class="field">
-        <label>Profile ID (Perfil do Procedimento) <span class="req">*</span>
-          <span class="hint">ex: ACDF_1_NIVEL · MICRODISCECTOMIA_LOMBAR</span>
-        </label>
-        <input type="text" name="profile_id" id="profile_id" autocomplete="off">
-        <div class="field-error" id="err-profile">Campo obrigatório.</div>
-      </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label>Código TUSS <span class="hint">(opcional)</span></label>
-          <input type="text" name="codigo_tuss" id="codigo_tuss" placeholder="ex: 40808505">
-          <div class="field-error" id="err-tuss">Campo obrigatório.</div>
-        </div>
-        <div class="field">
-          <label>CID Principal <span class="hint">(sugestão automática)</span></label>
-          <input type="text" name="cid_principal" id="cid_principal" placeholder="ex: M50.1">
-          <div class="field-error" id="err-cid">Campo obrigatório.</div>
-        </div>
-      </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label>Caráter do Atendimento <span class="req">*</span></label>
-          <!-- Preenchido via /decision/config — fonte única de verdade -->
-          <select name="carater_cod" id="carater_cod">
-            <option value="">Carregando…</option>
-          </select>
-          <div class="field-error" id="err-carater">Selecione o caráter.</div>
-        </div>
-        <div class="field">
-          <label>Convênio <span class="req">*</span></label>
-          <input type="text" name="convenio_id" id="convenio_id" placeholder="ex: UNIMED_CARIRI">
-          <div class="field-error" id="err-convenio">Campo obrigatório.</div>
-        </div>
-      </div>
-
-      <!-- Lateralidade — só aparece quando o perfil exige -->
-      <div class="field" id="lateralidade-group">
-        <label>Lateralidade <span class="req">*</span>
-          <span class="hint">Este procedimento exige indicação do lado operado</span>
-        </label>
-        <select name="lateralidade" id="lateralidade">
-          <option value="">Selecione o lado…</option>
+        <label>Procedimento <span class="req">*</span></label>
+        <select name="profile_id" id="profile_id">
+          <option value="">Carregando procedimentosâ¦</option>
         </select>
-        <div class="field-error" id="err-lateralidade">Selecione a lateralidade.</div>
+        <div class="field-error" id="err-profile">Selecione o procedimento.</div>
       </div>
 
       <div class="row-2">
-        <div class="field">
-          <label>Número de Níveis <span class="hint">obrigatório para multinível</span></label>
-          <input type="number" name="niveis" id="niveis" min="1" max="10" placeholder="1">
-        </div>
-        <div class="field">
-          <label>Hospital</label>
-          <input type="text" name="hospital" id="hospital" placeholder="ex: HSJ">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Indicação Clínica</label>
-        <textarea name="indicacao_clinica" id="indicacao_clinica" rows="3"
-                  placeholder="Descreva a indicação clínica…"></textarea>
-      </div>
-
-      <!-- OPME — só aparece quando o perfil exige (permite_opme=TRUE) -->
-      <div class="field" id="opme-block">
-        <label>Materiais / OPME <span class="req">*</span>
-          <span class="hint">Este procedimento exige declaração de materiais</span>
-        </label>
-        <div id="opme-list"></div>
-        <button type="button" class="btn-add-opme" onclick="addOpmeItem()">+ Adicionar material</button>
-        <div class="field-error" id="err-opme">Adicione ao menos um material com descrição.</div>
-      </div>
-
-      <button class="btn-submit" type="submit" id="btn-submit">
-        Enviar para Motor de Decisão →
-      </button>
-
-    </form>
-
-    <!-- ── RESULTADO ─────────────────────────────────────────────────── -->
-    <div id="result-box">
-      <div class="result-title" id="res-title">—</div>
-      <div id="res-motivos" class="tag-list"></div>
-      <div class="result-meta" id="res-meta"></div>
-    </div>
-
-  </div><!-- /.card-body -->
-</div>
-
-<script>
-"use strict";
-const API = "https://neuroauth-auth.onrender.com";
-
-// ── Config vinda do backend (única fonte de verdade) ──────────────────────
-let CONFIG = {
-  valid_carater_values: [],
-  profiles_requiring_laterality: [],
-  valid_laterality_values: [],
-  profiles_requiring_opme: [],
-};
-
-async function loadConfig() {
-  try {
-    const r = await fetch(API + "/decision/config", { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error("status " + r.status);
-    CONFIG = await r.json();
-  } catch (e) {
-    // Fallback conservador — espelha VALID_CARATER_VALUES do backend
-    CONFIG = {
-      valid_carater_values: ["ELETIVO", "ELE", "URGENTE", "URGENCIA", "URG"],
-      profiles_requiring_laterality: ["MICRODISCECTOMIA_LOMBAR", "HERNIA_DISCAL_LOMBAR", "HERNIA_DISCAL_CERVICAL"],
-      valid_laterality_values: ["DIREITA", "ESQUERDA", "BILATERAL"],
-      profiles_requiring_opme: ["ACDF_1_NIVEL", "ACDF_2_NIVEIS", "MICRODISCECTOMIA_LOMBAR",
-                                 "TUMOR_CEREBRAL_RESECCAO", "PROF_ACDF_01"],
-    };
-    console.warn("NEUROAUTH: /decision/config falhou — usando fallback", e.message);
-  }
-  populateCarater();
-  populateLateralidade();
-}
-
-// ── OPME — estado e funções ───────────────────────────────────────────────
-let opmeItems = [];
-
-function profileRequiresOpme(profileId) {
-  return (CONFIG.profiles_requiring_opme || []).includes((profileId || "").trim().toUpperCase());
-}
-
-function updateOpmeVisibility(profileId) {
-  const block  = document.getElementById("opme-block");
-  const errEl  = document.getElementById("err-opme");
-  const needs  = profileRequiresOpme(profileId);
-
-  block.style.display = needs ? "block" : "none";
-
-  if (needs && opmeItems.length === 0) {
-    opmeItems = [{ descricao: "", quantidade: 1 }];
-    renderOpmeList();
-  }
-  if (!needs) {
-    opmeItems = [];
-    document.getElementById("opme-list").innerHTML = "";
-    errEl.classList.remove("visible");
-    block.querySelector(".btn-add-opme") && block.querySelector("input") &&
-      block.querySelectorAll("input").forEach(el => el.classList.remove("error"));
-  }
-}
-
-function addOpmeItem() {
-  opmeItems.push({ descricao: "", quantidade: 1 });
-  renderOpmeList();
-}
-
-function removeOpmeItem(idx) {
-  opmeItems.splice(idx, 1);
-  renderOpmeList();
-}
-
-function renderOpmeList() {
-  const container = document.getElementById("opme-list");
-  container.innerHTML = opmeItems.map((item, idx) => `
-    <div class="opme-row">
-      <input type="text"
-             placeholder="Descrição do material (ex: Cage PEEK 0° 7x14mm)"
-             value="${(item.descricao || "").replace(/"/g, "&quot;")}"
-             oninput="opmeItems[${idx}].descricao=this.value"
-             autocomplete="off">
-      <input type="number" min="1" max="99"
-             value="${item.quantidade || 1}"
-             oninput="opmeItems[${idx}].quantidade=parseInt(this.value)||1">
-      <button type="button" class="btn-rm" onclick="removeOpmeItem(${idx})">✕</button>
-    </div>
-  `).join("");
-}
-
-function populateCarater() {
-  const sel = document.getElementById("carater_cod");
-  sel.innerHTML = '<option value="">Selecione o caráter…</option>';
-  CONFIG.valid_carater_values.forEach(v => {
-    const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = v;
-    sel.appendChild(opt);
-  });
-}
-
-function populateLateralidade() {
-  const sel = document.getElementById("lateralidade");
-  sel.innerHTML = '<option value="">Selecione o lado…</option>';
-  CONFIG.valid_laterality_values.forEach(v => {
-    const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = v;
-    sel.appendChild(opt);
-  });
-}
-
-// ── Lateralidade + OPME condicional (evento unificado) ───────────────────
-document.getElementById("profile_id").addEventListener("input", function() {
-  const pid = this.value.trim().toUpperCase();
-  // Lateralidade
-  const group = document.getElementById("lateralidade-group");
-  const requiresLat = CONFIG.profiles_requiring_laterality.includes(pid);
-  group.classList.toggle("required", requiresLat);
-  if (!requiresLat) document.getElementById("lateralidade").value = "";
-  // OPME
-  updateOpmeVisibility(pid);
-});
-
-// ── Validação client-side ─────────────────────────────────────────────────
-function validate() {
-  let ok = true;
-  const checks = [
-    ["nome_paciente",  "err-nome",       v => v.trim().length > 0],
-    ["profile_id",     "err-profile",    v => v.trim().length > 0],
-    ["codigo_tuss",    "err-tuss",       v => v.trim().length > 0],
-    ["cid_principal",  "err-cid",        v => v.trim().length > 0],
-    ["carater_cod",    "err-carater",    v => v !== ""],
-    ["convenio_id",    "err-convenio",   v => v.trim().length > 0],
-  ];
-  checks.forEach(([fieldId, errId, fn]) => {
-    const el  = document.getElementById(fieldId);
-    const err = document.getElementById(errId);
-    const val = el.value;
-    const pass = fn(val);
-    el.classList.toggle("error", !pass);
-    err.classList.toggle("visible", !pass);
-    if (!pass) ok = false;
-  });
-  // Lateralidade condicional
-  const latGroup = document.getElementById("lateralidade-group");
-  if (latGroup.classList.contains("required")) {
-    const latEl  = document.getElementById("lateralidade");
-    const latErr = document.getElementById("err-lateralidade");
-    const pass   = latEl.value !== "";
-    latEl.classList.toggle("error", !pass);
-    latErr.classList.toggle("visible", !pass);
-    if (!pass) ok = false;
-  }
-  // OPME condicional — validação separada (é div, não input)
-  const f2 = id => document.getElementById(id).value.trim();
-  if (profileRequiresOpme(f2("profile_id"))) {
-    const errOpme = document.getElementById("err-opme");
-    const passOpme = opmeItems.length > 0 && opmeItems.every(i => (i.descricao || "").trim().length > 0);
-    errOpme.classList.toggle("visible", !passOpme);
-    if (!passOpme) ok = false;
-  }
-  return ok;
-}
-
-// ── Trava de submit duplo — protege contra Enter + clique rápido ─────────
-let _submitting = false;
-
-// ── Submit ────────────────────────────────────────────────────────────────
-document.getElementById("form").addEventListener("submit", async function(e) {
-  e.preventDefault();
-  if (_submitting) return;            // trava: Enter ou clique duplo ignorados
-  if (!validate()) return;
-
-  _submitting = true;
-  const btn = document.getElementById("btn-submit");
-  btn.innerHTML = '<span class="spinner"></span>Processando…';
-  btn.disabled = true;
-  document.getElementById("result-box").style.display = "none";
-
-  const f = id => document.getElementById(id).value.trim();
-  const payload = {
-    nome_paciente:     f("nome_paciente"),
-    profile_id:        f("profile_id").toUpperCase(),
-    codigo_tuss:       f("codigo_tuss"),
-    cid_principal:     f("cid_principal"),
-    carater_cod:       f("carater_cod"),
-    convenio_id:       f("convenio_id"),
-    lateralidade:        f("lateralidade") || undefined,
-    niveis:              f("niveis") || undefined,
-    hospital:            f("hospital") || undefined,
-    indicacao_clinica:   f("indicacao_clinica") || undefined,
-    opmes_selecionados:  opmeItems.length > 0 ? opmeItems : undefined,
-    // Rastreabilidade de origem — identificação automática da versão do form
-    form_version:        "v2",
-    source:              "frontend_v2",
-  };
-  // Limpar undefined
-  Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
-
-  try {
-    const r = await fetch(API + "/decision/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(20000),
-    });
-    const data = await r.json();
-    showResult(data);
-  } catch (err) {
-    // Timeout → mensagem específica; outros erros → mensagem genérica
-    const msg = err.name === "TimeoutError" || err.name === "AbortError"
-      ? "Instabilidade de conexão. Verifique a rede e tente novamente."
-      : "Erro de comunicação: " + err.message;
-    showError(msg);
-  } finally {
-    // Sempre libera o botão — mesmo em exceção não antecipada
-    btn.innerHTML = "Enviar para Motor de Decisão →";
-    btn.disabled = false;
-    _submitting = false;
-  }
-});
-
-// ── Renderizar resultado ──────────────────────────────────────────────────
-function showResult(data) {
-  const box    = document.getElementById("result-box");
-  const title  = document.getElementById("res-title");
-  const tags   = document.getElementById("res-motivos");
-  const meta   = document.getElementById("res-meta");
-
-  const status = data.decision_status || "ERRO";
-  const pcheck = data.precheck || {};
-
-  // Detecta se foi bloqueio de precheck (sem episodio_id)
-  const isPrecheck = !!(pcheck.blocking_issues && pcheck.blocking_issues.length &&
-                        data.motivos && !data.episodio_id);
-
-  let cls, label;
-  if (isPrecheck) {
-    cls = "precheck"; label = "⚠ Precheck — Corrija antes de enviar";
-  } else if (status === "GO" || status === "GO_COM_RESSALVAS") {
-    cls = "go";      label = status === "GO" ? "✓ GO — Envio liberado" : "✓ GO com ressalvas";
-  } else if (status === "NO_GO") {
-    cls = "nogo";    label = "✗ NO-GO — Envio bloqueado";
-  } else if (status === "PENDENCIA_OBRIGATORIA") {
-    cls = "pending"; label = "⚠ Pendência — Campos obrigatórios ausentes";
-  } else {
-    cls = "nogo";    label = "Erro — " + status;
-  }
-
-  box.className = "";
-  box.classList.add(cls);
-  title.className = "result-title " + cls;
-  title.textContent = label;
-  tags.innerHTML = "";
-
-  // Motivos do precheck (bloqueio antecipado)
-  const motivos = data.motivos || pcheck.blocking_issues || [];
-  motivos.forEach(m => {
-    const t = document.createElement("span");
-    t.className = "tag block";
-    t.textContent = m.split(":")[0];
-    tags.appendChild(t);
-  });
-
-  // Warnings do precheck
-  (pcheck.warnings || []).forEach(w => {
-    const t = document.createElement("span");
-    t.className = "tag warn";
-    t.textContent = w.split(":")[0];
-    tags.appendChild(t);
-  });
-
-  // Bloqueios do motor
-  (data.bloqueios || []).forEach(b => {
-    const t = document.createElement("span");
-    t.className = "tag block";
-    t.textContent = b.codigo || b.regra || JSON.stringify(b);
-    tags.appendChild(t);
-  });
-
-  // Pendências do motor
-  (data.pendencias || []).forEach(p => {
-    const t = document.createElement("span");
-    t.className = "tag pend";
-    t.textContent = p.codigo || p.campo || JSON.stringify(p);
-    tags.appendChild(t);
-  });
-
-  const epId  = data.episodio_id || "—";
-  const runId = data._run_id      || "—";
-  meta.textContent = `Episódio: ${epId} · Run: ${runId} · Rigor: ${pcheck.rigor_level || "—"}`;
-
-  box.style.display = "block";
-}
-
-function showError(msg) {
-  const box = document.getElementById("result-box");
-  box.className = "nogo";
-  box.style.display = "block";
-  document.getElementById("res-title").className = "result-title nogo";
-  document.getElementById("res-title").textContent = "✗ " + msg;
-  document.getElementById("res-motivos").innerHTML = "";
-  document.getElementById("res-meta").textContent = "";
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────
-loadConfig();
-</script>
-
-<script>
-/* NEUROAUTH v3 — Interface Clínica */
-(function() {
-  var CID_RULES = [
-    {terms:['mielopatia cervical','mielopatia','espondilose cervical','hernia cervical','hérnia cervical'], cid:'M50.1', label:'M50.1 — Mielopatia/hérnia cervical'},
-    {terms:['hernia lombar','hérnia lombar','espondilose lombar','microdiscectomia'], cid:'M51.1', label:'M51.1 — Hérnia disco lombar'},
-    {terms:['tumor cerebral','neoplasia cerebral','glioma','meningioma','craniotomia'], cid:'C71.9', label:'C71.9 — Tumor cerebral'},
-    {terms:['metástase cerebral','metastase cerebral','metástase cerebelar'], cid:'C79.3', label:'C79.3 — Metástase cerebral'},
-    {terms:['radiculopatia cervical','cervicobraquialgia'], cid:'M54.2', label:'M54.2 — Cervicalgia radicular'},
-    {terms:['estenose lombar','estenose do canal'], cid:'M48.0', label:'M48.0 — Estenose canal lombar'}
-  ];
-  function suggestCid(text) {
-    var t = text.toLowerCase();
-    for (var i=0;i<CID_RULES.length;i++) {
-      var r = CID_RULES[i];
-      for (var j=0;j<r.terms.length;j++) { if (t.indexOf(r.terms[j])>-1) return r; }
-    }
-    return null;
-  }
-  function suggestNiveis(text) {
-    var t = text.toLowerCase();
-    var m = t.match(/(\d+)\s*n[\u00ed]ve[il]s?/);
-    if (m) return parseInt(m[1]);
-    if (t.indexOf('c5')>-1 && t.indexOf('c6')>-1 && t.indexOf('c7')>-1) return 3;
-    if ((t.indexOf('c5')>-1&&t.indexOf('c6')>-1)||(t.indexOf('c6')>-1&&t.indexOf('c7')>-1)||(t.indexOf('l4')>-1&&t.indexOf('l5')>-1)||(t.indexOf('l5')>-1&&t.indexOf('s1')>-1)) return 2;
-    return null;
-  }
-  function patchResultDisplay(data) {
-    var box = document.getElementById('res-motivos');
-    if (!box) return;
-    box.innerHTML = '';
-    var bl = data.bloqueios || [];
-    var pe = data.pendencias || [];
-    if (!bl.length && !pe.length) {
-      box.innerHTML = '<span style="color:#27ae60;font-weight:600;">✓ Sem bloqueios</span>';
-      return;
-    }
-    bl.forEach(function(b) {
-      var d = document.createElement('div');
-      d.style.cssText = 'background:#fdecea;border-left:3px solid #e74c3c;padding:6px 10px;margin:3px 0;border-radius:3px;font-size:13px;';
-      d.innerHTML = '<span style="background:#e74c3c;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;margin-right:6px;">'+(b.codigo||'')+'</span><strong>BLOQUEIO:</strong> '+(b.motivo||'');
-      box.appendChild(d);
-    });
-    pe.forEach(function(p) {
-      var d = document.createElement('div');
-      d.style.cssText = 'background:#fff8e1;border-left:3px solid #f39c12;padding:6px 10px;margin:3px 0;border-radius:3px;font-size:13px;';
-      d.innerHTML = '<span style="background:#f39c12;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;margin-right:6px;">'+(p.codigo||'')+'</span><strong>PENDÊNCIA:</strong> '+(p.motivo||'');
-      box.appendChild(d);
-    });
-  }
-  document.addEventListener('DOMContentLoaded', function() {
-    var indicacao = document.getElementById('indicacao_clinica');
-    var cidField = document.getElementById('cid_principal');
-    var niveisField = document.getElementById('niveis');
-    var cidHint = document.createElement('div');
-    cidHint.id='cid-sug';
-    cidHint.style.cssText='background:#e8f4fd;border:1px solid #2196F3;border-radius:4px;padding:5px 9px;margin-top:3px;cursor:pointer;font-size:12px;display:none;';
-    if (cidField && cidField.parentNode) cidField.parentNode.appendChild(cidHint);
-    var niveisHint = document.createElement('div');
-    niveisHint.id='niveis-sug';
-    niveisHint.style.cssText='background:#e8f4fd;border:1px solid #2196F3;border-radius:4px;padding:5px 9px;margin-top:3px;cursor:pointer;font-size:12px;display:none;';
-    if (niveisField && niveisField.parentNode) niveisField.parentNode.appendChild(niveisHint);
-    var niveisGuard = document.createElement('div');
-    niveisGuard.id='err-niveis-guard';
-    niveisGuard.style.cssText='color:#c0392b;font-size:13px;margin-top:4px;display:none;';
-    niveisGuard.textContent='⚠ Perfil multinível: preencha o número de níveis.';
-    if (niveisField && niveisField.parentNode) niveisField.parentNode.appendChild(niveisGuard);
-    if (indicacao) {
-      indicacao.addEventListener('input', function() {
-        var txt = this.value;
-        var cs = suggestCid(txt);
-        if (cs && cidField && !cidField.value) {
-          cidHint.textContent = '💡 CID: '+cs.label+' — clique para usar';
-          cidHint.style.display='block';
-          cidHint.onclick=function(){cidField.value=cs.cid;cidHint.style.display='none';};
-        } else { cidHint.style.display='none'; }
-        var ns = suggestNiveis(txt);
-        if (ns && niveisField && !niveisField.value) {
-          niveisHint.textContent='💡 Níveis: '+ns+' — clique para usar';
-          niveisHint.style.display='block';
-          niveisHint.onclick=function(){niveisField.value=ns;niveisHint.style.display='none';};
-        } else { niveisHint.style.display='none'; }
-      });
-    }
-    var form = document.getElementById('surgical-form') || document.querySelector('form');
-    if (form) {
-      form.addEventListener('submit', function(e) {
-        var pid = (document.getElementById('profile_id')||{value:''}).value.toUpperCase();
-        var isML = pid.indexOf('2_NIVEIS')>-1||pid.indexOf('3_NIVEIS')>-1||pid.indexOf('MULTINIVEL')>-1;
-        if (isML && niveisField && !niveisField.value) {
-          e.preventDefault(); e.stopPropagation();
-          niveisGuard.style.display='block';
-          if (niveisField) niveisField.focus();
-          return false;
-        }
-        niveisGuard.style.display='none';
-      }, true);
-    }
-    var errCid = document.getElementById('err-cid');
-    var errTuss = document.getElementById('err-tuss');
-    if (errCid) errCid.style.display='none';
-    if (errTuss) errTuss.style.display='none';
-    var _origValidate = window.validate;
-    window.validate = function() {
-      var c = document.getElementById('cid_principal');
-      var t = document.getElementById('codigo_tuss');
-      var ec = document.getElementById('err-cid');
-      var et = document.getElementById('err-tuss');
-      var _cv = c ? c.value : '';
-      var _tv = t ? t.value : '';
-      if (c) c.value = c.value || '_skip_';
-      if (t) t.value = t.value || '_skip_';
-      var r = _origValidate ? _origValidate.apply(this, arguments) : true;
-      if (c && c.value === '_skip_') c.value = _cv;
-      if (t && t.value === '_skip_') t.value = _tv;
-      if (ec) ec.style.display='none';
-      if (et) et.style.display='none';
-      return r;
-    };
-    var _oFetch = window.fetch;
-    window.fetch = function(url, opts) {
-      return _oFetch.apply(this, arguments).then(function(resp) {
-        resp.clone().json().then(function(data) {
-          if (data && (data.bloqueios !== undefined || data.pendencias !== undefined)) patchResultDisplay(data);
-        }).catch(function(){});
-        return resp;
-      });
-    };
-  });
-})();
-</script>
-</body>
-</html>
+        <div clasÒ&fVÆB#à¢ÆÆ&VÃä<;6FvòEU52Ç7â6Æ73Ò'&W#â£Â÷7ãà¢Ç7â6Æ73Ò&çB#ç&VVæ6FòWFöÖF6ÖVçFSÂ÷7ãà¢ÂöÆ&VÃà¢ÆçWBGSÒ'FWB"æÖSÒ&6öFvõ÷GW72"CÒ&6öFvõ÷GW72"&VFöæÇ¢Æ6VöÆFW#Ò%6VÆV6öæRò&ö6VFÖVçFò6Ö#à¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"×GW72#å6VÆV6öæRVÒ&ö6VFÖVçFòl:ÆFòãÂöFcà¢ÂöFcà¢ÆFb6Æ73Ò&fVÆB#à¢ÆÆ&VÃä4B&æ6ÂÇ7â6Æ73Ò'&W#â£Â÷7ããÂöÆ&VÃà¢ÆçWBGSÒ'FWB"æÖSÒ&6E÷&æ6Â"CÒ&6E÷&æ6Â"Æ6VöÆFW#Ò&W¢ÓSã#à¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"Ö6B#ä6×òö'&vL;7&òãÂöFcà¢ÂöFcà¢ÂöFcà ¢ÆFb6Æ73Ò'&÷rÓ"#à¢ÆFb6Æ73Ò&fVÆB#à¢ÆÆ&VÃä6,:FW"FòFVæFÖVçFòÇ7â6Æ73Ò'&W#â£Â÷7ããÂöÆ&VÃà¢Ç6VÆV7BæÖSÒ&6&FW%ö6öB"CÒ&6&FW%ö6öB#à¢Æ÷FöâfÇVSÒ"#ä6'&VvæFþ(
+cÂö÷Föãà¢Â÷6VÆV7Cà¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"Ö6&FW"#å6VÆV6öæRò6,:FW"ãÂöFcà¢ÂöFcà¢ÆFb6Æ73Ò&fVÆB#à¢ÆÆ&VÃä6öçl:¦æòÇ7â6Æ73Ò'&W#â£Â÷7ããÂöÆ&VÃà¢ÆçWBGSÒ'FWB"æÖSÒ&6öçfVæõöB"CÒ&6öçfVæõöB ¢Æ6VöÆFW#Ò&W¢TäÔTEô4$$#à¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"Ö6öçfVæò#ä6×òö'&vL;7&òãÂöFcà¢ÂöFcà¢ÂöFcà ¢ÂÒÒÆFW&ÆFFR(	B<;2&V6RVæFòò&ö6VFÖVçFòWvRÒÓà¢ÆFb6Æ73Ò&fVÆB"CÒ&ÆFW&ÆFFRÖw&÷W#à¢ÆÆ&VÃäÆFW&ÆFFRÇ7â6Æ73Ò'&W#â£Â÷7ãà¢Ç7â6Æ73Ò&çB#äW7FR&ö6VFÖVçFòWvRæF6:|:6òFòÆFò÷W&FóÂ÷7ãà¢ÂöÆ&VÃà¢Ç6VÆV7BæÖSÒ&ÆFW&ÆFFR"CÒ&ÆFW&ÆFFR#à¢Æ÷FöâfÇVSÒ"#å6VÆV6öæRòÆFþ(
+cÂö÷Föãà¢Â÷6VÆV7Cà¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"ÖÆFW&ÆFFR#å6VÆV6öæRÆFW&ÆFFRãÂöFcà¢ÂöFcà ¢ÂÒÒì:×fV2(	B<;2&V6RVæFòò&ö6VFÖVçFòWvRÒÓà¢ÆFb6Æ73Ò'&÷rÓ""CÒ&æfV2×&÷r#à¢ÆFb6Æ73Ò&fVÆB#à¢ÆÆ&VÃåFBâì:×fV2Ç7â6Æ73Ò'&W#â£Â÷7ãà¢Ç7â6Æ73Ò&çB#æö'&vL;7&ò&W7FR&ö6VFÖVçFóÂ÷7ãà¢ÂöÆ&VÃà¢ÆçWBGSÒ&çVÖ&W""æÖSÒ&æfV2"CÒ&æfV2"ÖãÒ#"ÖÒ#"Æ6VöÆFW#Ò&W¢"#à¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"ÖæfV2#ä6×òö'&vL;7&ò&W7FR&ö6VFÖVçFòãÂöFcà¢ÂöFcà¢ÆFb6Æ73Ò&fVÆB#à¢ÆÆ&VÃä÷7FÃÂöÆ&VÃà¢ÆçWBGSÒ'FWB"æÖSÒ&÷7FÂ"CÒ&÷7FÂ"Æ6VöÆFW#Ò&W¢4¢#à¢ÂöFcà¢ÂöFcà ¢ÂÒÒ÷7FÂ(	BÆææ÷&ÖÂVæFòæfV2ì:6ò&V6RÒÓà¢ÆFb6Æ73Ò&fVÆB"CÒ&÷7FÂ×7FæFÆöæR#à¢ÆÆ&VÃä÷7FÃÂöÆ&VÃà¢ÆçWBGSÒ'FWB"æÖSÒ&÷7FÂ"CÒ&÷7FÃ""Æ6VöÆFW#Ò&W¢4¢#à¢ÂöFcà ¢ÆFb6Æ73Ò&fVÆB#à¢ÆÆ&VÃäæF6:|:6ò6Ì:Öæ6ÂöÆ&VÃà¢ÇFWF&VæÖSÒ&æF66õö6Ææ6"CÒ&æF66õö6Ææ6"&÷w3Ò#2 ¢Æ6VöÆFW#Ò$FW67&WfæF6:|:6ò6Ì:Öæ6(
+b#ãÂ÷FWF&Và¢ÂöFcà ¢ÂÒÒõÔR(	B<;2&V6RVæFòò&ö6VFÖVçFòWvRÒÓà¢ÆFb6Æ73Ò&fVÆB"CÒ&÷ÖRÖ&Æö6²#à¢ÆÆ&VÃäÖFW&2òõÔRÇ7â6Æ73Ò'&W#â£Â÷7ãà¢Ç7â6Æ73Ò&çB#äW7FR&ö6VFÖVçFòWvRFV6Æ&:|:6òFRÖFW&3Â÷7ãà¢ÂöÆ&VÃà¢ÆFbCÒ&÷ÖRÖÆ7B#ãÂöFcà¢Æ'WGFöâGSÒ&'WGFöâ"6Æ73Ò&'FâÖFBÖ÷ÖR"öæ6Æ6³Ò&FD÷ÖTFVÒ#â²F6öæ"ÖFW&ÃÂö'WGFöãà¢ÆFb6Æ73Ò&fVÆBÖW'&÷""CÒ&W'"Ö÷ÖR#äF6öæRòÖVæ÷2VÒÖFW&Â6öÒFW67&:|:6òãÂöFcà¢ÂöFcà ¢Æ'WGFöâ6Æ73Ò&'Fâ×7V&ÖB"GSÒ'7V&ÖB"CÒ&'Fâ×7V&ÖB#à¢Vçf"&Ö÷F÷"FRFV6<:6ò(i ¢Âö'WGFöãà¢Âöf÷&Óà ¢ÂÒÒ)H)H$U5TÅDDò)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)HÒÓà¢ÆFbCÒ'&W7VÇBÖ&÷#à¢ÆFb6Æ73Ò'&W7VÇB×FFÆR"CÒ'&W2×FFÆR#î(	CÂöFcà¢ÆFbCÒ'&W2ÖÖ÷Ff÷2"6Æ73Ò'FrÖÆ7B#ãÂöFcà¢ÆFb6Æ73Ò'&W7VÇBÖÖWF"CÒ'&W2ÖÖWF#ãÂöFcà¢ÂöFcà¢ÂöFcãÂÒÒòæ6&BÖ&öGÒÓà£ÂöFcà £Ç67&Cà¢'W6R7G&7B#°¦6öç7BÒ&GG3¢òöæWW&öWFÖWFæöç&VæFW"æ6öÒ#° ¢òò)H)H6öæfrfæFFò&6¶VæB)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦ÆWB4ôädrÒ°¢fÆEö6&FW%÷fÇVW3¢µÒÀ¢&öfÆW5÷&WV&æuöÆFW&ÆG¢µÒÀ¢fÆEöÆFW&ÆG÷fÇVW3¢µÒÀ¢&öfÆW5÷&WV&æuö÷ÖS¢µÒÀ§Ó° ¢òò)H)HõÔR(	BW7FFò)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦ÆWB÷ÖTFV×2ÒµÓ° ¢òò)H)HÆöD6öæfr)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦7æ2gVæ7FöâÆöD6öæfr°¢G'°¢6öç7B"ÒvBfWF6²"öFV66öâö6öæfr"Â²6væÃ¢&÷'E6væÂçFÖV÷WBÒ°¢b"æö²F&÷ræWrW'&÷"'7FGW2"²"ç7FGW2°¢4ôädrÒvB"æ§6öâ°¢Ò6F6R°¢4ôädrÒ°¢fÆEö6&FW%÷fÇVW3¢²$TÄUDdò"Â$TÄR"Â%U$tTåDR"Â%U$tTä4"Â%U$r%ÒÀ¢&öfÆW5÷&WV&æuöÆFW&ÆG¢²$Ô5$ôD44T5DôÔôÄôÔ$""Â$U$äôD44ÅôÄôÔ$""Â$U$äôD44Åô4U%d4Â%ÒÀ¢fÆEöÆFW&ÆG÷fÇVW3¢²$D$TD"Â$U5TU$D"Â$$ÄDU$Â%ÒÀ¢&öfÆW5÷&WV&æuö÷ÖS¢µÒÀ¢Ó°¢6öç6öÆRçv&â$äUU$ôUD¢öFV66öâö6öæfrfÆ÷R(	BW6æFòfÆÆ&6²"ÂRæÖW76vR°¢Ð¢÷VÆFT6&FW"°¢÷VÆFTÆFW&ÆFFR°§Ð ¢òò)H)HÆöE&ö6VFÖVçF÷2(	B6'&VvFò&6¶VæBö6Ææ6Â÷&÷Fö6öÇ2)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦7æ2gVæ7FöâÆöE&ö6VFÖVçF÷2°¢6öç7B6VÂÒFö7VÖVçBævWDVÆVÖVçD'B'&öfÆUöB"°¢G'°¢6öç7B"ÒvBfWF6²"ö6Ææ6Â÷&÷Fö6öÇ2"Â²6væÃ¢&÷'E6væÂçFÖV÷WBÒ°¢b"æö²F&÷ræWrW'&÷"'7FGW2"²"ç7FGW2°¢6öç7BFFÒvB"æ§6öâ°¢6VÂæææW$DÔÂÒsÆ÷FöâfÇVSÒ"#å6VÆV6öæRò&ö6VFÖVçFþ(
+cÂö÷Föãâs°¢FFç&ö6VGW&W2æf÷$V6Óâ°¢6öç7B÷BÒFö7VÖVçBæ7&VFTVÆVÖVçB&÷Föâ"°¢÷BçfÇVRÒæC°¢÷BçFWD6öçFVçBÒæÆ&VÃ°¢÷BæFF6WBçGW72ÒçGW75öçBÇÂ"#°¢÷BæFF6WBç&WV&W4æfV2Òç&WV&W5öæfV2ò'G'VR"¢&fÇ6R#°¢÷BæFF6WBç&WV&W4ÆFW&ÂÒç&WV&W5öÆFW&ÆFFRò'G'VR"¢&fÇ6R#°¢÷BæFF6WBç&WV&W4÷ÖRÒç&WV&W5ö÷ÖRò'G'VR"¢&fÇ6R#°¢6VÂæVæD6ÆB÷B°¢Ò°¢Ò6F6R°¢6öç6öÆRçv&â$äUU$ôUD¢ö6Ææ6Â÷&÷Fö6öÇ2fÆ÷R(	BW6æFòfÆÆ&6²W7L:F6ò"ÂRæÖW76vR°¢6VÂæææW$DÔÂÒ ¢Æ÷FöâfÇVSÒ"#å6VÆV6öæRò&ö6VFÖVçFþ(
+cÂö÷Föãà¢Æ÷FöâfÇVSÒ$Ô5$ôD44T5DôÔôÄôÔ$""FF×GW73Ò#C"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ'G'VR"FF×&WV&W2Ö÷ÖSÒ&fÇ6R#äÖ7&öF66V7FöÖÆöÖ&#Âö÷Föãà¢Æ÷FöâfÇVSÒ$4DeóôädTÂ"FF×GW73Ò#CSR"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#ä4Dbì:×fVÃÂö÷Föãà¢Æ÷FöâfÇVSÒ$4Deó%ôädT2"FF×GW73Ò#CSb"FF×&WV&W2ÖæfV3Ò'G'VR"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#ä4Db"ì:×fV3Âö÷Föãà¢Æ÷FöâfÇVSÒ$%E$ôDU4UôÄôÔ$%õõ5DU$õ""FF×GW73Ò#Cb"FF×&WV&W2ÖæfV3Ò'G'VR"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#ä'G&öFW6RÆöÖ&"÷7FW&÷#Âö÷Föãà¢Æ÷FöâfÇVSÒ$U5DTäõ4Uô4äÅôÄôÔ$""FF×GW73Ò#C3"FF×&WV&W2ÖæfV3Ò'G'VR"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ&fÇ6R#äW7FVæ÷6RFò6æÂÆöÖ&#Âö÷Föãà¢Æ÷FöâfÇVSÒ$Ee"FF×GW73Ò#Cc"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#äEe(	BFW&f:|:6òfVçG&7VÆ"W&FöæVÃÂö÷Föãà¢Æ÷FöâfÇVSÒ$TÔDôÔõ5T$EU$Â"FF×GW73Ò#Ccs"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ'G'VR"FF×&WV&W2Ö÷ÖSÒ&fÇ6R#ä7&æ÷FöÖ(	BVÖFöÖ7V&GW&ÃÂö÷Föãà¢Æ÷FöâfÇVSÒ%ETÔõ%ô4U$T%$Åõ$U4T44ò"FF×GW73Ò#Ccsr"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#å&W76V<:|:6òFRGVÖ÷"6W&V'&ÃÂö÷Föãà¢Æ÷FöâfÇVSÒ%E$ôÔ$T5DôÔôÔT4ä4"FF×GW73Ò#C"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#åG&öÖ&V7FöÖÖV<:&æ6Âö÷Föãà¢Æ÷FöâfÇVSÒ$äUU$4ÔôTÔ$ôÄ¤4ò"FF×GW73Ò#CS"FF×&WV&W2ÖæfV3Ò&fÇ6R"FF×&WV&W2ÖÆFW&ÃÒ&fÇ6R"FF×&WV&W2Ö÷ÖSÒ'G'VR#äVÖ&öÆ¦:|:6òFRæWW&6ÖÂö÷Föãà¢°¢Ð§Ð ¢òò)H)HWfVçFó¢6VÆ\:|:6òFR&ö6VFÖVçFò)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦Fö7VÖVçBævWDVÆVÖVçD'B'&öfÆUöB"æFDWfVçDÆ7FVæW"&6ævR"ÂgVæ7Föâ°¢6öç7B÷BÒF2æ÷Föç5·F2ç6VÆV7FVDæFWÓ°¢b÷BÇÂ÷BçfÇVR°¢òòæVæVÒ&ö6VFÖVçFò6VÆV6öæFò(	BÆ×GVFð¢Fö7VÖVçBævWDVÆVÖVçD'B&6öFvõ÷GW72"çfÇVRÒ"#°¢Fö7VÖVçBævWDVÆVÖVçD'B&ÆFW&ÆFFRÖw&÷W"æ6Æ74Æ7Bç&VÖ÷fR'&WV&VB"°¢Fö7VÖVçBævWDVÆVÖVçD'B&æfV2×&÷r"ç7GÆRæF7ÆÒ&æöæR#°¢Fö7VÖVçBævWDVÆVÖVçD'B&÷7FÂ×7FæFÆöæR"ç7GÆRæF7ÆÒ&&Æö6²#°¢÷WFFT÷ÖT&Æö6²fÇ6R°¢&WGW&ã°¢Ð ¢òòWFòÖfÆÂEU50¢Fö7VÖVçBævWDVÆVÖVçD'B&6öFvõ÷GW72"çfÇVRÒ÷BæFF6WBçGW72ÇÂ"#° ¢òòÆFW&ÆFFP¢6öç7B&WV&W4ÆBÒ÷BæFF6WBç&WV&W4ÆFW&ÂÓÓÒ'G'VR#°¢6öç7BÆDw&÷WÒFö7VÖVçBævWDVÆVÖVçD'B&ÆFW&ÆFFRÖw&÷W"°¢ÆDw&÷Wæ6Æ74Æ7BçFövvÆR'&WV&VB"Â&WV&W4ÆB°¢b&WV&W4ÆBFö7VÖVçBævWDVÆVÖVçD'B&ÆFW&ÆFFR"çfÇVRÒ"#° ¢òòì:×fV2Fì:&Ö6ð¢6öç7B&WV&W4æfV2Ò÷BæFF6WBç&WV&W4æfV2ÓÓÒ'G'VR#°¢6öç7BæfV5&÷rÒFö7VÖVçBævWDVÆVÖVçD'B&æfV2×&÷r"°¢æfV5&÷rç7GÆRæF7ÆÒ&WV&W4æfV2ò&w&B"¢&æöæR#°¢òòÖ÷7G&÷7FÂ7FæFÆöæRVæ2VæFòæfV2×&÷rW7L:ö7VÇFð¢Fö7VÖVçBævWDVÆVÖVçD'B&÷7FÂ×7FæFÆöæR"ç7GÆRæF7ÆÒ&WV&W4æfV2ò&æöæR"¢&&Æö6²#°¢b&WV&W4æfV2Fö7VÖVçBævWDVÆVÖVçD'B&æfV2"çfÇVRÒ"#° ¢òòõÔP¢÷WFFT÷ÖT&Æö6²÷BæFF6WBç&WV&W4÷ÖRÓÓÒ'G'VR"°§Ò° ¦gVæ7Föâ÷WFFT÷ÖT&Æö6²æVVG2°¢6öç7B&Æö6²ÒFö7VÖVçBævWDVÆVÖVçD'B&÷ÖRÖ&Æö6²"°¢&Æö6²ç7GÆRæF7ÆÒæVVG2ò&&Æö6²"¢&æöæR#°¢bæVVG2bb÷ÖTFV×2æÆVæwFÓÓÒ°¢÷ÖTFV×2Ò·²FW67&6ó¢""ÂVçFFFS¢ÕÓ°¢&VæFW$÷ÖTÆ7B°¢Ð¢bæVVG2°¢÷ÖTFV×2ÒµÓ°¢Fö7VÖVçBævWDVÆVÖVçD'B&÷ÖRÖÆ7B"æææW$DÔÂÒ"#°¢Fö7VÖVçBævWDVÆVÖVçD'B&W'"Ö÷ÖR"æ6Æ74Æ7Bç&VÖ÷fR'f6&ÆR"°¢Ð§Ð ¦gVæ7FöâFD÷ÖTFVÒ²÷ÖTFV×2çW6²FW67&6ó¢""ÂVçFFFS¢Ò²&VæFW$÷ÖTÆ7B²Ð¦gVæ7Föâ&VÖ÷fT÷ÖTFVÒG²÷ÖTFV×2ç7Æ6RGÂ²&VæFW$÷ÖTÆ7B²Ð¦gVæ7Föâ&VæFW$÷ÖTÆ7B°¢6öç7B6öçFæW"ÒFö7VÖVçBævWDVÆVÖVçD'B&÷ÖRÖÆ7B"°¢6öçFæW"æææW$DÔÂÒ÷ÖTFV×2æÖFVÒÂGÓâ ¢ÆFb6Æ73Ò&÷ÖR×&÷r#à¢ÆçWBGSÒ'FWB"Æ6VöÆFW#Ò$FW67&:|:6òFòÖFW&ÂW¢6vRTT²+wFÖÒ ¢fÇVSÒ"G²FVÒæFW67&6òÇÂ""ç&WÆ6Rò"örÂ"gV÷C²"Ò ¢öæçWCÒ&÷ÖTFV×5²G¶GÕÒæFW67&6ó×F2çfÇVR"WFö6ö×ÆWFSÒ&öfb#à¢ÆçWBGSÒ&çVÖ&W""ÖãÒ#"ÖÒ#"fÇVSÒ"G¶FVÒçVçFFFRÇÂÒ ¢öæçWCÒ&÷ÖTFV×5²G¶GÕÒçVçFFFS×'6TçBF2çfÇVRÇÃ#à¢Æ'WGFöâGSÒ&'WGFöâ"6Æ73Ò&'Fâ×&Ò"öæ6Æ6³Ò'&VÖ÷fT÷ÖTFVÒG¶GÒ#î)ÉSÂö'WGFöãà¢ÂöFcà¢æ¦öâ""°§Ð ¦gVæ7Föâ÷VÆFT6&FW"°¢6öç7B6VÂÒFö7VÖVçBævWDVÆVÖVçD'B&6&FW%ö6öB"°¢6VÂæææW$DÔÂÒsÆ÷FöâfÇVSÒ"#å6VÆV6öæRò6,:FW.(
+cÂö÷Föãâs°¢4ôädrçfÆEö6&FW%÷fÇVW2æf÷$V6bÓâ°¢6öç7B÷BÒFö7VÖVçBæ7&VFTVÆVÖVçB&÷Föâ"²÷BçfÇVRÒc²÷BçFWD6öçFVçBÒc°¢6VÂæVæD6ÆB÷B°¢Ò°§Ð¦gVæ7Föâ÷VÆFTÆFW&ÆFFR°¢6öç7B6VÂÒFö7VÖVçBævWDVÆVÖVçD'B&ÆFW&ÆFFR"°¢6VÂæææW$DÔÂÒsÆ÷FöâfÇVSÒ"#å6VÆV6öæRòÆFþ(
+cÂö÷Föãâs°¢4ôädrçfÆEöÆFW&ÆG÷fÇVW2æf÷$V6bÓâ°¢6öç7B÷BÒFö7VÖVçBæ7&VFTVÆVÖVçB&÷Föâ"²÷BçfÇVRÒc²÷BçFWD6öçFVçBÒc°¢6VÂæVæD6ÆB÷B°¢Ò°§Ð ¢òò)H)HfÆF:|:6ò6ÆVçB×6FR)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦gVæ7FöâfÆFFR°¢ÆWBö²ÒG'VS°¢6öç7B6V6·2Ò°¢²&æöÖU÷6VçFR"Â&W'"ÖæöÖR"ÂbÓâbçG&ÒæÆVæwFâÒÀ¢²'&öfÆUöB"Â&W'"×&öfÆR"ÂbÓâbÓÒ"%ÒÀ¢²&6öFvõ÷GW72"Â&W'"×GW72"ÂbÓâbçG&ÒæÆVæwFâÒÀ¢²&6E÷&æ6Â"Â&W'"Ö6B"ÂbÓâbçG&ÒæÆVæwFâÒÀ¢²&6&FW%ö6öB"Â&W'"Ö6&FW""ÂbÓâbÓÒ"%ÒÀ¢²&6öçfVæõöB"Â&W'"Ö6öçfVæò"ÂbÓâbçG&ÒæÆVæwFâÒÀ¢Ó°¢6V6·2æf÷$V6¶fVÆDBÂW'$BÂfåÒÓâ°¢6öç7BVÂÒFö7VÖVçBævWDVÆVÖVçD'BfVÆDB°¢6öç7BW'"ÒFö7VÖVçBævWDVÆVÖVçD'BW'$B°¢6öç7B72ÒfâVÂçfÇVR°¢VÂæ6Æ74Æ7BçFövvÆR&W'&÷""Â72°¢W'"æ6Æ74Æ7BçFövvÆR'f6&ÆR"Â72°¢b72ö²ÒfÇ6S°¢Ò°¢òòÆFW&ÆFFR6öæF6öæÀ¢6öç7BÆDw&÷WÒFö7VÖVçBævWDVÆVÖVçD'B&ÆFW&ÆFFRÖw&÷W"°¢bÆDw&÷Wæ6Æ74Æ7Bæ6öçFç2'&WV&VB"°¢6öç7BÆDVÂÒFö7VÖVçBævWDVÆVÖVçD'B&ÆFW&ÆFFR"°¢6öç7BÆDW'"ÒFö7VÖVçBævWDVÆVÖVçD'B&W'"ÖÆFW&ÆFFR"°¢6öç7B72ÒÆDVÂçfÇVRÓÒ"#°¢ÆDVÂæ6Æ74Æ7BçFövvÆR&W'&÷""Â72°¢ÆDW'"æ6Æ74Æ7BçFövvÆR'f6&ÆR"Â72°¢b72ö²ÒfÇ6S°¢Ð¢òòì:×fV26öæF6öæÀ¢bFö7VÖVçBævWDVÆVÖVçD'B&æfV2×&÷r"ç7GÆRæF7ÆÓÒ&æöæR"°¢6öç7BäVÂÒFö7VÖVçBævWDVÆVÖVçD'B&æfV2"°¢6öç7BäW'"ÒFö7VÖVçBævWDVÆVÖVçD'B&W'"ÖæfV2"°¢6öç7B72Ò'6TçBäVÂçfÇVRÇÂãÒ°¢äVÂæ6Æ74Æ7BçFövvÆR&W'&÷""Â72°¢äW'"æ6Æ74Æ7BçFövvÆR'f6&ÆR"Â72°¢b72ö²ÒfÇ6S°¢Ð¢òòõÔR6öæF6öæÀ¢6öç7B÷ÖT&Æö6²ÒFö7VÖVçBævWDVÆVÖVçD'B&÷ÖRÖ&Æö6²"°¢b÷ÖT&Æö6²ç7GÆRæF7ÆÓÒ&æöæR"°¢6öç7BW'$÷ÖRÒFö7VÖVçBævWDVÆVÖVçD'B&W'"Ö÷ÖR"°¢6öç7B74÷ÖRÒ÷ÖTFV×2æÆVæwFâbb÷ÖTFV×2æWfW'ÓâæFW67&6òÇÂ""çG&ÒæÆVæwFâ°¢W'$÷ÖRæ6Æ74Æ7BçFövvÆR'f6&ÆR"Â74÷ÖR°¢b74÷ÖRö²ÒfÇ6S°¢Ð¢&WGW&âö³°§Ð ¢òò)H)HG&fFR7V&ÖBGWÆò)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦ÆWB÷7V&ÖGFærÒfÇ6S° ¢òò)H)H7V&ÖB)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦Fö7VÖVçBævWDVÆVÖVçD'B&f÷&Ò"æFDWfVçDÆ7FVæW"'7V&ÖB"Â7æ2gVæ7FöâR°¢Rç&WfVçDFVfVÇB°¢b÷7V&ÖGFær&WGW&ã°¢bfÆFFR&WGW&ã°¢÷7V&ÖGFærÒG'VS°¢6öç7B'FâÒFö7VÖVçBævWDVÆVÖVçD'B&'Fâ×7V&ÖB"°¢'FâæææW$DÔÂÒsÇ7â6Æ73Ò'7ææW"#ãÂ÷7ãå&ö6W76æFþ(
+bs°¢'FâæF6&ÆVBÒG'VS°¢Fö7VÖVçBævWDVÆVÖVçD'B'&W7VÇBÖ&÷"ç7GÆRæF7ÆÒ&æöæR#° ¢6öç7BbÒBÓâFö7VÖVçBævWDVÆVÖVçD'BBçfÇVRçG&Ò°¢òòFWFV7F÷7FÂöFRW7F"æò6×òæÆæR÷Ræò7FæFÆöæR¢6öç7B÷7FÅfÂÒFö7VÖVçBævWDVÆVÖVçD'B&æfV2×&÷r"ç7GÆRæF7ÆÓÒ&æöæR ¢òb&÷7FÂ"¢b&÷7FÃ""° ¢6öç7BÆöBÒ°¢æöÖU÷6VçFS¢b&æöÖU÷6VçFR"À¢&öfÆUöC¢b'&öfÆUöB"çFõWW$66RÀ¢6öFvõ÷GW73¢b&6öFvõ÷GW72"À¢6E÷&æ6Ã¢b&6E÷&æ6Â"À¢6&FW%ö6öC¢b&6&FW%ö6öB"À¢6öçfVæõöC¢b&6öçfVæõöB"À¢ÆFW&ÆFFS¢b&ÆFW&ÆFFR"ÇÂVæFVfæVBÀ¢æfV3¢b&æfV2"ÇÂVæFVfæVBÀ¢÷7FÃ¢÷7FÅfÂÇÂVæFVfæVBÀ¢æF66õö6Ææ6¢b&æF66õö6Ææ6"ÇÂVæFVfæVBÀ¢÷ÖW5÷6VÆV6öæF÷3¢÷ÖTFV×2æÆVæwFâò÷ÖTFV×2¢VæFVfæVBÀ¢f÷&Õ÷fW'6öã¢'c"ã"À¢6÷W&6S¢&g&öçFVæE÷c""À¢Ó°¢ö&¦V7Bæ¶W2ÆöBæf÷$V6²ÓâÆöE¶µÒÓÓÒVæFVfæVBbbFVÆWFRÆöE¶µÒ° ¢G'°¢6öç7B"ÒvBfWF6²"öFV66öâ÷7V&ÖB"Â°¢ÖWFöC¢%õ5B"À¢VFW'3¢²$6öçFVçBÕGR#¢&Æ6Föâö§6öâ"ÒÀ¢&öG¢¥4ôâç7G&ævgÆöBÀ¢6væÃ¢&÷'E6væÂçFÖV÷WB#À¢Ò°¢6öç7BFFÒvB"æ§6öâ°¢6÷u&W7VÇBFF°¢Ò6F6W'"°¢6öç7B×6rÒW'"ææÖRÓÓÒ%FÖV÷WDW'&÷""ÇÂW'"ææÖRÓÓÒ$&÷'DW'&÷""¢ò$ç7F&ÆFFRFR6öæW:6òâfW&fVR&VFRRFVçFRæ÷fÖVçFRâ ¢¢$W'&òFR6ö×Væ6:|:6ó¢"²W'"æÖW76vS°¢6÷tW'&÷"×6r°¢ÒfæÆÇ°¢'FâæææW$DÔÂÒ$Vçf"&Ö÷F÷"FRFV6<:6ò(i"#°¢'FâæF6&ÆVBÒfÇ6S°¢÷7V&ÖGFærÒfÇ6S°¢Ð§Ò° ¢òò)H)H&VæFW&¦"&W7VÇFFò)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦gVæ7Föâ6÷u&W7VÇBFF°¢6öç7B&÷ÒFö7VÖVçBævWDVÆVÖVçD'B'&W7VÇBÖ&÷"°¢6öç7BFFÆRÒFö7VÖVçBævWDVÆVÖVçD'B'&W2×FFÆR"°¢6öç7BFw2ÒFö7VÖVçBævWDVÆVÖVçD'B'&W2ÖÖ÷Ff÷2"°¢6öç7BÖWFÒFö7VÖVçBævWDVÆVÖVçD'B'&W2ÖÖWF"°¢6öç7B7FGW2ÒFFæFV66öå÷7FGW2ÇÂ$U%$ò#°¢6öç7B6V6²ÒFFç&V6V6²ÇÂ·Ó°¢6öç7B5&V6V6²Ò6V6²æ&Æö6¶æuö77VW2bb6V6²æ&Æö6¶æuö77VW2æÆVæwFbbFFæÖ÷Ff÷2bbFFæW6öFõöB°¢ÆWB6Ç2ÂÆ&VÃ°¢b5&V6V6²²6Ç2Ò'&V6V6²#²Æ&VÂÒ.)ª&V6V6²(	B6÷'&¦çFW2FRVçf"#²Ð¢VÇ6Rb7FGW2ÓÓÒ$tò"ÇÂ7FGW2ÓÓÒ$tõô4ôÕõ$U54Åd2"°¢6Ç2Ò&vò#²Æ&VÂÒ7FGW2ÓÓÒ$tò"ò.)É2tò(	BVçfòÆ&W&Fò"¢.)É2tò6öÒ&W76Çf2#°¢ÒVÇ6Rb7FGW2ÓÓÒ$äõôtò"²6Ç2Ò&æövò#²Æ&VÂÒ.)ÉräòÔtò(	BVçfò&Æ÷VVFò#²Ð¢VÇ6Rb7FGW2ÓÓÒ%TäDTä4ôô%$tDõ$"²6Ç2Ò'VæFær#²Æ&VÂÒ.)ªVæL:¦æ6(	B6×÷2ö'&vL;7&÷2W6VçFW2#²Ð¢VÇ6R²6Ç2Ò&æövò#²Æ&VÂÒ$W'&ò(	B"²7FGW3²Ð ¢&÷æ6Æ74æÖRÒ"#²&÷æ6Æ74Æ7BæFB6Ç2°¢FFÆRæ6Æ74æÖRÒ'&W7VÇB×FFÆR"²6Ç3²FFÆRçFWD6öçFVçBÒÆ&VÃ°¢Fw2æææW$DÔÂÒ"#°¢FFæÖ÷Ff÷2ÇÂ6V6²æ&Æö6¶æuö77VW2ÇÂµÒæf÷$V6ÒÓâ°¢6öç7BBÒFö7VÖVçBæ7&VFTVÆVÖVçB'7â"²Bæ6Æ74æÖRÒ'Fr&Æö6²#°¢BçFWD6öçFVçBÒÒç7ÆB#¢"³Ó²Fw2æVæD6ÆBB°¢Ò°¢6V6²çv&ææw2ÇÂµÒæf÷$V6rÓâ°¢6öç7BBÒFö7VÖVçBæ7&VFTVÆVÖVçB'7â"²Bæ6Æ74æÖRÒ'Frv&â#°¢BçFWD6öçFVçBÒrç7ÆB#¢"³Ó²Fw2æVæD6ÆBB°¢Ò°¢FFæ&Æ÷VV÷2ÇÂµÒæf÷$V6"Óâ°¢6öç7BBÒFö7VÖVçBæ7&VFTVÆVÖVçB'7â"²Bæ6Æ74æÖRÒ'Fr&Æö6²#°¢BçFWD6öçFVçBÒ"æ6öFvòÇÂ"ç&Vw&ÇÂ¥4ôâç7G&ævg"²Fw2æVæD6ÆBB°¢Ò°¢FFçVæFVæ62ÇÂµÒæf÷$V6Óâ°¢6öç7BBÒFö7VÖVçBæ7&VFTVÆVÖVçB'7â"²Bæ6Æ74æÖRÒ'FrVæB#°¢BçFWD6öçFVçBÒæ6öFvòÇÂæ6×òÇÂ¥4ôâç7G&ævg²Fw2æVæD6ÆBB°¢Ò°¢6öç7BWBÒFFæW6öFõöBÇÂ.(	B#°¢6öç7B'VäBÒFFå÷'VåöBÇÂ.(	B#°¢ÖWFçFWD6öçFVçBÒW<;6Fó¢G¶WGÒ+r'Vã¢G·'VäGÒ+r&v÷#¢G·6V6²ç&v÷%öÆWfVÂÇÂ.(	B'Ö°¢&÷ç7GÆRæF7ÆÒ&&Æö6²#°§Ð ¦gVæ7Föâ6÷tW'&÷"×6r°¢6öç7B&÷ÒFö7VÖVçBævWDVÆVÖVçD'B'&W7VÇBÖ&÷"°¢&÷æ6Æ74æÖRÒ&æövò#²&÷ç7GÆRæF7ÆÒ&&Æö6²#°¢Fö7VÖVçBævWDVÆVÖVçD'B'&W2×FFÆR"æ6Æ74æÖRÒ'&W7VÇB×FFÆRæövò#°¢Fö7VÖVçBævWDVÆVÖVçD'B'&W2×FFÆR"çFWD6öçFVçBÒ.)Ér"²×6s°¢Fö7VÖVçBævWDVÆVÖVçD'B'&W2ÖÖ÷Ff÷2"æææW$DÔÂÒ"#°¢Fö7VÖVçBævWDVÆVÖVçD'B'&W2ÖÖWF"çFWD6öçFVçBÒ"#°§Ð ¢òò)H)HæB)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H ¦ÆöD6öæfr°¦ÆöE&ö6VFÖVçF÷2°£Â÷67&Cà£Âö&öGà£ÂöFÖÃà
