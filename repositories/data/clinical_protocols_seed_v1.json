@@ -1,0 +1,197 @@
+[
+  {
+    "id": "ACDF_1_NIVEL",
+    "label": "ACDF 1 NÃ­vel â Artrodese Cervical Anterior",
+    "domain": "COLUNA_CERVICAL",
+    "active": true,
+    "tuss_hint": "40808505",
+    "cbhpm": "3.03.28.22-0",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "ACDF_2_NIVEIS",
+    "label": "ACDF 2 NÃ­veis â Artrodese Cervical Anterior",
+    "domain": "COLUNA_CERVICAL",
+    "active": true,
+    "tuss_hint": "40808506",
+    "cbhpm": "3.03.28.23-8",
+    "rules": {
+      "require_niveis": true,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "MICRODISCECTOMIA_LOMBAR",
+    "label": "Microdiscectomia Lombar",
+    "domain": "COLUNA_LOMBAR",
+    "active": true,
+    "tuss_hint": "40808019",
+    "cbhpm": "3.03.28.12-3",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": true,
+      "require_opme": false
+    }
+  },
+  {
+    "id": "ARTRODESE_LOMBAR_POSTERIOR",
+    "label": "Artrodese Lombar Posterior (PLIF/TLIF)",
+    "domain": "COLUNA_LOMBAR",
+    "active": true,
+    "tuss_hint": "40808116",
+    "cbhpm": "3.03.28.30-1",
+    "rules": {
+      "require_niveis": true,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "ESTENOSE_CANAL_LOMBAR",
+    "label": "DescompressÃ£o â Estenose do Canal Lombar",
+    "domain": "COLUNA_LOMBAR",
+    "active": true,
+    "tuss_hint": "40808030",
+    "cbhpm": "3.03.28.13-1",
+    "rules": {
+      "require_niveis": true,
+      "require_lateralidade": false,
+      "require_opme": false
+    }
+  },
+  {
+    "id": "ESPONDILOLISTESE_LOMBAR",
+    "label": "Artrodese â Espondilolistese Lombar",
+    "domain": "COLUNA_LOMBAR",
+    "active": true,
+    "tuss_hint": "40808116",
+    "cbhpm": "3.03.28.30-1",
+    "rules": {
+      "require_niveis": true,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "ARTROPLASTIA_CERVICAL",
+    "label": "Artroplastia Cervical (Disco Artificial)",
+    "domain": "COLUNA_CERVICAL",
+    "active": true,
+    "tuss_hint": "40808508",
+    "cbhpm": "3.03.28.26-3",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "DVP",
+    "label": "DerivaÃ§Ã£o Ventricular Peritoneal (DVP)",
+    "domain": "NEUROCIRURGIA",
+    "active": true,
+    "tuss_hint": "40806010",
+    "cbhpm": "3.03.18.04-0",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "HEMATOMA_SUBDURAL",
+    "label": "Craniotomia â Hematoma Subdural",
+    "domain": "NEUROCIRURGIA",
+    "active": true,
+    "tuss_hint": "40806070",
+    "cbhpm": "3.03.18.02-4",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": true,
+      "require_opme": false
+    }
+  },
+  {
+    "id": "TUMOR_CEREBRAL_RESECCAO",
+    "label": "RessecÃ§Ã£o de Tumor Cerebral",
+    "domain": "NEUROCIRURGIA",
+    "active": true,
+    "tuss_hint": "40806077",
+    "cbhpm": "3.03.18.05-9",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "ANGIOGRAFIA_CEREBRAL",
+    "label": "Angiografia Cerebral DiagnÃ³stica",
+    "domain": "NEUROVASCULAR",
+    "active": true,
+    "tuss_hint": "40809020",
+    "cbhpm": "3.03.34.01-2",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": false
+    }
+  },
+  {
+    "id": "TROMBECTOMIA_MECANICA",
+    "label": "Trombectomia MecÃ¢nica (AVC IsquÃªmico)",
+    "domain": "NEUROVASCULAR",
+    "active": true,
+    "tuss_hint": "40809100",
+    "cbhpm": "3.03.34.07-1",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "ANEURISMA_EMBOLIZACAO",
+    "label": "EmbolizaÃ§Ã£o de Aneurisma Cerebral",
+    "domain": "NEUROVASCULAR",
+    "active": true,
+    "tuss_hint": "40809050",
+    "cbhpm": "3.03.34.04-7",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "FISTULA_AV_EMBOLIZACAO",
+    "label": "EmbolizaÃ§Ã£o de FÃ­stula Arteriovenosa",
+    "domain": "NEUROVASCULAR",
+    "active": true,
+    "tuss_hint": "40809060",
+    "cbhpm": "3.03.34.05-5",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  },
+  {
+    "id": "MAV_EMBOLIZACAO",
+    "label": "EmbolizaÃ§Ã£o de MalformaÃ§Ã£o Arteriovenosa (MAV)",
+    "domain": "NEUROVASCULAR",
+    "active": true,
+    "tuss_hint": "40809055",
+    "cbhpm": "3.03.34.06-3",
+    "rules": {
+      "require_niveis": false,
+      "require_lateralidade": false,
+      "require_opme": true
+    }
+  }
+]
