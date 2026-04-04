@@ -20,6 +20,8 @@ import logging
 import uuid
 import threading
 import os
+import time
+import concurrent.futures
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request, make_response
@@ -134,6 +136,46 @@ def _validate_submit_payload(body: dict):
     return None
 
 
+# ─── Idempotencia (in-memory, TTL 10 min) ─────────────────────────────────────────────────
+_IDEM_CACHE: dict = {}
+_IDEM_LOCK = threading.Lock()
+_IDEM_TTL = 600
+
+
+def _idem_check(key: str) -> tuple:
+    if not key:
+        return False, None
+    with _IDEM_LOCK:
+        now = time.time()
+        expired = [k for k, (ts, _) in list(_IDEM_CACHE.items()) if now - ts > _IDEM_TTL]
+        for k in expired:
+            del _IDEM_CACHE[k]
+        if key in _IDEM_CACHE:
+            return True, _IDEM_CACHE[key][1]
+        return False, None
+
+
+def _idem_register(key: str, result: dict) -> None:
+    if not key:
+        return
+    with _IDEM_LOCK:
+        _IDEM_CACHE[key] = (time.time(), result)
+
+
+# ─── Sheets timeout wrapper ──────────────────────────────────────────────────────────────────
+_SHEETS_TIMEOUT = float(os.getenv("SHEETS_TIMEOUT", "8"))
+
+
+def _sheets_call(fn, *args):
+    """Chama fn(*args) com timeout de _SHEETS_TIMEOUT segundos."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        future = ex.submit(fn, *args)
+        try:
+            return future.result(timeout=_SHEETS_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            raise TimeoutError(f"Sheets call '{fn.__name__}' excedeu {_SHEETS_TIMEOUT}s")
+
+
 def options_handler(dummy=""):
     """CORS preflight handler para todas as sub-rotas de /decision/."""
     return _cors(make_response("", 204))
@@ -206,8 +248,9 @@ def decision_run(episodio_id: str):
 
     # 3-4. Buscar dados mestres (protegido — falha de Sheets não vira ERRO_INTERNO genérico)
     try:
-        proc_master_row = get_proc_master_row(profile_id) if profile_id else None
-        convenio_row    = get_convenio_row(convenio_id)   if convenio_id else None
+        proc_master_row = _sheets_call(get_proc_master_row, profile_id) if profile_id else None
+        convenio_row    = _sheets_call(get_convenio_row, convenio_id) if convenio_id else None
+
     except Exception as _me:
         import traceback as _tb2
         _tb2_short = _tb2.format_exc()[-600:]
@@ -307,6 +350,11 @@ def decision_submit():
     val_err = _validate_submit_payload(body)
     if val_err:
         return val_err
+    idem_key = request.headers.get("X-Idempotency-Key", "").strip()
+    _idem_hit, _idem_cached = _idem_check(idem_key)
+    if _idem_hit:
+        logger.info("decision_submit: idempotency replay key=%s", idem_key[:20])
+        return _cors(jsonify({**_idem_cached, "idempotency": "DUPLICATE_REPLAY"})), 200
 
     try:
         # ── 1. Gerar episodio_id único ─────────────────────────────────────────────────────────────────────
@@ -505,6 +553,7 @@ def decision_submit():
         result["precheck"] = precheck.to_dict()
         result["motor_version"] = "2.1.0"
 
+        _idem_register(idem_key, result)
         return _cors(jsonify(result)), 200
 
     except Exception as exc:  # noqa: BLE001
