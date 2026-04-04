@@ -109,6 +109,31 @@ def _check_api_key():
         })), 401
     return None
 
+def _validate_submit_payload(body: dict):
+    """Valida campos obrigatorios do submit. Retorna None se OK; 400 se invalido."""
+    REQUIRED = ["cid_principal", "carater_cod", "convenio_id", "nome_paciente"]
+    missing = [f for f in REQUIRED if not str(body.get(f, "")).strip()]
+    if not str(body.get("profile_id", "")).strip() and not str(body.get("codigo_tuss", "")).strip():
+        missing.append("profile_id / codigo_tuss")
+    if missing:
+        logger.warning("_validate_submit_payload: campos ausentes=%s", missing)
+        return _cors(jsonify({
+            "decision_status": "ERRO_VALIDACAO",
+            "error_code":      "SYS_INPUT_VALIDATION_FAIL",
+            "erro":            f"Campos obrigatorios ausentes ou vazios: {missing}",
+            "campos_faltantes": missing,
+        })), 400
+    carater = str(body.get("carater_cod", "")).upper()
+    if carater not in {"ELE", "URG"}:
+        logger.warning("_validate_submit_payload: carater_cod invalido=%s", carater)
+        return _cors(jsonify({
+            "decision_status": "ERRO_VALIDACAO",
+            "error_code":      "SYS_INPUT_VALIDATION_FAIL",
+            "erro":            f"carater_cod '{carater}' invalido. Permitido: ELE, URG",
+        })), 400
+    return None
+
+
 def options_handler(dummy=""):
     """CORS preflight handler para todas as sub-rotas de /decision/."""
     return _cors(make_response("", 204))
@@ -169,7 +194,7 @@ def decision_run(episodio_id: str):
     key_err = _check_api_key()
     if key_err:
         return key_err
-        # 1. Carregar episódio
+    # 1. Carregar episódio
     episodio = get_episodio(episodio_id)
     if episodio is None:
         return _cors(jsonify({"erro": f"episodio '{episodio_id}' nao encontrado"})), 404
@@ -275,9 +300,13 @@ def decision_submit():
     key_err = _check_api_key()
     if key_err:
         return key_err
-        body = request.get_json(silent=True)
+    body = request.get_json(silent=True)
     if not body:
         return _cors(jsonify({"erro": "payload JSON obrigatorio"})), 400
+
+    val_err = _validate_submit_payload(body)
+    if val_err:
+        return val_err
 
     try:
         # ── 1. Gerar episodio_id único ─────────────────────────────────────────────────────────────────────
