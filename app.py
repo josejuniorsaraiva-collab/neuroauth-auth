@@ -1,4 +1,4 @@
-"""
+—"""
 NEUROAUTH — Aplicação Flask
 
 Versão: 2.1.1
