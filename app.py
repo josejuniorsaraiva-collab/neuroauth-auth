@@ -1,7 +1,7 @@
 """
 NEUROAUTH — Aplicação Flask
 
-Versão: 2.1.0
+Versão: 2.1.1
 
 Ponto de entrada. Registra blueprints, configura logging.
 
