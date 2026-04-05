@@ -197,7 +197,17 @@ def episodios_summary():
     try:
         def _read_runs():
             ws = get_worksheet(_RUNS_SHEET)
-            return ws.get_all_records(head=_HEAD)
+            all_vals = ws.get_all_values()
+            if len(all_vals) < _HEAD:
+                return []
+            hdrs = all_vals[_HEAD - 1]
+            valid = [(i, h) for i, h in enumerate(hdrs) if h.strip()]
+            result = []
+            for row in all_vals[_HEAD:]:
+                if not any(c.strip() for c in row):
+                    continue
+                result.append({h: (row[i] if i < len(row) else '') for i, h in valid})
+            return result
 
         rows = _sheets_call(_read_runs)
         total = len(rows)
