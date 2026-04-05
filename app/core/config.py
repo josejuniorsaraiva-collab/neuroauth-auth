@@ -31,24 +31,19 @@ class Settings(BaseSettings):
     GOOGLE_CREDENTIALS_JSON: str = ""
     SPREADSHEET_ID: str = ""
 
-    # CORS — aceita string CSV ou lista
-    ALLOWED_ORIGINS: List[str] = [
-        "https://josejuniorsaraiva-collab.github.io"
-    ]
+    # CORS — stored as str to avoid pydantic-settings JSON parse on List[str]
+    ALLOWED_ORIGINS: str = "https://josejuniorsaraiva-collab.github.io"
 
     # Make.com periférico (opcional — pode ficar vazio no primeiro shadow)
     MAKE_DOC_WEBHOOK: str = ""
     MAKE_BILLING_WEBHOOK: str = ""
 
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_origins(cls, v):
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(",") if item.strip()]
-        return v
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Parse CSV string into list for CORS middleware."""
+        return [item.strip() for item in self.ALLOWED_ORIGINS.split(",") if item.strip()]
 
-    class Config:
-        env_file = ".env"
+    model_config = {"env_file": ".env"}
 
 
 settings = Settings()
