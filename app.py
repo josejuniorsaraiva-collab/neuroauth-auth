@@ -1,15 +1,21 @@
 """
 NEUROAUTH — Aplicação Flask
+
 Versão: 2.1.0
+
 Ponto de entrada. Registra blueprints, configura logging.
+
 Não contém lógica de negócio.
 """
+
 from __future__ import annotations
+
 import logging
 import sys
 import traceback
+
 from flask import Flask, jsonify, send_from_directory
-from routes import motor_bp, decision_bp
+from routes import motor_bp, decision_bp, episodios_bp
 
 
 def create_app() -> Flask:
@@ -26,6 +32,7 @@ def create_app() -> Flask:
     # Registrar blueprints
     app.register_blueprint(motor_bp)
     app.register_blueprint(decision_bp)
+    app.register_blueprint(episodios_bp)
 
     @app.get("/health")
     def health():
@@ -44,7 +51,7 @@ def create_app() -> Flask:
         frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
         return send_from_directory(frontend_dir, "neuroauth_form_v2.html")
 
-    # ── GET /clinical/protocols ──────────────────────────────────────────────
+    # ── GET /clinical/protocols ────────────────────────────────────────────────────────────────────────────
     @app.get("/clinical/protocols")
     def get_clinical_protocols():
         """
@@ -69,7 +76,7 @@ def create_app() -> Flask:
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
         return resp, 204
 
-    # ── Global JSON error handler ────────────────────────────────────────────
+    # ── Global JSON error handler ────────────────────────────────────────────────────────────────────────────
     @app.errorhandler(Exception)
     def handle_unhandled_exception(e: Exception):
         logging.getLogger("neuroauth.app").error(
@@ -87,7 +94,7 @@ def create_app() -> Flask:
 # Exportar instância para gunicorn (Render / WSGI)
 # Dois aliases: 'application' (Procfile) e 'app' (Render Start Command legado)
 application = create_app()
-app = application  # backward compat: gunicorm app:app
+app = application # backward compat: gunicorm app:app
 
 if __name__ == "__main__":
     application.run(debug=True, port=5099)
