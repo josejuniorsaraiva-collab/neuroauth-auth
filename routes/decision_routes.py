@@ -87,7 +87,6 @@ def _cors(response):
     return response
 
 
-@decision_bp.route("/<path:dummy>", methods=["OPTIONS"])
 
 # ─── API Key auth ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -176,6 +175,7 @@ def _sheets_call(fn, *args):
             raise TimeoutError(f"Sheets call '{fn.__name__}' excedeu {_SHEETS_TIMEOUT}s")
 
 
+@decision_bp.route("/<path:dummy>", methods=["OPTIONS"])
 def options_handler(dummy=""):
     """CORS preflight handler para todas as sub-rotas de /decision/."""
     return _cors(make_response("", 204))
