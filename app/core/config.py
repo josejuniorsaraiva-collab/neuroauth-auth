@@ -1,31 +1,53 @@
 """
-NEUROAUTH v3.0.0 — Configuracao centralizada.
+app/core/config.py
+Todas as configs via env vars. Nunca hardcodar segredos.
+Render: Settings > Environment Variables.
 
-Todas as env vars lidas aqui. Nenhum outro modulo le os.environ diretamente.
+Variáveis obrigatórias (6):
+  JWT_SECRET              — gerar: openssl rand -hex 32
+  GOOGLE_CLIENT_ID        — Google Cloud Console > OAuth 2.0 Client ID
+  GOOGLE_CREDENTIALS_JSON — JSON da service account (string completa)
+  SPREADSHEET_ID          — ID da Planilha-Mãe
+  ALLOWED_ORIGINS         — URL exata do GitHub Pages (ou CSV de origens)
+  MAKE_DOC_WEBHOOK        — opcional: periférico de geração de docs
 """
-from __future__ import annotations
 
-import os
+from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from typing import List
 
 
-# ── Google Sheets ────────────────────────────────────────────────────────────
-SPREADSHEET_ID: str = os.getenv(
-    "SPREADSHEET_ID",
-    "1tId-AZorbeESHhlvOZei7_UbR0pMj0TMwsH0_lTCGLQ",
-)
+class Settings(BaseSettings):
+    # Auth
+    JWT_SECRET: str
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 480          # 8h
 
-GOOGLE_SHEETS_CREDS_JSON: str = os.getenv("GOOGLE_SHEETS_CREDS_JSON", "")
+    # Google OAuth (validação do id_token)
+    GOOGLE_CLIENT_ID: str                  # corrige a quebra 2
 
-# ── API Key ──────────────────────────────────────────────────────────────────
-NEUROAUTH_API_KEY: str = os.getenv("NEUROAUTH_API_KEY", "")
+    # Google Sheets
+    GOOGLE_CREDENTIALS_JSON: str
+    SPREADSHEET_ID: str
 
-# ── Google OAuth (client-side token validation) ──────────────────────────────
-GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    # CORS — aceita string CSV ou lista
+    ALLOWED_ORIGINS: List[str] = [
+        "https://josejuniorsaraiva-collab.github.io"
+    ]
 
-# ── Webhook Make.com (gerador de laudos / documentos) ────────────────────────
-MAKE_DOC_WEBHOOK: str = os.getenv("MAKE_DOC_WEBHOOK", "")
+    # Make.com periférico (opcional — pode ficar vazio no primeiro shadow)
+    MAKE_DOC_WEBHOOK: str = ""
+    MAKE_BILLING_WEBHOOK: str = ""
 
-# ── Allowed Origins (CORS) ───────────────────────────────────────────────────
-ALLOWED_ORIGINS: list[str] = [
-    "*",  # TODO: restringir em producao
-]
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_origins(cls, v):
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
+
+    class Config:
+        env_file = ".env"
+
+
+settings = Settings()

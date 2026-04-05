@@ -1,5 +1,5 @@
 """
-NEUROAUTH v3.0.0 — FastAPI application package.
+NEUROAUTH — FastAPI application package.
 
 Exports:
   application  — FastAPI ASGI app (para gunicorn -k uvicorn.workers.UvicornWorker)

@@ -1,66 +1,86 @@
 """
-NEUROAUTH v3.0.0 — Security: API key validation + Google token verification.
+app/core/security.py
+Gate A: autenticação real server-side.
 """
-from __future__ import annotations
 
-import logging
-from typing import Optional
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from app.core.config import settings
+import httpx
 
-from fastapi import Header, HTTPException
+bearer_scheme = HTTPBearer()
 
-from .config import NEUROAUTH_API_KEY, GOOGLE_CLIENT_ID
-
-logger = logging.getLogger("neuroauth.security")
-
-
-# ── API Key dependency ───────────────────────────────────────────────────────
-
-async def verify_api_key(
-    authorization: Optional[str] = Header(None),
-) -> str:
-    """
-    FastAPI dependency: valida header Authorization: Bearer <key>.
-    Se NEUROAUTH_API_KEY nao esta configurada, aceita tudo (dev mode).
-    """
-    if not NEUROAUTH_API_KEY:
-        return "dev-mode"
-
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header ausente")
-
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Formato: Bearer <api_key>")
-
-    if parts[1] != NEUROAUTH_API_KEY:
-        raise HTTPException(status_code=403, detail="API key invalida")
-
-    return parts[1]
+# Whitelist server-side — fonte de verdade
+# Evolução futura: buscar do Sheets (tab MEDICOS_AUTORIZADOS)
+AUTHORIZED_EMAILS: set[str] = {
+    "josejuniorsaraiva@gmail.com",   # founder — nunca remover
+    # "medico2@email.com",           # adicionar médicos alpha aqui
+}
 
 
-# ── Google ID Token verification ─────────────────────────────────────────────
+def create_access_token(email: str, name: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    payload = {
+        "sub": email,
+        "name": name,
+        "exp": expire,
+        "iat": datetime.utcnow(),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
-def verify_google_token(id_token: str) -> dict:
-    """
-    Verifica Google ID token usando google-auth.
-    Retorna payload do token (email, name, sub, etc).
-    Levanta HTTPException se invalido.
-    """
-    if not GOOGLE_CLIENT_ID:
-        logger.warning("GOOGLE_CLIENT_ID nao configurado — aceitando token sem validacao")
-        return {"email": "dev@neuroauth.local", "name": "Dev Mode", "sub": "dev"}
 
-    try:
-        from google.oauth2 import id_token as google_id_token
-        from google.auth.transport import requests as google_requests
-
-        payload = google_id_token.verify_oauth2_token(
-            id_token,
-            google_requests.Request(),
-            GOOGLE_CLIENT_ID,
+async def verify_google_token(id_token: str) -> dict:
+    """Verifica id_token Google via tokeninfo. Retorna {email, name}."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": id_token},
+            timeout=10,
         )
-        return payload
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Token Google inválido.")
 
-    except ValueError as exc:
-        logger.warning("Google token invalido: %s", exc)
-        raise HTTPException(status_code=401, detail=f"Google token invalido: {exc}")
+    data = resp.json()
+
+    # Valida audience — usa GOOGLE_CLIENT_ID declarado no config
+    if data.get("aud") != settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=401, detail="Audience inválido.")
+
+    email = data.get("email", "").lower()
+    if not email:
+        raise HTTPException(status_code=401, detail="Email não encontrado no token.")
+
+    return {"email": email, "name": data.get("name", "")}
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> dict:
+    """Dependency: valida JWT NEUROAUTH em cada request protegido."""
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(
+            token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
+        )
+        email: str = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Token sem subject.")
+        return {"email": email, "name": payload.get("name", "")}
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def require_authorized(user: dict = Depends(get_current_user)) -> dict:
+    """Gate binário: email deve estar na whitelist."""
+    if user["email"] not in AUTHORIZED_EMAILS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Acesso não autorizado para {user['email']}.",
+        )
+    return user
