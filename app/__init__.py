@@ -5,7 +5,7 @@ Exports:
   application  — FastAPI ASGI app (para gunicorn -k uvicorn.workers.UvicornWorker)
   app          — alias
 """
-from app.main import app
+from .main import app
 
 application = app
 
