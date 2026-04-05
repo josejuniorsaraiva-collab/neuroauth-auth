@@ -18,17 +18,18 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    # Auth
-    JWT_SECRET: str
+    # Auth — defaults vazios para permitir build/start no Render
+    # Endpoints protegidos falham com erro claro se não configuradas
+    JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480          # 8h
 
     # Google OAuth (validação do id_token)
-    GOOGLE_CLIENT_ID: str                  # corrige a quebra 2
+    GOOGLE_CLIENT_ID: str = ""
 
     # Google Sheets
-    GOOGLE_CREDENTIALS_JSON: str
-    SPREADSHEET_ID: str
+    GOOGLE_CREDENTIALS_JSON: str = ""
+    SPREADSHEET_ID: str = ""
 
     # CORS — aceita string CSV ou lista
     ALLOWED_ORIGINS: List[str] = [

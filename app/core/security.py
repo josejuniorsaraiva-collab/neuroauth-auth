@@ -20,7 +20,17 @@ AUTHORIZED_EMAILS: set[str] = {
 }
 
 
+def _require_configured():
+    """Raise 503 if critical env vars are missing."""
+    if not settings.JWT_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="JWT_SECRET não configurado. Configure em Render > Environment.",
+        )
+
+
 def create_access_token(email: str, name: str) -> str:
+    _require_configured()
     expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {
         "sub": email,
