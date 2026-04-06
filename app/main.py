@@ -1,13 +1,13 @@
 """
 app/main.py
 Entrypoint FastAPI. Render start command:
-  uvicorn app.main:app --host 0.0.0.0 --port $PORT
+ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 """
 
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import decide, auth
+from app.routers import decide, auth, make_proxy
 from app.core.config import settings
 
 logger = logging.getLogger("neuroauth.app")
@@ -17,14 +17,14 @@ _REQUIRED = ["JWT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_APPLICATION_CREDENTIALS",
 _missing = [k for k in _REQUIRED if not getattr(settings, k, "")]
 if _missing:
     logger.warning(
-        "[NEUROAUTH] ENV VARS AUSENTES: %s — /auth e /decide não funcionarão. "
+        "[NEUROAUTH] ENV VARS AUSENTES: %s — /auth e /decide nao funcionarao. "
         "Configure em Render > Environment.", ", ".join(_missing)
     )
 
 app = FastAPI(
     title="NEUROAUTH API",
     version="1.0.0",
-    docs_url=None,    # desabilitar Swagger em produção
+    docs_url=None,  # desabilitar Swagger em producao
     redoc_url=None,
 )
 
@@ -32,15 +32,16 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
-    allow_methods=["POST", "GET"],
+    allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
-app.include_router(auth.router,   prefix="/auth",   tags=["auth"])
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(decide.router, prefix="/decide", tags=["decide"])
+app.include_router(make_proxy.router, prefix="/api", tags=["proxy"])
 
 
-@app.get("/health")   # GET — não POST
+@app.get("/health")  # GET — nao POST
 def health():
     configured = len(_missing) == 0
     return {
