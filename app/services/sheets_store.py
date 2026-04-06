@@ -54,7 +54,17 @@ def persist_decision(req: DecideRequest, res: DecideResponse) -> bool:
         ss = gc.open_by_key(settings.SPREADSHEET_ID)
 
         _append_decision_run(ss, req, res)
+        logger.info(
+            f"[sheets_store] OK 21_DECISION_RUNS append: "
+            f"run={res.decision_run_id} ep={res.episodio_id} "
+            f"cls={res.classification} score={res.score}"
+        )
+
         _update_episodio(ss, res.episodio_id, res.decision_status, res.decision_run_id)
+        logger.info(
+            f"[sheets_store] OK 22_EPISODIOS update: "
+            f"ep={res.episodio_id} status={res.decision_status} run={res.decision_run_id}"
+        )
         return True
 
     except Exception as e:
