@@ -15,7 +15,7 @@ import sys
 import traceback
 
 from flask import Flask, jsonify, send_from_directory
-from routes import motor_bp, decision_bp, episodios_bp
+from routes import motor_bp, decision_bp, episodios_bp, gateway_bp
 
 
 def create_app() -> Flask:
@@ -33,6 +33,7 @@ def create_app() -> Flask:
     app.register_blueprint(motor_bp)
     app.register_blueprint(decision_bp)
     app.register_blueprint(episodios_bp)
+    app.register_blueprint(gateway_bp)
 
     @app.get("/health")
     def health():
