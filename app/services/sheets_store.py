@@ -9,7 +9,6 @@ Correção da quebra 4:
 """
 
 import gspread
-import json
 import logging
 from google.oauth2.service_account import Credentials
 from app.models.decide import DecideRequest, DecideResponse
@@ -38,8 +37,9 @@ COL_UPDATED_AT        = "updated_at"
 
 
 def _get_client() -> gspread.Client:
-    creds_dict = json.loads(settings.GOOGLE_CREDENTIALS_JSON)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+    creds = Credentials.from_service_account_file(
+        settings.GOOGLE_APPLICATION_CREDENTIALS, scopes=SCOPES
+    )
     return gspread.authorize(creds)
 
 

@@ -1,15 +1,16 @@
 """
 app/core/config.py
 Todas as configs via env vars. Nunca hardcodar segredos.
-Render: Settings > Environment Variables.
+Render: Settings > Environment Variables + Secret Files.
 
 Variáveis obrigatórias (6):
-  JWT_SECRET              — gerar: openssl rand -hex 32
-  GOOGLE_CLIENT_ID        — Google Cloud Console > OAuth 2.0 Client ID
-  GOOGLE_CREDENTIALS_JSON — JSON da service account (string completa)
-  SPREADSHEET_ID          — ID da Planilha-Mãe
-  ALLOWED_ORIGINS         — URL exata do GitHub Pages (ou CSV de origens)
-  MAKE_DOC_WEBHOOK        — opcional: periférico de geração de docs
+  JWT_SECRET                      — gerar: openssl rand -hex 32
+  GOOGLE_CLIENT_ID                — Google Cloud Console > OAuth 2.0 Client ID
+  GOOGLE_APPLICATION_CREDENTIALS  — path para JSON da service account
+                                    Render: Secret Files > /etc/secrets/gcp-sa.json
+  SPREADSHEET_ID                  — ID da Planilha-Mãe
+  ALLOWED_ORIGINS                 — URL exata do GitHub Pages (ou CSV de origens)
+  MAKE_DOC_WEBHOOK                — opcional: periférico de geração de docs
 """
 
 from pydantic_settings import BaseSettings
@@ -27,8 +28,9 @@ class Settings(BaseSettings):
     # Google OAuth (validação do id_token)
     GOOGLE_CLIENT_ID: str = ""
 
-    # Google Sheets
-    GOOGLE_CREDENTIALS_JSON: str = ""
+    # Google Sheets — path to service-account JSON file
+    # Render: Settings > Secret Files > /etc/secrets/gcp-sa.json
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
     SPREADSHEET_ID: str = ""
 
     # CORS — stored as str to avoid pydantic-settings JSON parse on List[str]

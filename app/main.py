@@ -13,7 +13,7 @@ from app.core.config import settings
 logger = logging.getLogger("neuroauth.app")
 
 # Startup validation — warn about missing env vars
-_REQUIRED = ["JWT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CREDENTIALS_JSON", "SPREADSHEET_ID"]
+_REQUIRED = ["JWT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_APPLICATION_CREDENTIALS", "SPREADSHEET_ID"]
 _missing = [k for k in _REQUIRED if not getattr(settings, k, "")]
 if _missing:
     logger.warning(

@@ -9,7 +9,7 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
-      - key: GOOGLE_CREDENTIALS_JSON
+      - key: GOOGLE_APPLICATION_CREDENTIALS
         sync: false
       - key: SPREADSHEET_ID
         sync: false
