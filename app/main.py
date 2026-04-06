@@ -5,7 +5,15 @@ Entrypoint FastAPI. Render start command:
 """
 
 import logging
+import sys
 from pathlib import Path
+
+# Configurar logging para stdout — necessário para Render capturar INFO/WARNING/ERROR
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+)
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
