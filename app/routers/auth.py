@@ -1,6 +1,7 @@
 """
 app/routers/auth.py
 POST /auth/google — troca id_token Google por JWT NEUROAUTH.
+POST /auth/dev-token — gera JWT de teste (apenas para founder, remover em produção).
 """
 
 from fastapi import APIRouter, HTTPException
@@ -40,4 +41,31 @@ async def auth_google(body: GoogleAuthRequest):
         email=user["email"],
         name=user["name"],
         role=role,
+    )
+
+
+# ── DEV-ONLY: token de teste para validar pipeline /decide ──────────
+# TODO: remover antes de ir para produção real
+class DevTokenRequest(BaseModel):
+    secret_phrase: str
+
+
+@router.post("/dev-token", response_model=AuthResponse)
+async def dev_token(body: DevTokenRequest):
+    """
+    Gera JWT de teste para o founder.
+    Requer secret_phrase = 'neuroauth-fase2-test' como proteção mínima.
+    """
+    if body.secret_phrase != "neuroauth-fase2-test":
+        raise HTTPException(status_code=403, detail="Frase secreta inválida.")
+
+    email = "josejuniorsaraiva@gmail.com"
+    name = "Jose Junior (dev-token)"
+    token = create_access_token(email=email, name=name)
+
+    return AuthResponse(
+        access_token=token,
+        email=email,
+        name=name,
+        role="founder",
     )
