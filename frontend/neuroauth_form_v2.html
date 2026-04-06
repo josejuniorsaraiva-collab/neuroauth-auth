@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NEUROAUTH — Solicitação Cirúrgica v2</title>
+  <title>NEUROAUTH — Solicitacao Cirurgica</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --bg: #f0f4f8; --surface: #ffffff; --border: #d1d9e0;
@@ -29,14 +30,12 @@
       background: #fff; transition: border-color 0.15s; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(30,58,138,0.08); }
-    input.error, select.error { border-color: var(--danger); border-width: 2px; }
+    input.error, select.error, textarea.error { border-color: var(--danger); border-width: 2px; }
     input[readonly] { background: #f8fafc; cursor: default; color: var(--muted); }
     .field-error { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
     .field-error.visible { display: block; }
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    #lateralidade-group { display: none; }
-    #lateralidade-group.required { display: block; }
-    #niveis-row { display: none; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--muted); margin: 20px 0 12px;
       padding-bottom: 6px; border-bottom: 1px solid var(--border); }
@@ -50,471 +49,366 @@
     #result-box.go    { border-color: var(--success); background: #f0fdf4; }
     #result-box.nogo  { border-color: var(--danger);  background: #fef2f2; }
     #result-box.pending { border-color: var(--warn);  background: #fffbeb; }
-    #result-box.precheck{ border-color: var(--warn);  background: #fffbeb; }
     .result-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
     .result-title.go    { color: var(--success); }
     .result-title.nogo  { color: var(--danger); }
     .result-title.pending { color: var(--warn); }
-    .result-title.precheck{ color: var(--warn); }
     .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .tag { font-size: 11px; font-weight: 600; padding: 3px 8px;
            border-radius: 4px; letter-spacing: 0.03em; }
     .tag.block { background: #fee2e2; color: var(--danger); }
     .tag.pend  { background: #fef3c7; color: var(--warn); }
-    .tag.warn  { background: #dbeafe; color: #1d4ed8; }
     .result-meta { font-size: 11px; color: var(--muted); margin-top: 10px; }
     .spinner { display: inline-block; width: 14px; height: 14px; vertical-align: middle;
       border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
       border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Auth section */
+    #auth-section { text-align: center; padding: 40px 24px; }
+    #auth-section h2 { font-size: 16px; margin-bottom: 8px; }
+    #auth-section p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .user-bar { display: flex; align-items: center; justify-content: space-between;
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius);
+      padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+    .user-bar .name { font-weight: 600; color: var(--success); }
+    .user-bar .logout { background: none; border: none; color: var(--danger);
+      cursor: pointer; font-size: 12px; text-decoration: underline; }
     #opme-block { display: none; }
     .opme-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
     .opme-row input[type="text"]   { flex: 1; }
     .opme-row input[type="number"] { width: 80px; }
     .opme-row .btn-rm { padding: 6px 10px; background: #fee2e2; color: var(--danger);
       border: 1px solid #fca5a5; border-radius: var(--radius); cursor: pointer; font-size: 13px; }
-    .opme-row .btn-rm:hover { background: #fca5a5; }
     .btn-add-opme { margin-top: 4px; padding: 7px 14px; font-size: 13px; font-weight: 600;
       background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
       border-radius: var(--radius); cursor: pointer; }
-    .btn-add-opme:hover { background: #dbeafe; }
   </style>
 </head>
 <body>
 <div class="card">
   <div class="card-header">
-    <h1>NEUROAUTH — Solicitação Cirúrgica</h1>
-    <p>Motor de Decisão Clínica v2.1 · Validação automática</p>
+    <h1>NEUROAUTH — Solicitacao Cirurgica</h1>
+    <p>Motor de Decisao Clinica v2.1 · Validacao automatica</p>
   </div>
   <div class="card-body">
-    <form id="form" novalidate>
 
-      <!-- ── PACIENTE ──────────────────────────────────────────────────────── -->
-      <div class="section-title">Paciente</div>
-      <div class="field">
-        <label>Nome do Paciente <span class="req">*</span></label>
-        <input type="text" name="nome_paciente" id="nome_paciente" autocomplete="off">
-        <div class="field-error" id="err-nome">Campo obrigatório.</div>
+    <!-- ── AUTH GATE ────────────────────────────────────────────────────────── -->
+    <div id="auth-section">
+      <h2>Autenticacao Necessaria</h2>
+      <p>Faca login com sua conta Google autorizada para acessar o motor de decisao.</p>
+      <div id="g_id_onload"
+           data-client_id="118851719832-qaktum0kj1a6r2a2fp6c75hhag8p2tlf.apps.googleusercontent.com"
+           data-callback="handleGoogleCredential"
+           data-auto_prompt="false">
       </div>
-
-      <!-- ── SOLICITAÇÃO ───────────────────────────────────────────────────── -->
-      <div class="section-title">Solicitação</div>
-
-      <!-- Procedimento — dropdown dinâmico carregado via /clinical/protocols -->
-      <div class="field">
-        <label>Procedimento <span class="req">*</span></label>
-        <select name="profile_id" id="profile_id">
-          <option value="">Carregando procedimentos…</option>
-        </select>
-        <div class="field-error" id="err-profile">Selecione o procedimento.</div>
+      <div class="g_id_signin"
+           data-type="standard"
+           data-shape="rectangular"
+           data-theme="outline"
+           data-text="signin_with"
+           data-size="large"
+           data-logo_alignment="left">
       </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label>Código TUSS <span class="req">*</span>
-            <span class="hint">preenchido automaticamente</span>
-          </label>
-          <input type="text" name="codigo_tuss" id="codigo_tuss" readonly
-                 placeholder="Selecione o procedimento acima">
-          <div class="field-error" id="err-tuss">Selecione um procedimento válido.</div>
-        </div>
-        <div class="field">
-          <label>CID Principal <span class="req">*</span></label>
-          <input type="text" name="cid_principal" id="cid_principal" placeholder="ex: M50.1">
-          <div class="field-error" id="err-cid">Campo obrigatório.</div>
-        </div>
-      </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label>Caráter do Atendimento <span class="req">*</span></label>
-          <select name="carater_cod" id="carater_cod">
-            <option value="">Carregando…</option>
-          </select>
-          <div class="field-error" id="err-carater">Selecione o caráter.</div>
-        </div>
-        <div class="field">
-          <label>Convênio <span class="req">*</span></label>
-          <input type="text" name="convenio_id" id="convenio_id"
-                 placeholder="ex: UNIMED_CARIRI">
-          <div class="field-error" id="err-convenio">Campo obrigatório.</div>
-        </div>
-      </div>
-
-      <!-- Lateralidade — só aparece quando o procedimento exige -->
-      <div class="field" id="lateralidade-group">
-        <label>Lateralidade <span class="req">*</span>
-          <span class="hint">Este procedimento exige indicação do lado operado</span>
-        </label>
-        <select name="lateralidade" id="lateralidade">
-          <option value="">Selecione o lado…</option>
-        </select>
-        <div class="field-error" id="err-lateralidade">Selecione a lateralidade.</div>
-      </div>
-
-      <!-- Níveis — só aparece quando o procedimento exige -->
-      <div class="row-2" id="niveis-row">
-        <div class="field">
-          <label>Qtd. Níveis <span class="req">*</span>
-            <span class="hint">obrigatório para este procedimento</span>
-          </label>
-          <input type="number" name="niveis" id="niveis" min="1" max="10" placeholder="ex: 2">
-          <div class="field-error" id="err-niveis">Campo obrigatório para este procedimento.</div>
-        </div>
-        <div class="field">
-          <label>Hospital</label>
-          <input type="text" name="hospital" id="hospital" placeholder="ex: HSJ">
-        </div>
-      </div>
-
-      <!-- Hospital — linha normal quando niveis não aparece -->
-      <div class="field" id="hospital-standalone">
-        <label>Hospital</label>
-        <input type="text" name="hospital" id="hospital2" placeholder="ex: HSJ">
-      </div>
-
-      <div class="field">
-        <label>Indicação Clínica</label>
-        <textarea name="indicacao_clinica" id="indicacao_clinica" rows="3"
-                  placeholder="Descreva a indicação clínica…"></textarea>
-      </div>
-
-      <!-- OPME — só aparece quando o procedimento exige -->
-      <div class="field" id="opme-block">
-        <label>Materiais / OPME <span class="req">*</span>
-          <span class="hint">Este procedimento exige declaração de materiais</span>
-        </label>
-        <div id="opme-list"></div>
-        <button type="button" class="btn-add-opme" onclick="addOpmeItem()">+ Adicionar material</button>
-        <div class="field-error" id="err-opme">Adicione ao menos um material com descrição.</div>
-      </div>
-
-      <button class="btn-submit" type="submit" id="btn-submit">
-        Enviar para Motor de Decisão →
-      </button>
-    </form>
-
-    <!-- ── RESULTADO ──────────────────────────────────────────────────────── -->
-    <div id="result-box">
-      <div class="result-title" id="res-title">—</div>
-      <div id="res-motivos" class="tag-list"></div>
-      <div class="result-meta" id="res-meta"></div>
+      <div id="auth-error" style="color:var(--danger);font-size:13px;margin-top:12px;display:none;"></div>
     </div>
+
+    <!-- ── FORM (hidden until auth) ─────────────────────────────────────────── -->
+    <div id="form-section" style="display:none;">
+      <div class="user-bar">
+        <span>Logado como: <span class="name" id="user-name">—</span></span>
+        <button class="logout" onclick="doLogout()">Sair</button>
+      </div>
+
+      <form id="form" novalidate>
+
+        <!-- MEDICO -->
+        <div class="section-title">Medico Solicitante</div>
+        <div class="row-3">
+          <div class="field">
+            <label>Nome <span class="req">*</span></label>
+            <input type="text" name="medico_solicitante" id="medico_solicitante">
+            <div class="field-error" id="err-medico">Campo obrigatorio.</div>
+          </div>
+          <div class="field">
+            <label>CRM <span class="req">*</span></label>
+            <input type="text" name="crm" id="crm" placeholder="ex: 12345-CE">
+            <div class="field-error" id="err-crm">Campo obrigatorio.</div>
+          </div>
+          <div class="field">
+            <label>CBO <span class="req">*</span></label>
+            <input type="text" name="cbo" id="cbo" placeholder="ex: 225142">
+            <div class="field-error" id="err-cbo">Campo obrigatorio.</div>
+          </div>
+        </div>
+
+        <!-- PROCEDIMENTO -->
+        <div class="section-title">Procedimento</div>
+        <div class="field">
+          <label>Procedimento <span class="req">*</span></label>
+          <select name="procedimento" id="procedimento">
+            <option value="">Selecione o procedimento...</option>
+            <option value="MICRODISCECTOMIA_LOMBAR" data-cbhpm="40808019" data-opme="false">Microdiscectomia Lombar</option>
+            <option value="ACDF_1_NIVEL" data-cbhpm="40808505" data-opme="true">ACDF 1 Nivel</option>
+            <option value="ACDF_2_NIVEIS" data-cbhpm="40808506" data-opme="true">ACDF 2 Niveis</option>
+            <option value="ARTRODESE_LOMBAR_POSTERIOR" data-cbhpm="40808116" data-opme="true">Artrodese Lombar Posterior</option>
+            <option value="ESTENOSE_CANAL_LOMBAR" data-cbhpm="40808030" data-opme="false">Estenose do Canal Lombar</option>
+            <option value="DVP" data-cbhpm="40806010" data-opme="true">DVP — Derivacao Ventricular Peritoneal</option>
+            <option value="HEMATOMA_SUBDURAL" data-cbhpm="40806070" data-opme="false">Craniotomia — Hematoma Subdural</option>
+            <option value="TUMOR_CEREBRAL_RESECCAO" data-cbhpm="40806077" data-opme="true">Resseccao de Tumor Cerebral</option>
+            <option value="TROMBECTOMIA_MECANICA" data-cbhpm="40809100" data-opme="true">Trombectomia Mecanica</option>
+            <option value="ANEURISMA_EMBOLIZACAO" data-cbhpm="40809050" data-opme="true">Embolizacao de Aneurisma</option>
+          </select>
+          <div class="field-error" id="err-proc">Selecione o procedimento.</div>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label>Codigo CBHPM <span class="hint">preenchido automaticamente</span></label>
+            <input type="text" name="cod_cbhpm" id="cod_cbhpm" readonly placeholder="Selecione acima">
+          </div>
+          <div class="field">
+            <label>CID Principal <span class="req">*</span></label>
+            <input type="text" name="cid_principal" id="cid_principal" placeholder="ex: M50.1">
+            <div class="field-error" id="err-cid">Campo obrigatorio.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Convenio <span class="req">*</span></label>
+          <input type="text" name="convenio" id="convenio" placeholder="ex: UNIMED_CARIRI">
+          <div class="field-error" id="err-convenio">Campo obrigatorio.</div>
+        </div>
+
+        <div class="field">
+          <label>Indicacao Clinica <span class="req">*</span></label>
+          <textarea name="indicacao_clinica" id="indicacao_clinica" rows="3"
+                    placeholder="Descreva a indicacao clinica..."></textarea>
+          <div class="field-error" id="err-indicacao">Campo obrigatorio.</div>
+        </div>
+
+        <div class="field">
+          <label>Achados / Resumo</label>
+          <textarea name="achados_resumo" id="achados_resumo" rows="2"
+                    placeholder="Achados de exames, resumo clinico (opcional)"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Tratamento Conservador</label>
+          <input type="text" name="tto_conservador" id="tto_conservador"
+                 placeholder="ex: Fisioterapia 3 meses sem melhora (opcional)">
+        </div>
+
+        <!-- OPME -->
+        <div class="field" id="opme-block">
+          <div class="section-title">Materiais / OPME</div>
+          <div id="opme-list"></div>
+          <button type="button" class="btn-add-opme" onclick="addOpme()">+ Adicionar material</button>
+          <div class="field-error" id="err-opme">Adicione ao menos um material com descricao.</div>
+        </div>
+
+        <button class="btn-submit" type="submit" id="btn-submit">
+          Enviar para Motor de Decisao
+        </button>
+      </form>
+
+      <!-- RESULTADO -->
+      <div id="result-box">
+        <div class="result-title" id="res-title">—</div>
+        <div id="res-motivos" class="tag-list"></div>
+        <div class="result-meta" id="res-meta"></div>
+      </div>
+    </div><!-- /form-section -->
+
   </div><!-- /.card-body -->
 </div>
 
 <script>
 "use strict";
 const API = "https://neuroauth-auth.onrender.com";
+let _jwt = null;
+let _user = null;
+let _opmeItems = [];
+let _submitting = false;
 
-// ── Config vinda do backend ──────────────────────────────────────────────────
-let CONFIG = {
-  valid_carater_values: [],
-  profiles_requiring_laterality: [],
-  valid_laterality_values: [],
-  profiles_requiring_opme: [],
-};
-
-// ── OPME — estado ────────────────────────────────────────────────────────────
-let opmeItems = [];
-
-// ── loadConfig ───────────────────────────────────────────────────────────────
-async function loadConfig() {
-  try {
-    const r = await fetch(API + "/decision/config", { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error("status " + r.status);
-    CONFIG = await r.json();
-  } catch (e) {
-    CONFIG = {
-      valid_carater_values: ["ELETIVO", "ELE", "URGENTE", "URGENCIA", "URG"],
-      profiles_requiring_laterality: ["MICRODISCECTOMIA_LOMBAR", "HERNIA_DISCAL_LOMBAR", "HERNIA_DISCAL_CERVICAL"],
-      valid_laterality_values: ["DIREITA", "ESQUERDA", "BILATERAL"],
-      profiles_requiring_opme: [],
-    };
-    console.warn("NEUROAUTH: /decision/config falhou — usando fallback", e.message);
-  }
-  populateCarater();
-  populateLateralidade();
+// ── Google Auth ──────────────────────────────────────────────────────────────
+function handleGoogleCredential(response) {
+  const errEl = document.getElementById("auth-error");
+  errEl.style.display = "none";
+  fetch(API + "/auth/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_token: response.credential }),
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(e => { throw new Error(e.detail || "Erro " + r.status); });
+    return r.json();
+  })
+  .then(data => {
+    _jwt = data.access_token;
+    _user = { email: data.email, name: data.name, role: data.role };
+    showForm();
+  })
+  .catch(e => {
+    errEl.textContent = e.message;
+    errEl.style.display = "block";
+  });
 }
 
-// ── loadProcedimentos — carrega do backend /clinical/protocols ───────────────
-async function loadProcedimentos() {
-  const sel = document.getElementById("profile_id");
-  try {
-    const r = await fetch(API + "/clinical/protocols", { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error("status " + r.status);
-    const data = await r.json();
-    sel.innerHTML = '<option value="">Selecione o procedimento…</option>';
-    data.procedures.forEach(p => {
-      const opt = document.createElement("option");
-      opt.value = p.id;
-      opt.textContent = p.label;
-      opt.dataset.tuss              = p.tuss_hint || "";
-      opt.dataset.requiresNiveis    = p.requires_niveis    ? "true" : "false";
-      opt.dataset.requiresLateral   = p.requires_lateralidade ? "true" : "false";
-      opt.dataset.requiresOpme      = p.requires_opme      ? "true" : "false";
-      sel.appendChild(opt);
-    });
-  } catch (e) {
-    console.warn("NEUROAUTH: /clinical/protocols falhou — usando fallback estático", e.message);
-    sel.innerHTML = `
-      <option value="">Selecione o procedimento…</option>
-      <option value="MICRODISCECTOMIA_LOMBAR"    data-tuss="40808019" data-requires-niveis="false" data-requires-lateral="true"  data-requires-opme="false">Microdiscectomia Lombar</option>
-      <option value="ACDF_1_NIVEL"               data-tuss="40808505" data-requires-niveis="false" data-requires-lateral="false" data-requires-opme="true">ACDF 1 Nível</option>
-      <option value="ACDF_2_NIVEIS"              data-tuss="40808506" data-requires-niveis="true"  data-requires-lateral="false" data-requires-opme="true">ACDF 2 Níveis</option>
-      <option value="ARTRODESE_LOMBAR_POSTERIOR" data-tuss="40808116" data-requires-niveis="true"  data-requires-lateral="false" data-requires-opme="true">Artrodese Lombar Posterior</option>
-      <option value="ESTENOSE_CANAL_LOMBAR"      data-tuss="40808030" data-requires-niveis="true"  data-requires-lateral="false" data-requires-opme="false">Estenose do Canal Lombar</option>
-      <option value="DVP"                        data-tuss="40806010" data-requires-niveis="false" data-requires-lateral="false" data-requires-opme="true">DVP — Derivação Ventricular Peritoneal</option>
-      <option value="HEMATOMA_SUBDURAL"          data-tuss="40806070" data-requires-niveis="false" data-requires-lateral="true"  data-requires-opme="false">Craniotomia — Hematoma Subdural</option>
-      <option value="TUMOR_CEREBRAL_RESECCAO"    data-tuss="40806077" data-requires-niveis="false" data-requires-lateral="false" data-requires-opme="true">Ressecção de Tumor Cerebral</option>
-      <option value="TROMBECTOMIA_MECANICA"      data-tuss="40809100" data-requires-niveis="false" data-requires-lateral="false" data-requires-opme="true">Trombectomia Mecânica</option>
-      <option value="ANEURISMA_EMBOLIZACAO"      data-tuss="40809050" data-requires-niveis="false" data-requires-lateral="false" data-requires-opme="true">Embolização de Aneurisma</option>
-    `;
-  }
+function showForm() {
+  document.getElementById("auth-section").style.display = "none";
+  document.getElementById("form-section").style.display = "block";
+  document.getElementById("user-name").textContent = _user.name + " (" + _user.email + ")";
+  // Pre-fill medico name from Google profile
+  const medicoEl = document.getElementById("medico_solicitante");
+  if (!medicoEl.value) medicoEl.value = _user.name;
 }
 
-// ── Evento: seleção de procedimento ─────────────────────────────────────────
-document.getElementById("profile_id").addEventListener("change", function() {
+function doLogout() {
+  _jwt = null; _user = null;
+  document.getElementById("auth-section").style.display = "block";
+  document.getElementById("form-section").style.display = "none";
+}
+
+// ── Procedimento change ──────────────────────────────────────────────────────
+document.getElementById("procedimento").addEventListener("change", function() {
   const opt = this.options[this.selectedIndex];
-  if (!opt || !opt.value) {
-    // Nenhum procedimento selecionado — limpa tudo
-    document.getElementById("codigo_tuss").value = "";
-    document.getElementById("lateralidade-group").classList.remove("required");
-    document.getElementById("niveis-row").style.display = "none";
-    document.getElementById("hospital-standalone").style.display = "block";
-    _updateOpmeBlock(false);
-    return;
-  }
-
-  // Auto-fill TUSS
-  document.getElementById("codigo_tuss").value = opt.dataset.tuss || "";
-
-  // Lateralidade
-  const requiresLat = opt.dataset.requiresLateral === "true";
-  const latGroup = document.getElementById("lateralidade-group");
-  latGroup.classList.toggle("required", requiresLat);
-  if (!requiresLat) document.getElementById("lateralidade").value = "";
-
-  // Níveis dinâmico
-  const requiresNiveis = opt.dataset.requiresNiveis === "true";
-  const niveisRow = document.getElementById("niveis-row");
-  niveisRow.style.display = requiresNiveis ? "grid" : "none";
-  // Mostra hospital standalone apenas quando niveis-row está oculto
-  document.getElementById("hospital-standalone").style.display = requiresNiveis ? "none" : "block";
-  if (!requiresNiveis) document.getElementById("niveis").value = "";
-
-  // OPME
-  _updateOpmeBlock(opt.dataset.requiresOpme === "true");
+  document.getElementById("cod_cbhpm").value = (opt && opt.dataset.cbhpm) || "";
+  const needsOpme = opt && opt.dataset.opme === "true";
+  document.getElementById("opme-block").style.display = needsOpme ? "block" : "none";
+  if (needsOpme && _opmeItems.length === 0) { _opmeItems = [{ descricao: "", qtd: 1 }]; renderOpme(); }
+  if (!needsOpme) { _opmeItems = []; document.getElementById("opme-list").innerHTML = ""; }
 });
 
-function _updateOpmeBlock(needs) {
-  const block = document.getElementById("opme-block");
-  block.style.display = needs ? "block" : "none";
-  if (needs && opmeItems.length === 0) {
-    opmeItems = [{ descricao: "", quantidade: 1 }];
-    renderOpmeList();
-  }
-  if (!needs) {
-    opmeItems = [];
-    document.getElementById("opme-list").innerHTML = "";
-    document.getElementById("err-opme").classList.remove("visible");
-  }
+// ── OPME helpers ─────────────────────────────────────────────────────────────
+function addOpme() { _opmeItems.push({ descricao: "", qtd: 1 }); renderOpme(); }
+function removeOpme(i) { _opmeItems.splice(i, 1); renderOpme(); }
+function renderOpme() {
+  document.getElementById("opme-list").innerHTML = _opmeItems.map((it, i) =>
+    '<div class="opme-row">' +
+    '<input type="text" placeholder="Descricao do material" value="' + (it.descricao||"").replace(/"/g,"&quot;") + '" oninput="_opmeItems['+i+'].descricao=this.value">' +
+    '<input type="number" min="1" max="99" value="'+(it.qtd||1)+'" style="width:80px" oninput="_opmeItems['+i+'].qtd=parseInt(this.value)||1">' +
+    '<button type="button" class="btn-rm" onclick="removeOpme('+i+')">X</button>' +
+    '</div>'
+  ).join("");
 }
 
-function addOpmeItem() { opmeItems.push({ descricao: "", quantidade: 1 }); renderOpmeList(); }
-function removeOpmeItem(idx) { opmeItems.splice(idx, 1); renderOpmeList(); }
-function renderOpmeList() {
-  const container = document.getElementById("opme-list");
-  container.innerHTML = opmeItems.map((item, idx) => `
-    <div class="opme-row">
-      <input type="text" placeholder="Descrição do material (ex: Cage PEEK 0° 7x14mm)"
-             value="${(item.descricao || "").replace(/"/g, "&quot;")}"
-             oninput="opmeItems[${idx}].descricao=this.value" autocomplete="off">
-      <input type="number" min="1" max="99" value="${item.quantidade || 1}"
-             oninput="opmeItems[${idx}].quantidade=parseInt(this.value)||1">
-      <button type="button" class="btn-rm" onclick="removeOpmeItem(${idx})">✕</button>
-    </div>
-  `).join("");
-}
-
-function populateCarater() {
-  const sel = document.getElementById("carater_cod");
-  sel.innerHTML = '<option value="">Selecione o caráter…</option>';
-  CONFIG.valid_carater_values.forEach(v => {
-    const opt = document.createElement("option"); opt.value = v; opt.textContent = v;
-    sel.appendChild(opt);
-  });
-}
-function populateLateralidade() {
-  const sel = document.getElementById("lateralidade");
-  sel.innerHTML = '<option value="">Selecione o lado…</option>';
-  CONFIG.valid_laterality_values.forEach(v => {
-    const opt = document.createElement("option"); opt.value = v; opt.textContent = v;
-    sel.appendChild(opt);
-  });
-}
-
-// ── Validação client-side ─────────────────────────────────────────────────────
+// ── Validation ───────────────────────────────────────────────────────────────
 function validate() {
   let ok = true;
   const checks = [
-    ["nome_paciente", "err-nome",     v => v.trim().length > 0],
-    ["profile_id",    "err-profile",  v => v !== ""],
-    ["codigo_tuss",   "err-tuss",     v => v.trim().length > 0],
-    ["cid_principal", "err-cid",      v => v.trim().length > 0],
-    ["carater_cod",   "err-carater",  v => v !== ""],
-    ["convenio_id",   "err-convenio", v => v.trim().length > 0],
+    ["medico_solicitante", "err-medico", v => v.trim().length > 0],
+    ["crm",                "err-crm",    v => v.trim().length > 0],
+    ["cbo",                "err-cbo",    v => v.trim().length > 0],
+    ["procedimento",       "err-proc",   v => v !== ""],
+    ["cid_principal",      "err-cid",    v => v.trim().length > 0],
+    ["convenio",           "err-convenio", v => v.trim().length > 0],
+    ["indicacao_clinica",  "err-indicacao", v => v.trim().length > 0],
   ];
-  checks.forEach(([fieldId, errId, fn]) => {
-    const el = document.getElementById(fieldId);
-    const err = document.getElementById(errId);
+  checks.forEach(([fid, eid, fn]) => {
+    const el = document.getElementById(fid);
+    const err = document.getElementById(eid);
     const pass = fn(el.value);
     el.classList.toggle("error", !pass);
     err.classList.toggle("visible", !pass);
     if (!pass) ok = false;
   });
-  // Lateralidade condicional
-  const latGroup = document.getElementById("lateralidade-group");
-  if (latGroup.classList.contains("required")) {
-    const latEl = document.getElementById("lateralidade");
-    const latErr = document.getElementById("err-lateralidade");
-    const pass = latEl.value !== "";
-    latEl.classList.toggle("error", !pass);
-    latErr.classList.toggle("visible", !pass);
-    if (!pass) ok = false;
-  }
-  // Níveis condicional
-  if (document.getElementById("niveis-row").style.display !== "none") {
-    const nEl = document.getElementById("niveis");
-    const nErr = document.getElementById("err-niveis");
-    const pass = (parseInt(nEl.value) || 0) >= 1;
-    nEl.classList.toggle("error", !pass);
-    nErr.classList.toggle("visible", !pass);
-    if (!pass) ok = false;
-  }
-  // OPME condicional
-  const opmeBlock = document.getElementById("opme-block");
-  if (opmeBlock.style.display !== "none") {
+  // OPME validation if visible
+  if (document.getElementById("opme-block").style.display !== "none") {
     const errOpme = document.getElementById("err-opme");
-    const passOpme = opmeItems.length > 0 && opmeItems.every(i => (i.descricao || "").trim().length > 0);
-    errOpme.classList.toggle("visible", !passOpme);
-    if (!passOpme) ok = false;
+    const pass = _opmeItems.length > 0 && _opmeItems.every(i => (i.descricao||"").trim().length > 0);
+    errOpme.classList.toggle("visible", !pass);
+    if (!pass) ok = false;
   }
   return ok;
 }
 
-// ── Trava de submit duplo ─────────────────────────────────────────────────────
-let _submitting = false;
-
-// ── Submit ────────────────────────────────────────────────────────────────────
+// ── Submit ───────────────────────────────────────────────────────────────────
 document.getElementById("form").addEventListener("submit", async function(e) {
   e.preventDefault();
-  if (_submitting) return;
+  if (_submitting || !_jwt) return;
   if (!validate()) return;
   _submitting = true;
   const btn = document.getElementById("btn-submit");
-  btn.innerHTML = '<span class="spinner"></span>Processando…';
+  btn.innerHTML = '<span class="spinner"></span>Processando...';
   btn.disabled = true;
   document.getElementById("result-box").style.display = "none";
 
   const f = id => document.getElementById(id).value.trim();
-  // Detecta hospital (pode estar no campo inline ou no standalone)
-  const hospitalVal = document.getElementById("niveis-row").style.display !== "none"
-    ? f("hospital") : f("hospital2");
+  const opt = document.getElementById("procedimento").options[document.getElementById("procedimento").selectedIndex];
+  const needsOpme = opt && opt.dataset.opme === "true";
 
   const payload = {
-    nome_paciente:     f("nome_paciente"),
-    profile_id:        f("profile_id").toUpperCase(),
-    codigo_tuss:       f("codigo_tuss"),
-    cid_principal:     f("cid_principal"),
-    carater_cod:       f("carater_cod"),
-    convenio_id:       f("convenio_id"),
-    lateralidade:      f("lateralidade") || undefined,
-    niveis:            f("niveis")        || undefined,
-    hospital:          hospitalVal         || undefined,
-    indicacao_clinica: f("indicacao_clinica") || undefined,
-    opmes_selecionados: opmeItems.length > 0 ? opmeItems : undefined,
-    form_version: "v2.1",
-    source: "frontend_v2",
+    cid_principal:       f("cid_principal"),
+    procedimento:        f("procedimento"),
+    cod_cbhpm:           f("cod_cbhpm") || "",
+    convenio:            f("convenio"),
+    indicacao_clinica:   f("indicacao_clinica"),
+    achados_resumo:      f("achados_resumo") || "",
+    tto_conservador:     f("tto_conservador") || "",
+    necessita_opme:      needsOpme ? "Sim" : "Nao",
+    opme_items:          needsOpme ? _opmeItems : [],
+    crm:                 f("crm"),
+    cbo:                 f("cbo"),
+    medico_solicitante:  f("medico_solicitante"),
   };
-  Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
   try {
-    const r = await fetch(API + "/decision/submit", {
+    const r = await fetch(API + "/decide", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + _jwt,
+      },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(20000),
     });
     const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || "Erro " + r.status);
     showResult(data);
   } catch (err) {
-    const msg = (err.name === "TimeoutError" || err.name === "AbortError")
-      ? "Instabilidade de conexão. Verifique a rede e tente novamente."
-      : "Erro de comunicação: " + err.message;
-    showError(msg);
+    showError(err.message || "Erro de comunicacao");
   } finally {
-    btn.innerHTML = "Enviar para Motor de Decisão →";
+    btn.innerHTML = "Enviar para Motor de Decisao";
     btn.disabled = false;
     _submitting = false;
   }
 });
 
-// ── Renderizar resultado ──────────────────────────────────────────────────────
+// ── Result display ───────────────────────────────────────────────────────────
 function showResult(data) {
-  const box   = document.getElementById("result-box");
+  const box = document.getElementById("result-box");
   const title = document.getElementById("res-title");
-  const tags  = document.getElementById("res-motivos");
-  const meta  = document.getElementById("res-meta");
-  const status = data.decision_status || "ERRO";
-  const pcheck = data.precheck || {};
-  const isPrecheck = !!(pcheck.blocking_issues && pcheck.blocking_issues.length && data.motivos && !data.episodio_id);
+  const tags = document.getElementById("res-motivos");
+  const meta = document.getElementById("res-meta");
+  const status = data.classification || data.decision_status || "ERRO";
   let cls, label;
-  if (isPrecheck) { cls = "precheck"; label = "⚠ Precheck — Corrija antes de enviar"; }
-  else if (status === "GO" || status === "GO_COM_RESSALVAS") {
-    cls = "go"; label = status === "GO" ? "✓ GO — Envio liberado" : "✓ GO com ressalvas";
-  } else if (status === "NO_GO") { cls = "nogo"; label = "✗ NO-GO — Envio bloqueado"; }
-  else if (status === "PENDENCIA_OBRIGATORIA") { cls = "pending"; label = "⚠ Pendência — Campos obrigatórios ausentes"; }
-  else { cls = "nogo"; label = "✗ Erro: " + (data.erro || data.error_code || status); }
+  if (status === "GO") { cls = "go"; label = "GO — Envio liberado"; }
+  else if (status === "GO_COM_RESSALVAS") { cls = "go"; label = "GO com ressalvas"; }
+  else if (status === "NO_GO") { cls = "nogo"; label = "NO-GO — Envio bloqueado"; }
+  else { cls = "pending"; label = status; }
 
-  box.className = ""; box.classList.add(cls);
-  title.className = "result-title " + cls; title.textContent = label;
+  box.className = cls; box.style.display = "block";
+  title.className = "result-title " + cls;
+  title.textContent = label;
   tags.innerHTML = "";
-  (data.motivos || pcheck.blocking_issues || []).forEach(m => {
-    const t = document.createElement("span"); t.className = "tag block";
-    t.textContent = m.split(":")[0]; tags.appendChild(t);
-  });
-  (pcheck.warnings || []).forEach(w => {
-    const t = document.createElement("span"); t.className = "tag warn";
-    t.textContent = w.split(":")[0]; tags.appendChild(t);
-  });
-  (data.bloqueios  || []).forEach(b => {
-    const t = document.createElement("span"); t.className = "tag block";
-    t.textContent = b.codigo || b.regra || JSON.stringify(b); tags.appendChild(t);
-  });
   (data.pendencias || []).forEach(p => {
-    const t = document.createElement("span"); t.className = "tag pend";
-    t.textContent = p.codigo || p.campo || JSON.stringify(p); tags.appendChild(t);
+    const t = document.createElement("span"); t.className = "tag pend"; t.textContent = p; tags.appendChild(t);
   });
-  const epId = data.episodio_id || "—";
-  const runId = data._run_id || "—";
-  const pwarn = data._persistence_warning ? ` · ⚠ Persist: ${data._persistence_warning.slice(0,60)}` : "";
-  meta.textContent = `Episódio: ${epId} · Run: ${runId} · Rigor: ${pcheck.rigor_level || "—"}${pwarn}`;
-  box.style.display = "block";
+  (data.pontos_frageis || []).forEach(p => {
+    const t = document.createElement("span"); t.className = "tag block"; t.textContent = p; tags.appendChild(t);
+  });
+  meta.textContent = "Episodio: " + (data.episodio_id||"—") + " | Score: " + (data.score||"—") +
+    " | Risco glosa: " + (data.risco_glosa||"—") + " | Run: " + (data.decision_run_id||"—");
 }
 
 function showError(msg) {
   const box = document.getElementById("result-box");
   box.className = "nogo"; box.style.display = "block";
   document.getElementById("res-title").className = "result-title nogo";
-  document.getElementById("res-title").textContent = "✗ " + msg;
+  document.getElementById("res-title").textContent = "Erro: " + msg;
   document.getElementById("res-motivos").innerHTML = "";
   document.getElementById("res-meta").textContent = "";
 }
-
-// ── Init ─────────────────────────────────────────────────────────────────────
-loadConfig();
-loadProcedimentos();
 </script>
 </body>
 </html>
