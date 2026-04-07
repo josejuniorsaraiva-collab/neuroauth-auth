@@ -32,7 +32,7 @@ EPISODIOS_HEADER_ROW = 3
 # Colunas que o engine precisa encontrar em 22_EPISODIOS
 COL_EPISODIO_ID       = "episodio_id"
 COL_DECISION_STATUS   = "decision_status"
-COL_LAST_RUN_ID       = "ultimo_decision_run_id"
+COL_LAST_RUN_ID       = "decision_run_id"   # alinhado com header real de 22_EPISODIOS
 COL_UPDATED_AT        = "updated_at"
 
 
