@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 from app.models.decide import DecideRequest, OpmeItem
+from app.services.opme_validator import validate_opme_items, OpmePendencia
 
 logger = logging.getLogger("neuroauth.input_hardening")
 
@@ -35,16 +36,7 @@ TUSS_ALIAS = {
     "3.07.15.020": "3.07.15.02-0",
 }
 
-OPME_INCOMPATIVEIS_MICRODISCECTOMIA = [
-    "cage",
-    "parafuso pedicular", "parafusos pediculares",
-    "parafuso transpedicular", "parafusos transpediculares",
-    "haste longitudinal", "haste de conexão",
-    "crosslink", "fixador pedicular",
-    "artrodese", "fusão intersomática",
-    "implante pedicular", "sistema pedicular",
-    "transpedicular",
-]
+# OPME_INCOMPATIVEIS — movida para opme_validator.py (PROCEDURE_RULES)
 
 PERFIS_COLUNA_ELETIVA = [
     "microdiscectomia", "artrodese", "laminectomia",
@@ -162,40 +154,35 @@ def _gate_convenio(req: DecideRequest, r: HardeningResult, ep: str):
 
 
 def _gate_opme(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    Delega validação de OPME ao opme_validator.py (v2.0).
+    Pendências de incompatibilidade têm prioridade sobre genérico (ordenadas por severidade).
+    Dreno sem fabricante ainda verificado aqui como pendência menor.
+    """
     if req.necessita_opme != "Sim" or not req.opme_items:
         return
 
+    # ── Delegação ao validador externo ────────────────────────────────────
+    val = validate_opme_items(req.procedimento, req.opme_items)
+
+    # Transferir flags
+    r.opme_generico_bloqueado = val.opme_generico_detectado
+    r.opme_incompativel       = val.opme_incompativel_detectado
+
+    # Transferir pendências (já ordenadas por severidade: critica > alta)
+    for p in val.pendencias:
+        r.pendencias.append(p.mensagem)
+
+    # Transferir logs
+    for log in val.logs:
+        r.logar(f"{log} ep={ep}")
+
+    # ── Dreno sem justificativa (verificação local leve) ──────────────────
     for item in req.opme_items:
-        desc_lower = item.descricao.lower()
-
-        # OPME genérico tipo "kit"
-        if "kit" in desc_lower and len(desc_lower.split()) <= 3:
-            r.opme_generico_bloqueado = True
-            r.pendencias.append(
-                f"OPME genérico detectado: '{item.descricao}' — "
-                "OPME deve ser especificado por item (descrição, quantidade, fabricante). "
-                "Declaração como 'kit' gera glosa na fatura hospitalar."
-            )
-            r.logar(f"OPME_GENERIC_BLOCK ep={ep} item='{item.descricao}'")
-
-        # OPME incompatível com microdiscectomia simples
-        if any(t in proc for t in ["microdiscectomia", "discectomia simples"]):
-            for incompativel in OPME_INCOMPATIVEIS_MICRODISCECTOMIA:
-                if incompativel in desc_lower:
-                    r.opme_incompativel = True
-                    r.pendencias.append(
-                        f"INCONSISTÊNCIA OPME: '{item.descricao}' não é compatível com "
-                        f"microdiscectomia simples (sem artrodese). "
-                        "Rever indicação ou documentar justificativa de exceção."
-                    )
-                    r.logar(f"OPME_INCOMPATIVEL ep={ep} item='{item.descricao}' proc='{proc}'")
-                    break
-
-        # Dreno sem justificativa
-        if "dreno" in desc_lower:
+        if "dreno" in item.descricao.lower():
             if not item.fabricante and not item.codigo:
                 r.pendencias.append(
-                    f"Dreno de sucção declarado sem justificativa clínica explícita. "
+                    "Dreno de sucção declarado sem justificativa clínica explícita. "
                     "Incluir no relatório cirúrgico a indicação do dreno para evitar glosa."
                 )
 

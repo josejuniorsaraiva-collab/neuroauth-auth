@@ -196,8 +196,13 @@ def run_decision(req: DecideRequest) -> DecideResponse:
         score += 10
         pendencias.append(f"Convênio '{req.convenio}' — verificar regras e cobertura específicas.")
 
-    # CAP 1: OPME problemático nunca libera GO
-    if h.opme_generico_bloqueado or h.opme_incompativel:
+    # CAP 1a: OPME incompatível (critico) — cap mais restritivo que genérico
+    if h.opme_incompativel:
+        score = min(score, 60)
+        risco_glosa = "crítico"
+
+    # CAP 1b: OPME genérico (sem incompatibilidade) — cap em 74
+    elif h.opme_generico_bloqueado:
         score = min(score, 74)
 
     # CAP 2: Conservador insuficiente SEM déficit motor nunca libera GO
@@ -221,9 +226,11 @@ def run_decision(req: DecideRequest) -> DecideResponse:
     else:
         classification, decision_status = "NO_GO", "NEGADO"
 
-    # Risco glosa
+    # Risco glosa — calculado após CAPs para respeitar crítico
     n_criticos = sum(1 for p in pontos_frageis if "glosa" in p.lower() or "críti" in p.lower())
-    if h.opme_generico_bloqueado or h.opme_incompativel:
+    if h.opme_incompativel:
+        risco_glosa = "crítico"
+    elif h.opme_generico_bloqueado:
         risco_glosa = "alto"
     elif n_criticos == 0 and score >= 75:
         risco_glosa = "baixo"
