@@ -115,93 +115,67 @@ class TestN7ControleDeEstado:
 class TestN7FluxoCompleto:
 
     def _mock_completo(self, ep_id: str):
-        """Mock de worksheet vazia (novo episódio)."""
+        """Worksheet mock com append dinamico para _get_queue_item pos-enqueue."""
+        from app.services.runner import QUEUE_HEADERS
         ws = MagicMock()
-        ws.get_all_values.return_value = [
-            ["queue_item_id","episode_id","trace_id","idempotency_key",
-             "lock_owner","lock_at","attempt_count","last_attempt_at",
-             "final_status","decision_run_id","error_message","created_at","updated_at"]
-        ]
-        # col_values para episode_id: retorna lista sem o ep_id (não existe ainda)
-        ws.col_values.return_value = ["episode_id"]
-        ws.append_row.return_value = None
-        ws.row_values.return_value = [
-            "queue_item_id","episode_id","trace_id","idempotency_key",
-            "lock_owner","lock_at","attempt_count","last_attempt_at",
-            "final_status","decision_run_id","error_message","created_at","updated_at"
-        ]
+        data = [list(QUEUE_HEADERS)]
+
+        def dynamic_append(row, **kwargs):
+            data.append(list(row))
+
+        ws.get_all_values.side_effect = lambda: [list(r) for r in data]
+        ws.append_row.side_effect = dynamic_append
+        ws.row_values.return_value = list(QUEUE_HEADERS)
         ws.update_cells.return_value = None
-        # Simular find_row_index retornando linha 2 após enqueue
         return ws
 
     def test_T707_falha_persist_nao_marca_concluido(self):
-        """T7-07: falha antes de persistência → status 'erro', não 'concluido'."""
+        """T7-07: falha antes de persistência → status erro, não concluido."""
         req = _req()
-        with patch("app.services.runner._get_queue_sheet") as mock_qs, \
-             patch("app.services.runner.persist_decision", return_value=False), \
-             patch("app.services.runner._find_row_index", return_value=2), \
-             patch("app.services.runner._get_queue_item", return_value=None):
-            mock_qs.return_value = self._mock_completo(req.episodio_id)
+        ws  = self._mock_completo(req.episodio_id)
+        with patch("app.services.runner._get_queue_sheet", return_value=ws),              patch("app.services.runner.persist_decision", return_value=False),              patch("app.services.runner._update_queue_row"):
             result = run_episode(req)
-
         assert result["status"] == "erro"
-        assert result["status"] not in ESTADOS_FINAIS - {"erro"}
+
 
     def test_T708_falha_verify_nao_marca_concluido(self):
-        """T7-08: falha de verify_persistence → status 'erro', não 'concluido'."""
+        """T7-08: falha de verify_persistence → status erro, não concluido."""
         req = _req()
+        ws  = self._mock_completo(req.episodio_id)
         verify_fail = {"veredicto": "BLOQUEADO", "tentativas": 3, "detalhes": ["falhou"]}
-        with patch("app.services.runner._get_queue_sheet") as mock_qs, \
-             patch("app.services.runner.persist_decision", return_value=True), \
-             patch("app.services.runner.verify_persistence", return_value=verify_fail), \
-             patch("app.services.runner._find_row_index", return_value=2), \
-             patch("app.services.runner._get_queue_item", return_value=None):
-            mock_qs.return_value = self._mock_completo(req.episodio_id)
+        with patch("app.services.runner._get_queue_sheet", return_value=ws),              patch("app.services.runner.persist_decision", return_value=True),              patch("app.services.runner.verify_persistence", return_value=verify_fail),              patch("app.services.runner._update_queue_row"):
             result = run_episode(req)
-
         assert result["status"] == "erro"
+
 
     def test_T709_um_caso_um_trace_id(self):
         """T7-09: cada chamada gera trace_id único."""
-        req1 = _req()
-        req2 = _req()
         verify_ok = {"veredicto": "OK", "tentativas": 1, "detalhes": []}
+        trace_ids = []
 
-        with patch("app.services.runner._get_queue_sheet") as mock_qs, \
-             patch("app.services.runner.persist_decision", return_value=True), \
-             patch("app.services.runner.verify_persistence", return_value=verify_ok), \
-             patch("app.services.runner._find_row_index", return_value=2), \
-             patch("app.services.runner._get_queue_item", return_value=None):
-            mock_qs.return_value = self._mock_completo(req1.episodio_id)
-            r1 = run_episode(req1)
+        for _ in range(2):
+            req = _req()
+            ws  = self._mock_completo(req.episodio_id)
+            with patch("app.services.runner._get_queue_sheet", return_value=ws),                  patch("app.services.runner.persist_decision", return_value=True),                  patch("app.services.runner.verify_persistence", return_value=verify_ok),                  patch("app.services.runner._update_queue_row"):
+                r = run_episode(req)
+                trace_ids.append(r["trace_id"])
 
-        with patch("app.services.runner._get_queue_sheet") as mock_qs, \
-             patch("app.services.runner.persist_decision", return_value=True), \
-             patch("app.services.runner.verify_persistence", return_value=verify_ok), \
-             patch("app.services.runner._find_row_index", return_value=2), \
-             patch("app.services.runner._get_queue_item", return_value=None):
-            mock_qs.return_value = self._mock_completo(req2.episodio_id)
-            r2 = run_episode(req2)
+        assert trace_ids[0] != trace_ids[1], "trace_ids devem ser únicos"
 
-        assert r1["trace_id"] != r2["trace_id"], "trace_ids devem ser únicos por execução"
 
     def test_T710_lock_liberado_em_erro(self):
-        """T7-10: lock deve ser liberado mesmo quando ocorre erro controlado."""
+        """T7-10: lock liberado (lock_owner='') mesmo em erro controlado."""
         req = _req()
+        ws  = self._mock_completo(req.episodio_id)
         updates_registrados = []
 
-        def fake_update(ws, row_idx, updates):
-            updates_registrados.append(updates.copy())
+        def fake_update(w, idx, upd):
+            updates_registrados.append(upd.copy())
 
-        with patch("app.services.runner._get_queue_sheet") as mock_qs, \
-             patch("app.services.runner.persist_decision", side_effect=RuntimeError("db down")), \
-             patch("app.services.runner._find_row_index", return_value=2), \
-             patch("app.services.runner._get_queue_item", return_value=None), \
-             patch("app.services.runner._update_queue_row", side_effect=fake_update):
-            mock_qs.return_value = self._mock_completo(req.episodio_id)
+        with patch("app.services.runner._get_queue_sheet", return_value=ws),              patch("app.services.runner.persist_decision", side_effect=RuntimeError("db down")),              patch("app.services.runner._update_queue_row", side_effect=fake_update):
             result = run_episode(req)
 
         assert result["status"] == "erro"
-        # Verificar que houve update com lock_owner="" (liberação do lock)
         liberacoes = [u for u in updates_registrados if u.get("lock_owner") == ""]
         assert len(liberacoes) >= 1, "Lock deve ser liberado em erro controlado"
+
