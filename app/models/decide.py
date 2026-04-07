@@ -4,7 +4,7 @@ Schemas de entrada e saída do endpoint /decide.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 import uuid
 
@@ -35,6 +35,14 @@ class DecideRequest(BaseModel):
     crm: str
     cbo: str
     medico_solicitante: str
+    justificativas_opme: Optional[Dict[str, str]] = Field(
+        default_factory=dict,
+        description=(
+            "Justificativas clínicas por item OPME. "
+            "Chave = descricao do OpmeItem, Valor = justificativa textual. "
+            "Exemplo: {'Cola biológica Tisseel': 'Vedação dural em base de crânio'}"
+        )
+    )
 
 
 class DecideResponse(BaseModel):

@@ -164,7 +164,8 @@ def _gate_opme(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
         return
 
     # ── Delegação ao validador externo ────────────────────────────────────
-    val = validate_opme_items(req.procedimento, req.opme_items)
+    justificativas = getattr(req, 'justificativas_opme', None) or {}
+    val = validate_opme_items(req.procedimento, req.opme_items, justificativas)
 
     # Transferir flags + guardar resultado completo
     r.opme_generico_bloqueado = val.opme_generico_detectado
@@ -179,14 +180,8 @@ def _gate_opme(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
     for log in val.logs:
         r.logar(f"{log} ep={ep}")
 
-    # ── Dreno sem justificativa (verificação local leve) ──────────────────
-    for item in req.opme_items:
-        if "dreno" in item.descricao.lower():
-            if not item.fabricante and not item.codigo:
-                r.pendencias.append(
-                    "Dreno de sucção declarado sem justificativa clínica explícita. "
-                    "Incluir no relatório cirúrgico a indicação do dreno para evitar glosa."
-                )
+    # Dreno: verificação movida para opme_validator (opcionais_com_justificativa)
+    # Evitar duplicidade de pendências
 
 
 def _gate_tuss(req: DecideRequest, r: HardeningResult, ep: str):

@@ -263,14 +263,19 @@ def validate_opme_items(
             )
 
         # Check 3 — Opcional com justificativa
+        # Fabricante e código identificam o PRODUTO, não justificam o USO clínico.
+        # Apenas justificativas_opme (texto clínico) dispensa a pendência.
         for opcional in cfg["opcionais_com_justificativa"]:
             if item_matches_term(desc_norm, opcional):
                 justificativa = justificativas_opme.get(item.descricao, "").strip()
-                if not justificativa and not (item.fabricante or item.codigo):
+                if not justificativa:
                     result.itens_que_exigem_justificativa.append(item.descricao)
                     _add_pendencia(result, tipo="OPME_SEM_JUSTIFICATIVA", severidade="media",
                         item=item.descricao, regra_id="RGL_OPME_JUSTIFICATIVA",
-                        mensagem=f"Item OPME exige justificativa específica: {item.descricao}.")
+                        mensagem=(
+                            f"Item OPME exige justificativa clínica específica: '{item.descricao}'. "
+                            "Incluir no campo justificativas_opme do payload ou no laudo cirúrgico."
+                        ))
                     result.logs.append(f"OPME_JUSTIFICATIVA_MISSING: {item.descricao}")
                 break  # um match por item é suficiente
 
