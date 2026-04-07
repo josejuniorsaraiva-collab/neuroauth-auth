@@ -40,11 +40,17 @@ class DecideRequest(BaseModel):
 class DecideResponse(BaseModel):
     decision_run_id: str
     episodio_id: str
-    classification: str        # GO | GO_COM_RESSALVAS | NO_GO
-    decision_status: str       # APROVADO | PENDENTE | NEGADO
-    score: int                 # 0–100
+    classification: str
+    # GO | GO_COM_RESSALVAS | NO_GO | PRE_ANALISE_APENAS
+    decision_status: str
+    # APROVADO | PENDENTE | NEGADO | PRE_ANALISE
+    score: Optional[int] = None
+    # None quando PRE_ANALISE_APENAS (score não é definitivo)
     justificativa: str
     pendencias: List[str] = []
-    risco_glosa: str           # baixo | moderado | alto
+    bloqueios: List[str] = []
+    risco_glosa: str = "indeterminado"
     pontos_frageis: List[str] = []
+    proximos_passos: List[str] = []
+    tuss_normalizado: Optional[str] = None
     timestamp: str
