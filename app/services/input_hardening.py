@@ -19,7 +19,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 from app.models.decide import DecideRequest, OpmeItem
-from app.services.opme_validator import validate_opme_items, OpmePendencia
+from app.services.opme_validator import validate_opme_items, apply_opme_caps, OpmePendencia
 
 logger = logging.getLogger("neuroauth.input_hardening")
 
@@ -59,6 +59,7 @@ class HardeningResult:
     conservador_incompleto: bool = False
     checklist_defensivo: dict = field(default_factory=dict)
     logs: list = field(default_factory=list)
+    _opme_validation: object = None  # OpmeValidationResult — exposto para apply_opme_caps
 
     def logar(self, msg: str):
         self.logs.append(msg)
@@ -165,9 +166,10 @@ def _gate_opme(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
     # ── Delegação ao validador externo ────────────────────────────────────
     val = validate_opme_items(req.procedimento, req.opme_items)
 
-    # Transferir flags
+    # Transferir flags + guardar resultado completo
     r.opme_generico_bloqueado = val.opme_generico_detectado
     r.opme_incompativel       = val.opme_incompativel_detectado
+    r._opme_validation        = val
 
     # Transferir pendências (já ordenadas por severidade: critica > alta)
     for p in val.pendencias:

@@ -6,6 +6,7 @@ Score 0–100, 4 blocos, classificação GO/GO_COM_RESSALVAS/NO_GO/PRE_ANALISE_A
 
 from app.models.decide import DecideRequest, DecideResponse
 from app.services.input_hardening import run_hardening
+from app.services.opme_validator import apply_opme_caps
 from datetime import datetime
 import uuid
 import re
@@ -196,14 +197,16 @@ def run_decision(req: DecideRequest) -> DecideResponse:
         score += 10
         pendencias.append(f"Convênio '{req.convenio}' — verificar regras e cobertura específicas.")
 
-    # CAP 1a: OPME incompatível (critico) — cap mais restritivo que genérico
-    if h.opme_incompativel:
-        score = min(score, 60)
-        risco_glosa = "crítico"
-
-    # CAP 1b: OPME genérico (sem incompatibilidade) — cap em 74
-    elif h.opme_generico_bloqueado:
-        score = min(score, 74)
+    # CAP OPME — delegado ao apply_opme_caps (opme_validator v2.1)
+    # incompatível → score ≤ 60 | genérico → score ≤ 74
+    if hasattr(h, '_opme_validation') and h._opme_validation:
+        score = apply_opme_caps(score, h._opme_validation)
+    else:
+        # fallback flags do HardeningResult
+        if h.opme_incompativel:
+            score = min(score, 60)
+        elif h.opme_generico_bloqueado:
+            score = min(score, 74)
 
     # CAP 2: Conservador insuficiente SEM déficit motor nunca libera GO
     # Convênio rigoroso (SulAmérica/Bradesco 8 sem.) com < mínimo e sem déficit motor
