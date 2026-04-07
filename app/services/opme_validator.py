@@ -60,6 +60,29 @@ GENERIC_TERMS = [
     "materiais diversos",
 ]
 
+# Termos de reserva/backup — OPME sem procedimento correspondente na guia
+# Convênios glosam esses itens porque não há ato cirúrgico que os justifique
+RESERVE_TERMS = [
+    "reserva",
+    "backup",
+    "alternativo",
+    "alternativa",
+    "caso necessário",
+    "caso necessario",
+    "standby",
+    "stand-by",
+    "stand by",
+    "extra",
+    "contingência",
+    "contingencia",
+    "segurança adicional",
+    "seguranca adicional",
+    "tamanho diferente",
+    "tamanho alternativo",
+    "segunda opção",
+    "segunda opcao",
+]
+
 # ── REGRAS POR PERFIL ─────────────────────────────────────────────────────────
 
 PROFILE_RULES: Dict[str, Dict[str, Any]] = {
@@ -122,6 +145,22 @@ PROFILE_RULES: Dict[str, Dict[str, Any]] = {
             "coils": ["cola biológica se justificada", "hemostático compatível"],
         },
     },
+    "acdf_cervical": {
+        "aliases": [
+            "acdf", "artrodese cervical anterior", "discectomia cervical anterior",
+            "artrodese cervical", "fusão cervical anterior",
+        ],
+        "proibidos": [
+            "parafuso pedicular", "parafusos pediculares",
+            "cage lombar", "cage intersomático lombar",
+            "haste lombar",
+        ],
+        "obrigatorios": [],
+        "opcionais_com_justificativa": [],
+        "sugestoes": {
+            "parafuso pedicular": ["parafusos cervicais de trajetória anterior"],
+        },
+    },
     "aneurisma_endovascular": {
         "aliases": [
             "embolização aneurisma", "embolizacao aneurisma",
@@ -168,6 +207,16 @@ def detect_generic_item(item_desc: str) -> bool:
     return contains_any(normalize_text(item_desc), GENERIC_TERMS)
 
 
+def detect_reserve_item(item_desc: str) -> bool:
+    """
+    Detecta OPME declarado como reserva/backup/standby.
+    Convênios glosam esses itens porque não há ato cirúrgico correspondente.
+    A 'reserva cirúrgica' é prática legítima, mas deve constar no relatório
+    cirúrgico como material disponível — nunca na guia de autorização prévia.
+    """
+    return contains_any(normalize_text(item_desc), RESERVE_TERMS)
+
+
 def detect_profile(procedimento: str) -> str:
     proc = normalize_text(procedimento)
     for profile_name, cfg in PROFILE_RULES.items():
@@ -205,12 +254,23 @@ def validate_opme_items(
     perfil = detect_profile(procedimento)
     result.perfil_procedimento = perfil
 
-    # Perfil desconhecido — valida apenas genérico
+    # Perfil desconhecido — valida genérico E reserva (universais)
     if perfil == "desconhecido":
         result.logs.append("OPME_PROFILE_UNKNOWN")
         for item in opme_items:
             if not item.descricao:
                 continue
+            if detect_reserve_item(item.descricao):
+                result.opme_generico_detectado = True
+                _add_pendencia(result, tipo="OPME_RESERVA", severidade="alta",
+                    item=item.descricao, regra_id="RGL_OPME_RESERVE",
+                    mensagem=(
+                        f"OPME de reserva detectado: '{item.descricao}'. "
+                        "Material declarado como reserva/backup não pode constar na guia de autorização — "
+                        "convênios glosam itens sem procedimento correspondente. "
+                        "Incluir no relatório cirúrgico como material disponível no ato."
+                    ))
+                result.logs.append(f"OPME_RESERVE_BLOCK: {item.descricao}")
             if detect_generic_item(item.descricao):
                 result.opme_generico_detectado = True
                 _add_pendencia(result, tipo="OPME_GENERICO", severidade="alta",
@@ -227,6 +287,20 @@ def validate_opme_items(
         if not item.descricao:
             continue
         desc_norm = normalize_text(item.descricao)
+
+        # Check 0 — OPME de reserva/backup (prioridade sobre genérico)
+        # Glosa certa: convênio não autoriza material sem procedimento correspondente
+        if detect_reserve_item(item.descricao):
+            result.opme_generico_detectado = True  # herda flag para acionar cap ≤74
+            _add_pendencia(result, tipo="OPME_RESERVA", severidade="alta",
+                item=item.descricao, regra_id="RGL_OPME_RESERVE",
+                mensagem=(
+                    f"OPME de reserva detectado: '{item.descricao}'. "
+                    "Material declarado como reserva/backup/standby não pode constar na guia de autorização — "
+                    "convênios glosam itens sem procedimento correspondente. "
+                    "Incluir no relatório cirúrgico como material disponível no ato, não na solicitação prévia."
+                ))
+            result.logs.append(f"OPME_RESERVE_BLOCK: '{item.descricao}'")
 
         # Check 1 — OPME genérico
         if detect_generic_item(item.descricao):
