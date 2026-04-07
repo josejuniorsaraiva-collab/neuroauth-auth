@@ -261,47 +261,129 @@ def _gate_conservador(req: DecideRequest, r: HardeningResult, ep: str, proc: str
         r.logar(f"CONSERVADOR_INCOMPLETE ep={ep} motivo=sem_modalidades")
 
 
-def _gate_checklist_defensivo(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
-    eh_hernia_coluna = any(p in proc for p in [
-        "microdiscectomia", "discectomia", "hérnia", "hernia"
-    ])
-    if not eh_hernia_coluna:
-        return
+# ── PERFIS DE CHECKLIST POR REGIÃO ANATÔMICA ───────────────────────────────
+# Nunca aplicar checklist de região errada — erro crítico de sistema
 
+_PERFIS_LOMBAR = [
+    "microdiscectomia", "discectomia lombar", "hérnia lombar",
+    "hernia lombar", "laminectomia lombar", "artrodese lombar",
+]
+_PERFIS_CERVICAL = [
+    "acdf", "artrodese cervical", "discectomia cervical",
+    "hérnia cervical", "hernia cervical", "mielopatia cervical",
+    "cirurgia cervical",
+]
+
+
+def _detectar_regiao_checklist(proc: str) -> str:
+    """
+    Retorna 'lombar', 'cervical' ou 'nenhum'.
+    Cervical tem precedência — ACDF com discectomia não deve acionar lombar.
+    """
+    for p in _PERFIS_CERVICAL:
+        if p in proc:
+            return "cervical"
+    # Lombar: apenas se não for cervical
+    for p in _PERFIS_LOMBAR:
+        if p in proc:
+            return "lombar"
+    return "nenhum"
+
+
+def _gate_checklist_defensivo(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    Roteia para o checklist correto com base na região anatômica.
+    Nunca aplica checklist lombar em caso cervical.
+    """
+    regiao = _detectar_regiao_checklist(proc)
+
+    if regiao == "lombar":
+        _checklist_lombar(req, r, ep)
+    elif regiao == "cervical":
+        _checklist_cervical(req, r, ep)
+    else:
+        return  # perfil sem checklist específico — sem pendências lombares/cervicais
+
+
+def _checklist_lombar(req: DecideRequest, r: HardeningResult, ep: str):
+    """Checklist defensivo para coluna lombar (hérnia, microdiscectomia)."""
     indicacao = req.indicacao_clinica.lower()
-    achados = (req.achados_resumo or "").lower()
-    texto_completo = indicacao + " " + achados
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
 
     checklist = {
-        "lasegue_documentado": any(t in texto_completo for t in ["lasègue", "lasegue", "laségue"]),
-        "deficit_motor_graduado": _detectar_deficit_motor(req.indicacao_clinica + " " + (req.achados_resumo or "")),
-        "dermatomero_correlacionado": any(t in texto_completo for t in ["l4", "l5", "s1", "dermatômero", "dermatomero", "radicular"]),
-        "imagem_correlata": any(t in texto_completo for t in ["rm", "ressonância", "ressonancia", "tc", "tomografia", "mri"]),
-        "compressao_radicular_descrita": any(t in texto_completo for t in ["compressão", "compressao", "comprime", "compressivo"]),
+        "lasegue_documentado":         any(t in texto for t in ["lasègue", "lasegue", "laségue"]),
+        "deficit_motor_graduado":      _detectar_deficit_motor(req.indicacao_clinica + " " + (req.achados_resumo or "")),
+        "dermatomero_correlacionado":  any(t in texto for t in ["l4", "l5", "s1", "dermatômero", "dermatomero", "radicular"]),
+        "imagem_correlata":            any(t in texto for t in ["rm", "ressonância", "ressonancia", "tc", "tomografia", "mri"]),
+        "compressao_radicular_descrita": any(t in texto for t in ["compressão", "compressao", "comprime", "compressivo"]),
     }
-
     r.checklist_defensivo = checklist
 
     ausentes = [k for k, v in checklist.items() if not v]
-    criticos = ["lasegue_documentado", "deficit_motor_graduado", "compressao_radicular_descrita"]
+    criticos  = ["lasegue_documentado", "deficit_motor_graduado", "compressao_radicular_descrita"]
 
+    LABELS = {
+        "lasegue_documentado":          "Sinal de Lasègue",
+        "deficit_motor_graduado":       "Déficit motor com graduação de força",
+        "dermatomero_correlacionado":   "Correlação com dermátomo (L4/L5/S1)",
+        "imagem_correlata":             "Referência a exame de imagem (RM/TC)",
+        "compressao_radicular_descrita":"Compressão radicular descrita",
+    }
     for item in ausentes:
-        eh_critico = item in criticos
-        label = {
-            "lasegue_documentado": "Sinal de Lasègue",
-            "deficit_motor_graduado": "Déficit motor com graduação de força",
-            "dermatomero_correlacionado": "Correlação com dermátomo (L4/L5/S1)",
-            "imagem_correlata": "Referência a exame de imagem (RM/TC)",
-            "compressao_radicular_descrita": "Compressão radicular descrita",
-        }[item]
-
-        prefixo = "⚠️ PENDÊNCIA CRÍTICA" if eh_critico else "Pendência documental"
+        pfx = "⚠️ PENDÊNCIA CRÍTICA" if item in criticos else "Pendência documental"
         r.pendencias.append(
-            f"{prefixo}: {label} não identificado no texto. "
+            f"{pfx}: {LABELS[item]} não identificado no texto. "
             "Incluir no laudo médico para fortalecer defesa anti-glosa."
         )
 
-    if ausentes:
-        r.logar(f"CHECKLIST_DEFENSIVO ep={ep} ausentes={ausentes}")
-    else:
-        r.logar(f"CHECKLIST_DEFENSIVO ep={ep} completo=True")
+    r.logar(f"CHECKLIST_LOMBAR ep={ep} ausentes={ausentes if ausentes else 'nenhum'}")
+
+
+def _checklist_cervical(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    Checklist defensivo para coluna cervical (ACDF, mielopatia).
+    Itens específicos de cervical — nunca Lasègue, nunca dermátomo L4/L5/S1.
+    """
+    indicacao = req.indicacao_clinica.lower()
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
+
+    checklist = {
+        "mielopatia_documentada":       any(t in texto for t in ["mielopatia", "myelopathy", "compressão medular", "compressao medular"]),
+        "deficit_mmss_documentado":     any(t in texto for t in ["membro superior", "mmss", "ms ", "braço", "braco", "mão", "mao", "dedos"]) or
+                                         _detectar_deficit_motor(req.indicacao_clinica + " " + (req.achados_resumo or "")),
+        "hiperreflexia_ou_piramidal":   any(t in texto for t in ["hiperreflexia", "sinal piramidal", "babinski", "clônus", "clonus", "spasticidade", "espasticidade"]),
+        "lhermitte_ou_sinal_cervical":  any(t in texto for t in ["lhermitte", "lhermite", "sinal cervical", "lermitte"]),
+        "compressao_medular_descrita":  any(t in texto for t in ["compressão medular", "compressao medular", "sinal intramedular",
+                                                                   "alteração de sinal", "alteracao de sinal", "myelopathy",
+                                                                   "compressão da medula", "compressao da medula"]),
+        "imagem_cervical_correlata":    any(t in texto for t in ["rm cervical", "ressonância cervical", "ressonancia cervical",
+                                                                   "tc cervical", "tomografia cervical", "rm de cervical",
+                                                                   "mri cervical", "rm", "ressonância", "ressonancia"]),
+        "nivel_cervical_correlacionado": any(t in texto for t in ["c3", "c4", "c5", "c6", "c7", "c8",
+                                                                    "c3-c4", "c4-c5", "c5-c6", "c6-c7", "c7-t1"]),
+    }
+    r.checklist_defensivo = checklist
+
+    ausentes = [k for k, v in checklist.items() if not v]
+    # Críticos cervicais: mielopatia + compressão medular são os pilares da indicação
+    criticos = ["mielopatia_documentada", "compressao_medular_descrita"]
+
+    LABELS = {
+        "mielopatia_documentada":        "Mielopatia documentada (diagnóstico principal)",
+        "deficit_mmss_documentado":      "Déficit em membros superiores ou graduação de força",
+        "hiperreflexia_ou_piramidal":    "Hiperreflexia / sinais piramidais (Babinski, clônus)",
+        "lhermitte_ou_sinal_cervical":   "Sinal de Lhermitte ou sinal cervical específico",
+        "compressao_medular_descrita":   "Compressão medular descrita (RM com sinal intramedular)",
+        "imagem_cervical_correlata":     "Referência a exame de imagem cervical (RM/TC)",
+        "nivel_cervical_correlacionado": "Nível cervical correlacionado (C3-C7)",
+    }
+    for item in ausentes:
+        pfx = "⚠️ PENDÊNCIA CRÍTICA" if item in criticos else "Pendência documental"
+        r.pendencias.append(
+            f"{pfx}: {LABELS[item]} não identificado no texto. "
+            "Incluir no laudo para fortalecer indicação em convênio."
+        )
+
+    r.logar(f"CHECKLIST_CERVICAL ep={ep} ausentes={ausentes if ausentes else 'nenhum'}")
