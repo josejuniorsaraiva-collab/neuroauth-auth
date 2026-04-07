@@ -118,6 +118,34 @@ PROFILE_RULES: Dict[str, Dict[str, Any]] = {
         "opcionais_com_justificativa": ["dreno", "cage", "substituto ósseo", "substituto osseo"],
         "sugestoes": {},
     },
+    "base_cranio_transesfenoidal": {
+        # JURIS_007 — TJCE: cola biológica glosada em base de crânio
+        # Argumento: prevenção de meningite iatrogênica por fístula liquórica
+        "aliases": [
+            "base de crânio", "base do crânio", "base cranio", "base do cranio",
+            "transesfenoidal", "transesfenoidal endoscópico",
+            "abordagem transesfenoidal", "cirurgia de base",
+            "hipofisectomia", "hipófise",
+        ],
+        "proibidos": ["parafuso pedicular", "cage lombar"],
+        "obrigatorios": [],
+        "opcionais_com_justificativa": [
+            "cola biológica", "cola biologica", "tisseel", "evicel",
+            "selante dural", "selante de dura",
+            "substituto de dura", "substituto de dura-máter",
+            "dreno", "dreno lombar",
+        ],
+        "sugestoes": {},
+        "_mensagens_juris": {
+            "cola biológica": (
+                "JURIS_007: Cola biológica em base de crânio/transesfenoidal exige justificativa de "
+                "'Prevenção de Meningite Iatrogênica por Fístula Liquórica'. "
+                "Sutura convencional não é tecnicamente viável em assoalho selar. "
+                "Texto recomendado: 'Vedação hermética dural para prevenção de fístula liquórica "
+                "com risco de meningite bacteriana ascendente (mortalidade >20%)'."
+            ),
+        },
+    },
     "craniotomia_tumoral": {
         "aliases": [
             "craniotomia tumoral", "craniotomia para tumor",
@@ -177,13 +205,22 @@ PROFILE_RULES: Dict[str, Dict[str, Any]] = {
         ],
         "obrigatorios": [],
         "opcionais_com_justificativa": [
+            # JURIS_002: stent/diversor em colo largo exige justificativa de impossibilidade de clipagem
             "stent", "balão", "balao",
-            "desviador de fluxo",
+            "desviador de fluxo", "diversor de fluxo",
             "microcateter",
+            # JURIS_007 aplicado ao aneurisma (raro, mas possível em ruptura)
+            "cola biológica", "cola biologica",
         ],
         "sugestoes": {
             "parafuso pedicular": ["coils", "microcateter", "stent se indicado", "balão se indicado"],
             "cage": ["coils", "microcateter", "stent se indicado", "balão se indicado"],
+        },
+        # Metadados jurisprudenciais — usados para gerar mensagens específicas
+        "_juris": {
+            "stent": "JURIS_002",
+            "desviador de fluxo": "JURIS_002",
+            "diversor de fluxo": "JURIS_002",
         },
     },
 }
@@ -344,12 +381,19 @@ def validate_opme_items(
                 justificativa = justificativas_opme.get(item.descricao, "").strip()
                 if not justificativa:
                     result.itens_que_exigem_justificativa.append(item.descricao)
+                    # Usar mensagem específica do perfil se disponível (ex: JURIS_007)
+                    _mensagens = cfg.get("_mensagens_juris", {})
+                    msg_especifica = next(
+                        (v for k, v in _mensagens.items() if k in normalize_text(item.descricao)),
+                        None
+                    )
+                    mensagem_final = msg_especifica or (
+                        f"Item OPME exige justificativa clínica específica: '{item.descricao}'. "
+                        "Incluir no campo justificativas_opme do payload ou no laudo cirúrgico."
+                    )
                     _add_pendencia(result, tipo="OPME_SEM_JUSTIFICATIVA", severidade="media",
                         item=item.descricao, regra_id="RGL_OPME_JUSTIFICATIVA",
-                        mensagem=(
-                            f"Item OPME exige justificativa clínica específica: '{item.descricao}'. "
-                            "Incluir no campo justificativas_opme do payload ou no laudo cirúrgico."
-                        ))
+                        mensagem=mensagem_final)
                     result.logs.append(f"OPME_JUSTIFICATIVA_MISSING: {item.descricao}")
                 break  # um match por item é suficiente
 

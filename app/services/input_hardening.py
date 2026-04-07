@@ -60,6 +60,7 @@ class HardeningResult:
     checklist_defensivo: dict = field(default_factory=dict)
     logs: list = field(default_factory=list)
     _opme_validation: object = None  # OpmeValidationResult — exposto para apply_opme_caps
+    alerta_janela_terapeutica: bool = False  # JURIS_005: trombectomia > 6h sem perfusão
 
     def logar(self, msg: str):
         self.logs.append(msg)
@@ -126,6 +127,12 @@ def run_hardening(req: DecideRequest) -> HardeningResult:
 
     # GATE 5 — Checklist defensivo
     _gate_checklist_defensivo(req, r, ep, proc)
+
+    # GATE 6 — Janela terapêutica endovascular (JURIS_005)
+    _gate_janela_terapeutica(req, r, ep, proc)
+
+    # GATE 7 — Alertas estratégicos jurisprudenciais
+    _gate_alertas_juris(req, r, ep, proc)
 
     # Decisão final do gate
     if r.bloqueio_convenio:
@@ -387,3 +394,154 @@ def _checklist_cervical(req: DecideRequest, r: HardeningResult, ep: str):
         )
 
     r.logar(f"CHECKLIST_CERVICAL ep={ep} ausentes={ausentes if ausentes else 'nenhum'}")
+
+
+# ── GATE 6 — JANELA TERAPÊUTICA ENDOVASCULAR (JURIS_005) ───────────────────
+# TRF5: Trombectomia mecânica > 6h exige perfusão/DWI (protocolo DAWN/DEFUSE3)
+# Sem perfusão documentada → GO_COM_RESSALVAS com pendência de nível alto
+
+_PROC_TROMBECTOMIA = [
+    "trombectomia", "trombólise endovascular",
+    "avc isquêmico endovascular", "oclusão de grande vaso",
+]
+
+def _gate_janela_terapeutica(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    JURIS_005 — Protocolo DAWN/DEFUSE3.
+    Trombectomia com tempo de ictus > 6h exige exame de perfusão/DWI documentado.
+    Sem perfusão → pendência alta (score impactado pelo motor).
+    """
+    eh_trombectomia = any(p in proc for p in _PROC_TROMBECTOMIA)
+    if not eh_trombectomia:
+        return
+
+    indicacao = req.indicacao_clinica.lower()
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
+
+    # Detectar janela estendida (> 6h)
+    SINAIS_JANELA_ESTENDIDA = [
+        "janela estendida", "dawn", "defuse", "defuse3", "defuse-3",
+        "mismatch", "perfusão", "perfusao", "penumbra",
+        "dwi", "pwi", "mais de 6", "> 6", "acima de 6",
+        "7 horas", "8 horas", "9 horas", "10 horas", "12 horas",
+        "18 horas", "24 horas",
+    ]
+    SINAIS_PERFUSAO_DOCUMENTADA = [
+        "perfusão", "perfusao", "mismatch", "dwi", "pwi",
+        "dawn", "defuse", "penumbra viável", "penumbra viavel",
+    ]
+
+    tem_janela_estendida   = any(s in texto for s in SINAIS_JANELA_ESTENDIDA)
+    tem_perfusao_doc       = any(s in texto for s in SINAIS_PERFUSAO_DOCUMENTADA)
+
+    if tem_janela_estendida and not tem_perfusao_doc:
+        r.alerta_janela_terapeutica = True
+        r.pendencias.append(
+            "⚠️ PENDÊNCIA ALTA (JURIS_005): Trombectomia com janela > 6h requer exame de perfusão/DWI "
+            "documentado para justificar indicação (Protocolo DAWN/DEFUSE3 — AHA/ASA 2019, Classe IA). "
+            "Sem perfusão, convênio pode negar alegando janela fora do padrão. "
+            "Anexar: perfusão por TC ou RM com demonstração de mismatch clínico-radiológico."
+        )
+        r.logar(f"JURIS005_JANELA_SEM_PERFUSAO ep={ep}")
+    elif tem_janela_estendida and tem_perfusao_doc:
+        r.logar(f"JURIS005_JANELA_ESTENDIDA_DOCUMENTADA ep={ep}")
+    else:
+        r.logar(f"JURIS005_JANELA_NORMAL ep={ep}")
+
+
+# ── GATE 7 — ALERTAS ESTRATÉGICOS JURISPRUDENCIAIS ──────────────────────────
+# JURIS_001: Artroplastia cervical < 50 anos → alerta de nível adjacente
+# JURIS_003: IONM em cirurgia medular/fossa posterior → TUSS autônomo
+
+def _gate_alertas_juris(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    Alertas estratégicos baseados em jurisprudência.
+    Não bloqueiam GO — geram pendências de nível médio para fortalecer justificativa.
+    """
+    _alerta_juris001_artroplastia(req, r, ep, proc)
+    _alerta_juris003_ionm(req, r, ep, proc)
+
+
+def _alerta_juris001_artroplastia(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    JURIS_001 — TJSP: Artroplastia cervical negada em paciente jovem.
+    Gatilho: artroplastia discal cervical (TUSS 3.07.15.59-8).
+    Ação: pendência média se justificativa de nível adjacente ausente.
+    """
+    PROC_ARTROPLASTIA = ["artroplastia cervical", "artroplastia discal cervical", "3.07.15.59"]
+    eh_artroplastia = any(p in proc for p in PROC_ARTROPLASTIA) or                       (req.cod_cbhpm or "").startswith("3.07.15.59")
+    if not eh_artroplastia:
+        return
+
+    indicacao = req.indicacao_clinica.lower()
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
+
+    SINAIS_NIVEL_ADJACENTE = [
+        "nível adjacente", "nivel adjacente",
+        "doença do nível", "doenca do nivel",
+        "preservação do movimento", "preservacao do movimento",
+        "mobilidade segmentar", "cinemática",
+    ]
+    tem_justificativa = any(s in texto for s in SINAIS_NIVEL_ADJACENTE)
+
+    if not tem_justificativa:
+        r.pendencias.append(
+            "Pendência estratégica (JURIS_001): Artroplastia discal cervical sem justificativa de "
+            "preservação de movimento e prevenção de doença do nível adjacente. "
+            "Convênios frequentemente negam alegando que apenas fusão (cage) consta no Rol para M50.x. "
+            "Incluir: 'Indicada para preservação do movimento segmentar e prevenção da doença do nível adjacente "
+            "— escolha técnica exclusiva do médico assistente (RN 465/2021 ANS)'."
+        )
+        r.logar(f"JURIS001_ARTROPLASTIA_SEM_NIVEL_ADJACENTE ep={ep}")
+    else:
+        r.logar(f"JURIS001_ARTROPLASTIA_JUSTIFICADA ep={ep}")
+
+
+def _alerta_juris003_ionm(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    JURIS_003 — TJCE: IONM glosada como inclusa no porte cirúrgico.
+    Gatilho: cirurgia medular, fossa posterior ou tumor de alto risco neurológico.
+    Ação: pendência se código TUSS 4.01.03.61-7 não está declarado.
+    """
+    PROC_IONM_INDICADA = [
+        "medular", "fossa posterior", "ponto cerebelar", "ponto-cerebelar",
+        "tumor medular", "ressecção medular", "cirurgia medular",
+        "schwannoma", "meningioma", "ependimoma",
+    ]
+    eh_cirurgia_ionm = any(p in proc for p in PROC_IONM_INDICADA)
+    if not eh_ionm_indicada(req, proc, eh_cirurgia_ionm):
+        return
+
+    # Verificar se IONM está declarado (OPME ou TUSS)
+    opme_descs = " ".join(
+        (item.descricao or "").lower()
+        for item in (req.opme_items or [])
+    )
+    SINAIS_IONM = [
+        "monitorização neurofisiológica", "monitorizacao neurofisiologica",
+        "ionm", "neuromonitorização", "neuromonitorizacao",
+        "4.01.03.61", "monitorização intraoperatória", "monitorizacao intraoperatoria",
+    ]
+    tem_ionm_declarada = any(s in opme_descs for s in SINAIS_IONM) or                          any(s in req.indicacao_clinica.lower() for s in SINAIS_IONM)
+
+    if not tem_ionm_declarada:
+        r.pendencias.append(
+            "Pendência documental (JURIS_003): Cirurgia de alto risco neurológico sem "
+            "monitorização neurofisiológica intraoperatória (IONM) declarada. "
+            "IONM é procedimento autônomo (TUSS 4.01.03.61-7), não incluso no porte cirúrgico. "
+            "Se IONM será realizada: declarar como item separado com código próprio e "
+            "nota 'Profissional distinto — não incluso no porte do cirurgião principal'."
+        )
+        r.logar(f"JURIS003_IONM_NAO_DECLARADA ep={ep}")
+    else:
+        r.logar(f"JURIS003_IONM_DECLARADA ep={ep}")
+
+
+def eh_ionm_indicada(req: DecideRequest, proc: str, eh_proc: bool) -> bool:
+    """Verifica se a cirurgia tem indicação de IONM por proc ou por indicação clínica."""
+    if eh_proc:
+        return True
+    indicacao = req.indicacao_clinica.lower()
+    return any(s in indicacao for s in ["alto risco neurológico", "risco de déficit", "área eloquente"])
