@@ -48,10 +48,22 @@ def persist_decision(req: DecideRequest, res: DecideResponse) -> bool:
     1. Append em 21_DECISION_RUNS (estrutura fixa — controlada pelo sistema)
     2. Update em 22_EPISODIOS (estrutura existente — descoberta dinamicamente)
     Nunca lança exceção para o caller.
+
+    PRE_ANALISE_APENAS: persiste apenas pendências e bloqueios em 22_EPISODIOS.
+    Não cria linha em 21_DECISION_RUNS (sem score = sem decisão auditável).
     """
     try:
         gc = _get_client()
         ss = gc.open_by_key(settings.SPREADSHEET_ID)
+
+        # PRE_ANALISE_APENAS: só registra estado no episódio, não cria decision_run
+        if res.classification == "PRE_ANALISE_APENAS":
+            _update_episodio(ss, res.episodio_id, "PRE_ANALISE", res.decision_run_id)
+            logger.info(
+                f"[sheets_store] PRE_ANALISE_APENAS ep={res.episodio_id} "
+                f"run={res.decision_run_id} — sem score, sem linha em 21_DECISION_RUNS"
+            )
+            return True
 
         _append_decision_run(ss, req, res)
         logger.info(
