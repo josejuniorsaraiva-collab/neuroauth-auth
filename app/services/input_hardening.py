@@ -36,8 +36,14 @@ TUSS_ALIAS = {
 }
 
 OPME_INCOMPATIVEIS_MICRODISCECTOMIA = [
-    "cage", "parafuso pedicular", "parafuso transpedicular",
-    "haste", "crosslink", "fixador", "artrodese"
+    "cage",
+    "parafuso pedicular", "parafusos pediculares",
+    "parafuso transpedicular", "parafusos transpediculares",
+    "haste longitudinal", "haste de conexão",
+    "crosslink", "fixador pedicular",
+    "artrodese", "fusão intersomática",
+    "implante pedicular", "sistema pedicular",
+    "transpedicular",
 ]
 
 PERFIS_COLUNA_ELETIVA = [
