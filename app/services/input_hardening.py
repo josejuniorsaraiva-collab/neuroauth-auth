@@ -114,6 +114,15 @@ def run_hardening(req: DecideRequest) -> HardeningResult:
 
     r.logar(f"INPUT_HARDENING_START ep={ep} proc={req.procedimento} convenio='{conv}'")
 
+    # GATE 0 — Completude (C001, C002, C003)
+    if not run_completude(req, r, ep):
+        # Bloqueio absoluto — campos mínimos ausentes, não processar mais
+        r.logar(f"COMPLETUDE_BLOCK ep={ep} — pipeline interrompido")
+        return r
+
+    # GATE 0b — Coerência clínica (CL001, CL002, CL003)
+    run_clinico(req, r, ep)
+
     # GATE 1 — Convênio
     _gate_convenio(req, r, ep)
 
@@ -667,3 +676,309 @@ def _gate_lei_14454(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
         r.logar(f"ENDO002_LEI14454_AUSENTE ep={ep}")
     else:
         r.logar(f"ENDO002_LEI14454_PRESENTE ep={ep}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOITE 1 — REGRAS DE COMPLETUDE
+# C001: campos obrigatórios mínimos
+# C002: consistência básica (procedimento + diagnóstico)
+# C003: OPME declarado quando aplicável
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_completude(req: DecideRequest, r: HardeningResult, ep: str) -> bool:
+    """
+    Executa C001, C002, C003 em sequência.
+    Retorna False se qualquer bloqueio absoluto for acionado.
+    Chamado no início do run_hardening.
+    """
+    ok = True
+    ok = _regra_c001(req, r, ep) and ok
+    ok = _regra_c002(req, r, ep) and ok
+    _regra_c003(req, r, ep)   # nunca bloqueia — só pendência
+    return ok
+
+
+def _regra_c001(req: DecideRequest, r: HardeningResult, ep: str) -> bool:
+    """
+    C001 — Campos obrigatórios mínimos.
+    Bloqueia se CID, procedimento ou indicação clínica estiverem ausentes.
+    Esses três são o mínimo absoluto para qualquer análise clínica.
+    """
+    CAMPOS = {
+        "cid_principal":    (req.cid_principal or "").strip(),
+        "procedimento":     (req.procedimento or "").strip(),
+        "indicacao_clinica":(req.indicacao_clinica or "").strip(),
+    }
+    PLACEHOLDERS = {"", "string", "n/a", "na", "nenhum", "não informado", "nao informado", "-", "."}
+
+    faltando = []
+    for campo, valor in CAMPOS.items():
+        if not valor or valor.lower() in PLACEHOLDERS or len(valor) < 3:
+            faltando.append(campo)
+
+    if faltando:
+        for campo in faltando:
+            r.bloqueios.append(
+                f"CAMPO OBRIGATÓRIO AUSENTE (C001): '{campo}' não informado ou inválido. "
+                "Este campo é obrigatório para análise clínica e regulatória."
+            )
+        r.pre_analise_apenas = True
+        r.logar(f"C001_BLOCK ep={ep} faltando={faltando}")
+        return False
+
+    r.logar(f"C001_OK ep={ep}")
+    return True
+
+
+def _regra_c002(req: DecideRequest, r: HardeningResult, ep: str) -> bool:
+    """
+    C002 — Consistência básica: procedimento não pode existir sem diagnóstico coerente.
+    Verifica se CID e procedimento têm coerência mínima de sistema (coluna/neuro/vascular).
+    Não é validação clínica profunda — é filtro de lixo óbvio.
+    """
+    cid  = (req.cid_principal or "").strip().upper()
+    proc = (req.procedimento or "").strip().lower()
+
+    # CID mal formado (não começa com letra)
+    if cid and not cid[0].isalpha():
+        r.bloqueios.append(
+            f"CID INVÁLIDO (C002): '{cid}' não segue o formato CID-10 (ex: M51.1, I67.1). "
+            "Verificar e corrigir antes da submissão."
+        )
+        r.pre_analise_apenas = True
+        r.logar(f"C002_BLOCK_CID_INVALIDO ep={ep} cid={cid}")
+        return False
+
+    # Procedimento com menos de 5 caracteres — provavelmente placeholder
+    if len(proc) < 5:
+        r.bloqueios.append(
+            f"PROCEDIMENTO INVÁLIDO (C002): '{req.procedimento}' muito curto — parece incompleto. "
+            "Descrever o procedimento cirúrgico completo."
+        )
+        r.pre_analise_apenas = True
+        r.logar(f"C002_BLOCK_PROC_CURTO ep={ep} proc='{req.procedimento}'")
+        return False
+
+    r.logar(f"C002_OK ep={ep} cid={cid}")
+    return True
+
+
+def _regra_c003(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    C003 — OPME declarado quando aplicável.
+    Detecta procedimentos que tipicamente exigem OPME mas têm necessita_opme='Não'.
+    Não bloqueia — gera pendência para revisão humana.
+    """
+    PROC_COM_OPME_TIPICO = [
+        "artrodese", "instrumentação", "cage", "implante",
+        "prótese", "protese", "endovascular", "embolização",
+        "angioplastia", "stent", "trombectomia", "acdf",
+        "discectomia cervical anterior", "cranioplastia",
+    ]
+    proc = (req.procedimento or "").lower()
+    necessita = (req.necessita_opme or "").strip()
+    tem_items  = bool(req.opme_items)
+
+    proc_com_opme = any(p in proc for p in PROC_COM_OPME_TIPICO)
+
+    if proc_com_opme and necessita != "Sim" and not tem_items:
+        r.pendencias.append(
+            f"Verificação de OPME (C003): Procedimento '{req.procedimento}' tipicamente requer OPME, "
+            "mas o campo 'necessita_opme' está como 'Não' e nenhum item foi declarado. "
+            "Confirmar se OPME é realmente desnecessário ou corrigir antes da submissão."
+        )
+        r.logar(f"C003_OPME_PENDENTE ep={ep} proc='{req.procedimento}'")
+    else:
+        r.logar(f"C003_OK ep={ep}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOITE 2 — REGRAS CLÍNICAS
+# CL001: diagnóstico sustenta procedimento
+# CL002: falha de tratamento conservador documentada
+# CL003: gravidade explícita quando indicação eletiva
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_clinico(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    Executa CL001, CL002, CL003.
+    Nunca bloqueia — gera pendências clínicas para revisão.
+    Chamado após run_completude (só faz sentido se campos mínimos existem).
+    """
+    _regra_cl001(req, r, ep)
+    _regra_cl002(req, r, ep)
+    _regra_cl003(req, r, ep)
+
+
+# Mapeamento CID-raiz → famílias de procedimentos compatíveis
+_CID_PROC_COERENCIA = {
+    # Coluna lombar
+    "M51": ["discectomia", "laminectomia", "microdiscectomia", "artrodese lombar", "foraminotomia"],
+    "M47": ["artrodese", "laminectomia", "descompressão"],
+    "M43": ["artrodese", "instrumentação"],
+    # Coluna cervical
+    "M50": ["acdf", "artrodese cervical", "discectomia cervical", "artroplastia cervical"],
+    "M48": ["artrodese", "laminectomia", "descompressão"],
+    # Vascular
+    "I60": ["embolização", "clipagem", "aneurisma", "coil"],
+    "I67": ["embolização", "angioplastia", "stent", "diversor", "endovascular"],
+    "I63": ["trombectomia", "trombólise", "endovascular"],
+    "I65": ["angioplastia", "stent", "endarterectomia"],
+    # Tumoral
+    "C71": ["craniotomia", "ressecção", "exérese"],
+    "C72": ["ressecção", "laminectomia", "cirurgia medular"],
+    "D32": ["craniotomia", "ressecção", "exérese"],
+    "D35": ["transesfenoidal", "ressecção", "hipofisectomia"],
+    # MAV / fístula
+    "Q28": ["embolização", "clipagem", "ressecção", "fístula", "mav"],
+}
+
+def _regra_cl001(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CL001 — Diagnóstico sustenta procedimento.
+    Verifica compatibilidade grosseira entre CID-raiz e família de procedimento.
+    Só ativa se CID e procedimento forem conhecidos no mapeamento.
+    """
+    cid  = (req.cid_principal or "").strip().upper()
+    proc = (req.procedimento or "").strip().lower()
+
+    # Extrair raiz do CID (ex: "M51.1" → "M51")
+    cid_raiz = cid[:3] if len(cid) >= 3 else cid
+
+    if cid_raiz not in _CID_PROC_COERENCIA:
+        r.logar(f"CL001_SKIP ep={ep} cid_raiz={cid_raiz} (não mapeado)")
+        return
+
+    proc_compativeis = _CID_PROC_COERENCIA[cid_raiz]
+    tem_compatibilidade = any(p in proc for p in proc_compativeis)
+
+    if not tem_compatibilidade:
+        r.pendencias.append(
+            f"Alerta clínico (CL001): Procedimento '{req.procedimento}' pode não ser compatível "
+            f"com o diagnóstico CID {req.cid_principal}. "
+            "Verificar coerência diagnóstico-procedimento antes da submissão."
+        )
+        r.logar(f"CL001_INCOERENCIA ep={ep} cid={cid} proc='{req.procedimento}'")
+    else:
+        r.logar(f"CL001_OK ep={ep} cid={cid}")
+
+
+_MODALIDADES_CONSERVADOR = [
+    "fisioterap", "analgesi", "anti-inflamat", "antiinflamat",
+    "opioide", "infiltraç", "infiltracao", "bloqueio",
+    "repouso", "colar cervical", "órtese", "ortese",
+    "corticoide", "corticoesteróide", "medicaç", "medicacao",
+    "nsaid", "aine",
+]
+
+_PROC_EXIGE_CONSERVADOR = [
+    "microdiscectomia", "discectomia", "artrodese", "laminectomia",
+    "acdf", "artrodese cervical", "artroplastia cervical",
+    "foraminotomia", "hemilaminectomia",
+]
+
+def _regra_cl002(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CL002 — Falha de tratamento conservador documentada.
+    Para procedimentos eletivos de coluna: exige menção ao conservador.
+    Não duplicar com _gate_conservador — aqui é verificação mais leve
+    que verifica apenas presença de qualquer menção conservadora.
+    """
+    proc = (req.procedimento or "").lower()
+    eh_coluna_eletiva = any(p in proc for p in _PROC_EXIGE_CONSERVADOR)
+    if not eh_coluna_eletiva:
+        r.logar(f"CL002_SKIP ep={ep} (não coluna eletiva)")
+        return
+
+    # Se já há pendência de conservador do _gate_conservador, não duplicar
+    ja_tem_pendencia_conservador = any(
+        "conservador" in p.lower() for p in r.pendencias
+    )
+    if ja_tem_pendencia_conservador:
+        r.logar(f"CL002_SKIP ep={ep} (já tem pendência de conservador)")
+        return
+
+    tto = (req.tto_conservador or "").lower()
+    tem_conservador = any(m in tto for m in _MODALIDADES_CONSERVADOR)
+
+    # Verificar se há menção de urgência/déficit que justifica bypass
+    indicacao = (req.indicacao_clinica or "").lower()
+    tem_urgencia = any(u in indicacao for u in [
+        "déficit motor", "deficit motor", "paresia", "plegia",
+        "urgência", "urgencia", "emergência", "emergencia",
+        "síndrome de cauda", "sindrome de cauda",
+    ])
+
+    if not tem_conservador and not tem_urgencia:
+        r.pendencias.append(
+            f"Pendência clínica (CL002): Procedimento eletivo de coluna sem documentação "
+            "de falha de tratamento conservador. "
+            "Descrever modalidades tentadas (fisioterapia, analgesia, infiltração) e duração. "
+            "Convênios exigem este registro para autorização."
+        )
+        r.logar(f"CL002_SEM_CONSERVADOR ep={ep}")
+    else:
+        r.logar(f"CL002_OK ep={ep} tem_conservador={tem_conservador} tem_urgencia={tem_urgencia}")
+
+
+_SINAIS_GRAVIDADE = [
+    # Déficit motor / neurológico
+    "déficit motor", "deficit motor", "força grau", "paresia", "plegia",
+    "déficit sensorial", "deficit sensorial", "dormência", "dormencia",
+    "déficit neurológico", "deficit neurologico",
+    # Dor
+    "dor refratária", "dor refrataria", "dor intratável", "dor intratavel",
+    "dor crônica", "dor cronica", "eve", "incapacitante",
+    # Sinais sistêmicos / urgência
+    "compressão medular", "compressao medular", "mielopatia",
+    "síndrome de cauda equina", "sindrome de cauda equina",
+    "risco de ruptura", "ruptura", "hemorragia",
+    "progressão", "progressao", "piora", "deterioração", "deterioracao",
+    # Imagem
+    "compressão radicular", "compressao radicular",
+    "sinal intramedular", "alteração de sinal", "alteracao de sinal",
+]
+
+def _regra_cl003(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CL003 — Gravidade explícita quando indicação eletiva.
+    Para procedimentos eletivos: verificar se há pelo menos 1 sinal de gravidade
+    na indicação clínica ou nos achados de imagem.
+    Sem gravidade explícita → pendência documental (não bloqueio).
+    """
+    proc = (req.procedimento or "").lower()
+    indicacao = (req.indicacao_clinica or "").lower()
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
+
+    # Procedimentos de urgência absoluta não precisam de gravidade explícita
+    URGENCIAS_ABSOLUTAS = ["urgência", "urgencia", "emergência", "emergencia",
+                           "roto", "ruptura", "hsa", "hemorragia subaracnoide"]
+    eh_urgencia = any(u in texto for u in URGENCIAS_ABSOLUTAS) or \
+                  any(u in proc for u in URGENCIAS_ABSOLUTAS)
+    if eh_urgencia:
+        r.logar(f"CL003_SKIP ep={ep} (urgência identificada)")
+        return
+
+    # Só aplica para procedimentos eletivos conhecidos
+    ELETIVOS = _PROC_EXIGE_CONSERVADOR + [
+        "craniotomia", "ressecção tumoral", "embolização aneurisma",
+        "transesfenoidal", "cranioplastia",
+    ]
+    eh_eletivo = any(p in proc for p in ELETIVOS)
+    if not eh_eletivo:
+        r.logar(f"CL003_SKIP ep={ep} (procedimento não mapeado)")
+        return
+
+    tem_gravidade = any(s in texto for s in _SINAIS_GRAVIDADE)
+
+    if not tem_gravidade:
+        r.pendencias.append(
+            "Pendência clínica (CL003): Indicação clínica não contém sinal explícito de gravidade "
+            "(déficit motor, dor refratária, compressão medular, sinal intramedular, mielopatia, etc.). "
+            "Incluir grau de comprometimento funcional para fortalecer a justificativa. "
+            "Indicação vaga aumenta risco de negativa por insuficiência de justificativa clínica."
+        )
+        r.logar(f"CL003_SEM_GRAVIDADE ep={ep}")
+    else:
+        r.logar(f"CL003_OK ep={ep}")
