@@ -61,6 +61,7 @@ class HardeningResult:
     logs: list = field(default_factory=list)
     _opme_validation: object = None  # OpmeValidationResult — exposto para apply_opme_caps
     alerta_janela_terapeutica: bool = False  # JURIS_005: trombectomia > 6h sem perfusão
+    urgencia_hsa: bool = False  # ENDO_010: HSA por ruptura aneurismática — bypass fluxo padrão
 
     def logar(self, msg: str):
         self.logs.append(msg)
@@ -133,6 +134,12 @@ def run_hardening(req: DecideRequest) -> HardeningResult:
 
     # GATE 7 — Alertas estratégicos jurisprudenciais
     _gate_alertas_juris(req, r, ep, proc)
+
+    # GATE 8 — Urgência HSA (ENDO_010)
+    _gate_urgencia_hsa(req, r, ep)
+
+    # GATE 9 — Lei 14.454 regulatório (ENDO_002)
+    _gate_lei_14454(req, r, ep, proc)
 
     # Decisão final do gate
     if r.bloqueio_convenio:
@@ -545,3 +552,118 @@ def eh_ionm_indicada(req: DecideRequest, proc: str, eh_proc: bool) -> bool:
         return True
     indicacao = req.indicacao_clinica.lower()
     return any(s in indicacao for s in ["alto risco neurológico", "risco de déficit", "área eloquente"])
+
+
+# ── GATE 8 — URGÊNCIA HSA (ENDO_010) ─────────────────────────────────────────
+# ANS RN 465/2021: cobertura de urgência obrigatória em até 12h para risco de vida imediato
+# HSA por ruptura aneurismática: ressangramento 20-30% nas primeiras 24h
+# Gate bypassa fluxo padrão — marca urgencia_hsa = True no HardeningResult
+
+_CID_HSA = ["i60", "i60.0", "i60.1", "i60.2", "i60.3", "i60.4", "i60.5", "i60.6", "i60.7", "i60.8", "i60.9"]
+_SINAIS_RUPTURA = [
+    "roto", "rotura", "ruptura", "rompido", "rompeu",
+    "hsa", "hemorragia subaracnoide", "hemorragia subaracnóidea",
+    "sangramento subaracnoide", "sangramento subaracnóideo",
+    "aneurisma roto", "aneurisma roturado",
+]
+
+def _gate_urgencia_hsa(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    ENDO_010 — Urgência HSA por ruptura aneurismática.
+    Gatilho: CID I60.x + indicação de ruptura/HSA.
+    Ação: classificar como urgência com timestamp, bypass de fluxo padrão.
+    RN 465/2021: cobertura obrigatória em até 12h para risco de vida imediato.
+    """
+    cid = (req.cid_principal or "").lower().replace(" ", "")
+    eh_cid_hsa = any(cid == c or cid.startswith(c) for c in _CID_HSA)
+
+    indicacao = req.indicacao_clinica.lower()
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
+    # Proteção de negação: "sem rotura", "não roto", "sem ruptura" não devem disparar
+    _NEGACOES_RUPTURA = [
+        "sem rotura", "sem ruptura", "sem roto", "não roto",
+        "nao roto", "não roturado", "sem sangramento", "não sangrou",
+        "nao sangrou", "aneurisma íntegro", "aneurisma integro",
+        "intacto", "não rompido", "nao rompido",
+    ]
+    tem_negacao_ruptura = any(n in texto for n in _NEGACOES_RUPTURA)
+    tem_ruptura = any(s in texto for s in _SINAIS_RUPTURA) and not tem_negacao_ruptura
+
+    if not (eh_cid_hsa or tem_ruptura):
+        return
+
+    # Confirmar: precisa de pelo menos um dos dois (CID I60 OU sinal de ruptura no texto)
+    if not eh_cid_hsa and not tem_ruptura:
+        return
+
+    r.urgencia_hsa = True
+
+    # Pendência de urgência — não bloqueia GO, mas muda prioridade e gera nota legal
+    from datetime import datetime
+    timestamp_solicitacao = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    r.pendencias.insert(0,  # Inserir no topo — urgência tem prioridade máxima
+        f"🚨 URGÊNCIA HSA (ENDO_010): Hemorragia subaracnoide por ruptura aneurismática. "
+        f"Risco de ressangramento 20-30% nas primeiras 24h. "
+        f"Cobertura obrigatória em até 12h (RN 465/2021 ANS — urgência com risco de vida imediato). "
+        f"Timestamp desta solicitação: {timestamp_solicitacao}. "
+        "Registrar horário para fins de responsabilização do convênio em caso de demora. "
+        "Documentação: TC crânio com HSA + angiografia confirmando aneurisma roto são suficientes para início imediato."
+    )
+    r.logar(f"ENDO010_URGENCIA_HSA ep={ep} timestamp={timestamp_solicitacao} cid={req.cid_principal}")
+
+
+# ── GATE 9 — LEI 14.454 REGULATÓRIO (ENDO_002) ────────────────────────────────
+# STF ADI 7265 (set/2025) + Lei 14.454/2022: cobertura obrigatória fora do Rol
+# Critérios: (1) sem alternativa eficaz no Rol + (2) eficácia científica comprovada
+# Aplicar quando procedimento endovascular contém termos fora do Rol típico
+
+_PROC_FORA_ROL_ENDOVASCULAR = [
+    "diversor de fluxo", "desviador de fluxo", "flow diverter",
+    "stent farmacológico", "stent liberador de fármaco",
+    "onyx", "nbca", "embosphere",
+    "stent retriever", "stent-retriever",
+    "cateter de aspiração distal", "acesso distal",
+    "woven endobridge", "web device",
+]
+
+def _gate_lei_14454(req: DecideRequest, r: HardeningResult, ep: str, proc: str):
+    """
+    ENDO_002 — Template regulatório Lei 14.454/2022 + STF ADI 7265.
+    Gatilho: procedimento endovascular com OPME/técnica tipicamente fora do Rol ANS.
+    Ação: pendência informativa com texto de defesa regulatória pronto para uso.
+    Não bloqueia GO — geração de justificativa automática.
+    """
+    opme_descs = " ".join(
+        (item.descricao or "").lower()
+        for item in (req.opme_items or [])
+    )
+    texto_busca = proc + " " + opme_descs
+
+    tem_item_fora_rol = any(t in texto_busca for t in _PROC_FORA_ROL_ENDOVASCULAR)
+    if not tem_item_fora_rol:
+        return
+
+    # Verificar se justificativa regulatória já foi fornecida
+    indicacao = req.indicacao_clinica.lower()
+    SINAIS_REGULATORIO_JA_CITADO = [
+        "14.454", "lei 14454", "rol exemplificativo", "taxatividade mitigada",
+        "alternativa terapêutica eficaz", "sem alternativa", "adi 7265",
+        "stj eresp", "1.886.929",
+    ]
+    ja_tem_regulatorio = any(s in indicacao for s in SINAIS_REGULATORIO_JA_CITADO)
+
+    if not ja_tem_regulatorio:
+        r.pendencias.append(
+            "Pendência regulatória (ENDO_002 — Lei 14.454/2022): Procedimento/material "
+            "possivelmente fora do Rol ANS vigente. "
+            "Para garantir cobertura, incluir no laudo: "
+            "'Cobertura amparada pela Lei 14.454/2022 e STF ADI 7265 (set/2025): "
+            "inexistência de alternativa terapêutica eficaz prevista no Rol e "
+            "eficácia comprovada por evidência científica (citar guideline: [SBNR/AHA/SBN]).' "
+            "Sem esta fundamentação, convênio pode negar alegando ausência no Rol."
+        )
+        r.logar(f"ENDO002_LEI14454_AUSENTE ep={ep}")
+    else:
+        r.logar(f"ENDO002_LEI14454_PRESENTE ep={ep}")

@@ -189,6 +189,61 @@ PROFILE_RULES: Dict[str, Dict[str, Any]] = {
             "parafuso pedicular": ["parafusos cervicais de trajetória anterior"],
         },
     },
+    "angioplastia_carotidea": {
+        # ENDO_006 — Filtro de proteção cerebral como componente obrigatório
+        # AHA/ASA + protocolo CREST: filtro de proteção embólica distal é padrão de cuidado
+        # Sem filtro: risco de AVC perioperatório aumenta de 1-2% para >5%
+        "aliases": [
+            "angioplastia carotídea", "angioplastia carotida",
+            "angioplastia de carótida", "stent carotídeo", "stent carotida",
+            "endarterectomia carotídea endovascular",
+        ],
+        "proibidos": ["parafuso pedicular", "cage"],
+        "obrigatorios": ["filtro de proteção"],  # aliases: filtro proteção cerebral, proteção embólica
+        "opcionais_com_justificativa": ["stent carotídeo", "stent carotida"],
+        "sugestoes": {},
+        "_mensagens_juris": {
+            "filtro de proteção": (
+                "ENDO_006: Filtro de proteção cerebral (dispositivo de proteção embólica distal) "
+                "é componente técnico obrigatório da angioplastia carotídea com stent — não acessório. "
+                "Ausência aumenta risco de AVC perioperatório de 1-2% para >5% (AHA/ASA, protocolo CREST). "
+                "Declarar com fabricante e código ANVISA."
+            ),
+        },
+    },
+    "fistula_dural_endovascular": {
+        # ENDO_003 — FAVD: Onyx/NBCA são padrão-ouro, coils são insuficientes
+        # SBNR: microcateterismo seletivo + agente embolizante líquido = técnica estabelecida
+        # Balão de duplo lúmen evita refluxo e é parte essencial da técnica panela-de-pressão
+        "aliases": [
+            "fístula dural", "fistula dural",
+            "fistula arteriovenosa dural", "fístula arteriovenosa dural",
+            "favd", "embolização fístula", "embolizacao fistula",
+            "fístula arteriovenosa intracraniana",
+        ],
+        "proibidos": ["parafuso pedicular", "cage"],
+        "obrigatorios": [],
+        "opcionais_com_justificativa": [
+            "onyx", "nbca", "agente embolizante", "embosphere",
+            "balão de duplo lúmen", "balao de duplo lumen",
+            "microcateter", "microcatéter",
+        ],
+        "sugestoes": {},
+        "_mensagens_juris": {
+            "onyx": (
+                "ENDO_003: Agente embolizante líquido (Onyx/NBCA) em FAVD exige justificativa técnica: "
+                "'Coils convencionais não atingem o ponto fistuloso dural — agente líquido é tecnicamente "
+                "necessário para oclusão seletiva da conexão arteriovenosa. Técnica estabelecida pela SBNR.' "
+                "Balão de duplo lúmen deve ser declarado como insumo da técnica panela-de-pressão."
+            ),
+            "nbca": (
+                "ENDO_003: Agente embolizante líquido (NBCA/Histoacryl) em FAVD exige justificativa técnica: "
+                "'Coils convencionais são insuficientes para oclusão do ponto fistuloso dural. "
+                "NBCA é material embolizante de escolha para este tipo de conexão arteriovenosa.' "
+                "Declarar com fabricante e lote."
+            ),
+        },
+    },
     "aneurisma_endovascular": {
         "aliases": [
             "embolização aneurisma", "embolizacao aneurisma",
@@ -205,10 +260,14 @@ PROFILE_RULES: Dict[str, Dict[str, Any]] = {
         ],
         "obrigatorios": [],
         "opcionais_com_justificativa": [
-            # JURIS_002: stent/diversor em colo largo exige justificativa de impossibilidade de clipagem
+            # JURIS_002 / ENDO_001: diversor/stent em colo largo exige justificativa de clipagem
             "stent", "balão", "balao",
-            "desviador de fluxo", "diversor de fluxo",
-            "microcateter",
+            "desviador de fluxo", "diversor de fluxo", "flow diverter",
+            # ENDO_005: microcateter como OPME autônomo — exige código ANVISA
+            "microcateter", "microcatéter",
+            # ENDO_008: stent retriever e cateter de aspiração em trombectomia
+            "stent retriever", "stent-retriever",
+            "cateter de aspiração", "cateter aspiração",
             # JURIS_007 aplicado ao aneurisma (raro, mas possível em ruptura)
             "cola biológica", "cola biologica",
         ],
@@ -216,11 +275,26 @@ PROFILE_RULES: Dict[str, Dict[str, Any]] = {
             "parafuso pedicular": ["coils", "microcateter", "stent se indicado", "balão se indicado"],
             "cage": ["coils", "microcateter", "stent se indicado", "balão se indicado"],
         },
-        # Metadados jurisprudenciais — usados para gerar mensagens específicas
-        "_juris": {
-            "stent": "JURIS_002",
-            "desviador de fluxo": "JURIS_002",
-            "diversor de fluxo": "JURIS_002",
+        # Metadados jurisprudenciais — mensagens específicas por item (ENDO_001, ENDO_005, JURIS_002)
+        "_mensagens_juris": {
+            "desviador de fluxo": (
+                "ENDO_001 / JURIS_002: Diversor de fluxo em aneurisma exige justificativa de: "
+                "(1) morfologia do colo (medida em mm e relação colo/saco ≥0.5); "
+                "(2) impossibilidade técnica de embolização convencional com coils; "
+                "(3) microcateter compatível deve ser declarado como insumo vinculado (não acessório). "
+                "Citar: PIPELINE Trial + SBNR."
+            ),
+            "microcateter": (
+                "ENDO_005: Microcateter de acesso distal é OPME autônomo de uso único — "
+                "não incluso no porte do procedimento. "
+                "Declarar: modelo + fabricante + código ANVISA + 'compatível com [dispositivo principal]'. "
+                "Sem código ANVISA: convênio pode glosar como 'acessório habitual'."
+            ),
+            "stent retriever": (
+                "ENDO_008: Stent retriever (Solitaire/Trevo) é OPME autônomo de uso único para trombectomia. "
+                "Não incluso no valor do procedimento. "
+                "Declarar com código ANVISA e nota: 'Dispositivo de uso único — custo unitário R$[X]'."
+            ),
         },
     },
 }
