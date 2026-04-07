@@ -69,6 +69,42 @@ class HardeningResult:
 
 # ── FUNÇÃO PRINCIPAL ────────────────────────────────────────────────────────
 
+
+def _detectar_deficit_motor(texto: str) -> bool:
+    """
+    Detecta déficit motor com proteção contra negações.
+    Retorna True apenas se houver sinal positivo sem negação dominante.
+    Princípio: em caso de ambiguidade, adotar interpretação conservadora.
+    """
+    t = texto.lower()
+
+    SINAIS_POSITIVOS = [
+        "déficit motor", "deficit motor",
+        "força grau", "paresia", "plegia",
+        "queda de força", "fraqueza muscular",
+        "deficit neurológico motor", "déficit neurológico motor",
+    ]
+    NEGACOES = [
+        "sem déficit motor", "sem deficit motor",
+        "ausência de déficit", "ausencia de deficit",
+        "nega déficit", "nega deficit",
+        "sem paresia", "força preservada",
+        "força normal", "sem déficit neurológico",
+        "sem deficit neurologico", "não apresenta déficit",
+        "nao apresenta deficit", "sem déficit",
+        "sem deficit",
+    ]
+
+    tem_positivo = any(s in t for s in SINAIS_POSITIVOS)
+    tem_negacao  = any(n in t for n in NEGACOES)
+
+    if tem_positivo and not tem_negacao:
+        return True
+    if tem_positivo and tem_negacao:
+        # Ambiguidade — interpretação conservadora: não usar como fator favorável
+        return False
+    return False
+
 def run_hardening(req: DecideRequest) -> HardeningResult:
     r = HardeningResult()
     ep = getattr(req, "episodio_id", "SEM_EP")
@@ -201,11 +237,7 @@ def _gate_conservador(req: DecideRequest, r: HardeningResult, ep: str, proc: str
         return
 
     tto = req.tto_conservador or ""
-    tem_deficit_motor = (
-        "déficit motor" in req.indicacao_clinica.lower() or
-        "deficit motor" in req.indicacao_clinica.lower() or
-        "força grau" in req.indicacao_clinica.lower()
-    )
+    tem_deficit_motor = _detectar_deficit_motor(req.indicacao_clinica)
 
     if not tto or len(tto.strip()) < 10:
         if tem_deficit_motor:
@@ -252,7 +284,7 @@ def _gate_checklist_defensivo(req: DecideRequest, r: HardeningResult, ep: str, p
 
     checklist = {
         "lasegue_documentado": any(t in texto_completo for t in ["lasègue", "lasegue", "laségue"]),
-        "deficit_motor_graduado": any(t in texto_completo for t in ["grau 4", "grau 3", "grau 5", "força grau", "deficit motor", "déficit motor"]),
+        "deficit_motor_graduado": _detectar_deficit_motor(req.indicacao_clinica + " " + (req.achados_resumo or "")),
         "dermatomero_correlacionado": any(t in texto_completo for t in ["l4", "l5", "s1", "dermatômero", "dermatomero", "radicular"]),
         "imagem_correlata": any(t in texto_completo for t in ["rm", "ressonância", "ressonancia", "tc", "tomografia", "mri"]),
         "compressao_radicular_descrita": any(t in texto_completo for t in ["compressão", "compressao", "comprime", "compressivo"]),

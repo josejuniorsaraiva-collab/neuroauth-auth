@@ -34,6 +34,42 @@ JUSTIFICATIVA_BASE = (
 )
 
 
+
+def _detectar_deficit_motor(texto: str) -> bool:
+    """
+    Detecta déficit motor com proteção contra negações.
+    Retorna True apenas se houver sinal positivo sem negação dominante.
+    Princípio: em caso de ambiguidade, adotar interpretação conservadora.
+    """
+    t = texto.lower()
+
+    SINAIS_POSITIVOS = [
+        "déficit motor", "deficit motor",
+        "força grau", "paresia", "plegia",
+        "queda de força", "fraqueza muscular",
+        "deficit neurológico motor", "déficit neurológico motor",
+    ]
+    NEGACOES = [
+        "sem déficit motor", "sem deficit motor",
+        "ausência de déficit", "ausencia de deficit",
+        "nega déficit", "nega deficit",
+        "sem paresia", "força preservada",
+        "força normal", "sem déficit neurológico",
+        "sem deficit neurologico", "não apresenta déficit",
+        "nao apresenta deficit", "sem déficit",
+        "sem deficit",
+    ]
+
+    tem_positivo = any(s in t for s in SINAIS_POSITIVOS)
+    tem_negacao  = any(n in t for n in NEGACOES)
+
+    if tem_positivo and not tem_negacao:
+        return True
+    if tem_positivo and tem_negacao:
+        # Ambiguidade — interpretação conservadora: não usar como fator favorável
+        return False
+    return False
+
 def run_decision(req: DecideRequest) -> DecideResponse:
 
     # ── FASE 1: INPUT HARDENING ─────────────────────────────────────────────
@@ -105,8 +141,7 @@ def run_decision(req: DecideRequest) -> DecideResponse:
         SEMANAS_CONSERVADOR_DEFAULT
     )
     semanas = _extrair_semanas(req.tto_conservador)
-    tem_deficit_motor = any(t in req.indicacao_clinica.lower() for t in
-                            ["déficit motor", "deficit motor", "força grau"])
+    tem_deficit_motor = _detectar_deficit_motor(req.indicacao_clinica)
 
     if semanas >= semanas_minimas:
         score += 20
@@ -161,9 +196,22 @@ def run_decision(req: DecideRequest) -> DecideResponse:
         score += 10
         pendencias.append(f"Convênio '{req.convenio}' — verificar regras e cobertura específicas.")
 
-    # CAP: OPME problemático nunca libera GO — aplicado após todos os blocos
+    # CAP 1: OPME problemático nunca libera GO
     if h.opme_generico_bloqueado or h.opme_incompativel:
         score = min(score, 74)
+
+    # CAP 2: Conservador insuficiente SEM déficit motor nunca libera GO
+    # Convênio rigoroso (SulAmérica/Bradesco 8 sem.) com < mínimo e sem déficit motor
+    # é negativa certa — cap em GO_COM_RESSALVAS
+    _semanas_check = _extrair_semanas(req.tto_conservador)
+    _minimo_check  = next((v for k, v in CONVENIO_SEMANAS.items() if k in req.convenio.lower()), SEMANAS_CONSERVADOR_DEFAULT)
+    _deficit_check = _detectar_deficit_motor(req.indicacao_clinica)
+    if _semanas_check < _minimo_check and not _deficit_check and _semanas_check > 0:
+        score = min(score, 74)
+        pontos_frageis.append(
+            f"Conservador insuficiente ({_semanas_check} sem.) sem déficit motor — "
+            f"{req.convenio} não autorizará. Cap de score aplicado."
+        )
 
     # ── CLASSIFICAÇÃO ────────────────────────────────────────────────────────
     if score >= SCORE_THRESHOLDS["GO"]:
