@@ -123,6 +123,12 @@ def run_hardening(req: DecideRequest) -> HardeningResult:
     # GATE 0b — Coerência clínica (CL001, CL002, CL003)
     run_clinico(req, r, ep)
 
+    # GATE 0c — Regulatório (R001, R002, R003, R004)
+    run_regulatorio(req, r, ep)
+
+    # GATE 0d — Convênio (CV001, CV002, CV003, CV004)
+    run_convenio(req, r, ep)
+
     # GATE 1 — Convênio
     _gate_convenio(req, r, ep)
 
@@ -982,3 +988,466 @@ def _regra_cl003(req: DecideRequest, r: HardeningResult, ep: str):
         r.logar(f"CL003_SEM_GRAVIDADE ep={ep}")
     else:
         r.logar(f"CL003_OK ep={ep}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOITE 3 — REGRAS REGULATÓRIAS
+# R001: compatibilidade procedimento ↔ código TUSS
+# R002: CID coerente com família regulatória do procedimento
+# R003: descrição ambígua ou genérica (pendência documental)
+# R004: campos regulatórios mínimos para defensabilidade em auditoria
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_regulatorio(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    Executa R001, R002, R003, R004.
+    Nunca bloqueia — gera pendências regulatórias para revisão.
+    """
+    _regra_r001(req, r, ep)
+    _regra_r002(req, r, ep)
+    _regra_r003(req, r, ep)
+    _regra_r004(req, r, ep)
+
+
+# Mapeamento TUSS → palavras-chave de procedimento compatíveis
+_TUSS_PROC_MAP = {
+    "3.07.15.18-0": ["microdiscectomia", "discectomia lombar"],
+    "3.07.13.02-1": ["acdf", "artrodese cervical anterior", "discectomia cervical anterior"],
+    "3.07.15.02-0": ["artrodese lombar", "tlif", "plif"],
+    "3.07.15.59-8": ["artroplastia cervical", "artroplastia discal"],
+    "4.08.12.01-4": ["trombectomia", "trombólise endovascular"],
+    "4.08.12.03-0": ["embolização aneurisma", "aneurisma endovascular"],
+    "4.01.01.03-0": ["craniotomia", "ressecção tumoral", "exérese de tumor"],
+    "4.01.03.09-7": ["transesfenoidal", "hipofisectomia", "base de crânio"],
+}
+
+def _regra_r001(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    R001 — Compatibilidade procedimento ↔ código TUSS.
+    Se código TUSS informado, verificar se pertence à família do procedimento.
+    Não verifica todos os códigos — apenas os mapeados.
+    """
+    tuss = (req.cod_cbhpm or "").strip()
+    if not tuss:
+        r.logar(f"R001_SKIP ep={ep} (sem TUSS)")
+        return
+
+    # Usar TUSS normalizado se disponível
+    tuss_norm = tuss
+    for t_norm in _TUSS_PROC_MAP:
+        if tuss.replace(" ", "") in t_norm.replace("-", "").replace(".", ""):
+            tuss_norm = t_norm
+            break
+
+    if tuss_norm not in _TUSS_PROC_MAP:
+        r.logar(f"R001_SKIP ep={ep} tuss={tuss} (não mapeado — sem validação)")
+        return
+
+    proc = (req.procedimento or "").lower()
+    proc_compativeis = _TUSS_PROC_MAP[tuss_norm]
+    tem_compatibilidade = any(p in proc for p in proc_compativeis)
+
+    if not tem_compatibilidade:
+        r.pendencias.append(
+            f"Pendência regulatória (R001): Código TUSS '{tuss}' pode não corresponder "
+            f"ao procedimento '{req.procedimento}'. "
+            f"Códigos compatíveis com este TUSS: {', '.join(proc_compativeis)}. "
+            "Verificar antes da submissão — código incorreto gera glosa automática."
+        )
+        r.logar(f"R001_INCOMPATIVEL ep={ep} tuss={tuss} proc='{req.procedimento}'")
+    else:
+        r.logar(f"R001_OK ep={ep} tuss={tuss}")
+
+
+# CID → grupo regulatório para R002
+_CID_GRUPO_REGULATORIO = {
+    # Coluna
+    "M47": "coluna_degenerativa",
+    "M48": "coluna_degenerativa",
+    "M50": "coluna_cervical",
+    "M51": "coluna_lombar",
+    "M43": "coluna_instabilidade",
+    "M80": "osteoporose",
+    "S22": "trauma_vertebral",
+    "S12": "trauma_cervical",
+    # Neuro-oncológico
+    "C70": "tumor_snc",
+    "C71": "tumor_snc",
+    "C72": "tumor_snc",
+    "D32": "tumor_snc_benigno",
+    "D33": "tumor_snc_benigno",
+    "D35": "tumor_hipofise",
+    # Vascular
+    "I60": "vascular_hsa",
+    "I61": "vascular_hemorragico",
+    "I62": "vascular_hemorragico",
+    "I63": "vascular_isquemico",
+    "I65": "vascular_estenose",
+    "I67": "vascular_aneurisma",
+    "I68": "vascular_cerebral",
+    # MAV / malformação
+    "Q28": "malformacao_vascular",
+}
+
+_GRUPO_REG_PROC_COMPATIVEIS = {
+    "coluna_degenerativa":   ["laminectomia", "artrodese", "discectomia", "foraminotomia", "descompressão"],
+    "coluna_cervical":       ["acdf", "artrodese cervical", "discectomia cervical", "artroplastia cervical", "laminectomia cervical"],
+    "coluna_lombar":         ["microdiscectomia", "discectomia", "artrodese lombar", "laminectomia", "foraminotomia"],
+    "coluna_instabilidade":  ["artrodese", "instrumentação", "fixação"],
+    "osteoporose":           ["artrodese", "vertebroplastia", "cifoplastia"],
+    "trauma_vertebral":      ["artrodese", "corpectomia", "fixação", "instrumentação"],
+    "trauma_cervical":       ["artrodese cervical", "fixação cervical", "acdf"],
+    "tumor_snc":             ["craniotomia", "ressecção", "exérese", "biopsia"],
+    "tumor_snc_benigno":     ["craniotomia", "ressecção", "exérese", "meningioma"],
+    "tumor_hipofise":        ["transesfenoidal", "hipofisectomia", "ressecção", "base de crânio"],
+    "vascular_hsa":          ["embolização", "clipagem", "aneurisma", "coil", "endovascular"],
+    "vascular_hemorragico":  ["drenagem", "evacuação", "hematoma", "craniectomia"],
+    "vascular_isquemico":    ["trombectomia", "trombólise", "endovascular"],
+    "vascular_estenose":     ["angioplastia", "stent", "endarterectomia"],
+    "vascular_aneurisma":    ["embolização", "clipagem", "endovascular", "stent", "coil"],
+    "malformacao_vascular":  ["embolização", "ressecção", "radioterapia", "fístula", "mav"],
+}
+
+def _regra_r002(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    R002 — CID coerente com família regulatória do procedimento.
+    Mais granular que CL001: usa grupos regulatórios (não famílias genéricas).
+    Ativa apenas para CIDs mapeados.
+    """
+    cid  = (req.cid_principal or "").strip().upper()
+    proc = (req.procedimento or "").strip().lower()
+    cid_raiz = cid[:3]
+
+    if cid_raiz not in _CID_GRUPO_REGULATORIO:
+        r.logar(f"R002_SKIP ep={ep} cid_raiz={cid_raiz} (não mapeado)")
+        return
+
+    grupo = _CID_GRUPO_REGULATORIO[cid_raiz]
+    compativeis = _GRUPO_REG_PROC_COMPATIVEIS.get(grupo, [])
+    tem_compat = any(p in proc for p in compativeis)
+
+    if not tem_compat:
+        r.pendencias.append(
+            f"Alerta regulatório (R002): CID {cid} (grupo: {grupo}) "
+            f"pode não ser compatível com '{req.procedimento}'. "
+            "Em auditoria, CID e procedimento incompatíveis resultam em glosa automática. "
+            "Verificar se há CID mais específico ou se o procedimento está descrito corretamente."
+        )
+        r.logar(f"R002_INCOERENCIA ep={ep} cid={cid} grupo={grupo}")
+    else:
+        r.logar(f"R002_OK ep={ep} cid={cid} grupo={grupo}")
+
+
+_TERMOS_AMBIGUOS = [
+    "procedimento cirúrgico", "procedimento cirurgico",
+    "cirurgia de coluna", "cirurgia de cabeça",
+    "cirurgia neurológica", "cirurgia neurologica",
+    "intervenção neurocirúrgica", "intervencao neurocirurgica",
+    "tratamento cirúrgico", "tratamento cirurgico",
+    "cirurgia conforme indicação", "cirurgia conforme indicacao",
+    "a definir", "conforme protocolo", "ver laudo",
+]
+
+def _regra_r003(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    R003 — Descrição ambígua ou genérica.
+    Procedimentos com descrição vaga não passam em auditoria — convênio
+    pode glosar por "procedimento não identificável na tabela TUSS/CBHPM".
+    """
+    proc = (req.procedimento or "").strip().lower()
+    indicacao = (req.indicacao_clinica or "").strip().lower()
+
+    proc_ambiguo = any(t in proc for t in _TERMOS_AMBIGUOS)
+    indicacao_ambigua = len(indicacao) < 20  # menos de 20 chars = provavelmente genérico
+
+    if proc_ambiguo:
+        r.pendencias.append(
+            f"Pendência regulatória (R003): Descrição do procedimento '{req.procedimento}' "
+            "é genérica demais — não identificável na tabela TUSS/CBHPM. "
+            "Usar nomenclatura técnica específica (ex: 'Microdiscectomia lombar L5-S1' "
+            "em vez de 'cirurgia de coluna'). Descrição vaga resulta em glosa por código incorreto."
+        )
+        r.logar(f"R003_PROC_AMBIGUO ep={ep}")
+
+    if indicacao_ambigua and not proc_ambiguo:
+        r.pendencias.append(
+            f"Pendência regulatória (R003): Indicação clínica muito curta "
+            f"('{req.indicacao_clinica[:40]}...' — {len(indicacao)} chars). "
+            "Indicação mínima deve descrever: diagnóstico + sinal clínico + falha terapêutica. "
+            "Indicação insuficiente é causa frequente de negativa em pré-autorização."
+        )
+        r.logar(f"R003_INDICACAO_CURTA ep={ep} len={len(indicacao)}")
+
+    if not proc_ambiguo and not indicacao_ambigua:
+        r.logar(f"R003_OK ep={ep}")
+
+
+def _regra_r004(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    R004 — Campos regulatórios mínimos para defensabilidade em auditoria.
+    Verifica presença de CRM, CBO e médico solicitante.
+    Esses campos são obrigatórios na SADT/TISS — ausência impede protocolo.
+    """
+    CAMPOS_REG = {
+        "crm":               (req.crm or "").strip(),
+        "cbo":               (req.cbo or "").strip(),
+        "medico_solicitante":(req.medico_solicitante or "").strip(),
+    }
+    PLACEHOLDERS = {"", "string", "n/a", "na", "-", "0", "00000", "nenhum"}
+
+    faltando = [
+        campo for campo, valor in CAMPOS_REG.items()
+        if not valor or valor.lower() in PLACEHOLDERS or len(valor) < 2
+    ]
+
+    if faltando:
+        r.pendencias.append(
+            f"Pendência regulatória (R004): Campos SADT/TISS ausentes: {', '.join(faltando)}. "
+            "CRM, CBO e nome do médico solicitante são obrigatórios para protocolo junto ao convênio. "
+            "Guia sem esses campos é rejeitada no sistema da operadora antes de chegar ao auditor."
+        )
+        r.logar(f"R004_CAMPOS_AUSENTES ep={ep} faltando={faltando}")
+    else:
+        r.logar(f"R004_OK ep={ep}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOITE 4 — REGRAS DE CONVÊNIO
+# CV001: multinível exige justificativa reforçada
+# CV002: OPME sem excesso e sem ausência crítica
+# CV003: regra das 3 marcas (RN 424/2017 ANS)
+# CV004: exames obrigatórios pré-autorização por tipo de caso
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_convenio(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    Executa CV001, CV002, CV003, CV004.
+    Pendências específicas de convênio — complementam as regulatórias.
+    """
+    _regra_cv001(req, r, ep)
+    _regra_cv002(req, r, ep)
+    _regra_cv003(req, r, ep)
+    _regra_cv004(req, r, ep)
+
+
+_NIVEIS_VERTEBRAIS = [
+    "l1-l2", "l2-l3", "l3-l4", "l4-l5", "l5-s1",
+    "c3-c4", "c4-c5", "c5-c6", "c6-c7", "c7-t1",
+    "t1-t2", "t2-t3", "t3-t4", "t4-t5", "t5-t6",
+    "multinível", "multinivel", "múltiplos níveis", "multiplos niveis",
+    "2 níveis", "3 níveis", "dois níveis", "três níveis",
+    "2 levels", "bilevel", "trilevel",
+]
+
+_SINAIS_JUSTIFICATIVA_MULTINIVEL = [
+    "multinível", "multinivel", "múltiplos níveis", "multiplos niveis",
+    "instabilidade segmentar", "estenose em múltiplos", "acometimento de",
+    "degeneração em", "cada nível", "por nível",
+    "justificativa de", "indicação de cada", "necessidade de",
+]
+
+def _regra_cv001(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CV001 — Multinível exige justificativa reforçada.
+    Procedimentos com múltiplos níveis vertebrais têm taxa de glosa muito maior.
+    Convênios exigem justificativa independente por nível.
+    """
+    indicacao = (req.indicacao_clinica or "").lower()
+    achados   = (req.achados_resumo or "").lower()
+    proc      = (req.procedimento or "").lower()
+    texto     = indicacao + " " + achados + " " + proc
+
+    # Detectar menção de múltiplos níveis
+    tem_multinivel = any(n in texto for n in _NIVEIS_VERTEBRAIS)
+    # Contar quantos níveis distintos aparecem
+    niveis_detectados = [n for n in _NIVEIS_VERTEBRAIS if n in texto and "-" in n]
+    eh_multinivel_real = len(niveis_detectados) >= 2 or \
+                         any(t in texto for t in ["multinível", "multinivel",
+                             "múltiplos níveis", "multiplos niveis",
+                             "2 níveis", "3 níveis", "dois níveis", "três níveis"])
+
+    if not eh_multinivel_real:
+        r.logar(f"CV001_SKIP ep={ep} (não multinível)")
+        return
+
+    # Verificar se há justificativa por nível
+    tem_just_multinivel = any(s in texto for s in _SINAIS_JUSTIFICATIVA_MULTINIVEL)
+
+    if not tem_just_multinivel:
+        r.pendencias.append(
+            f"Pendência de convênio (CV001): Procedimento multinível detectado "
+            f"(níveis: {', '.join(niveis_detectados[:4]) if niveis_detectados else 'múltiplos'}). "
+            "Convênios exigem justificativa clínica independente para cada nível abordado. "
+            "Incluir: 'Nível [X]: [diagnóstico + sinal clínico específico deste nível]' "
+            "para cada segmento. Procedimento multinível sem justificativa por nível "
+            "tem alta taxa de glosa parcial (autoriza 1 nível, nega os demais)."
+        )
+        r.logar(f"CV001_MULTINIVEL_SEM_JUST ep={ep} niveis={niveis_detectados}")
+    else:
+        r.logar(f"CV001_OK ep={ep} niveis={niveis_detectados}")
+
+
+def _regra_cv002(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CV002 — OPME sem excesso e sem ausência crítica.
+    Detecta: quantidade absurda de itens (possível excesso) ou item crítico
+    declarado com quantidade zero/vazia.
+    Não valida conteúdo clínico — apenas consistência declarativa.
+    """
+    if req.necessita_opme != "Sim" or not req.opme_items:
+        r.logar(f"CV002_SKIP ep={ep} (sem OPME)")
+        return
+
+    # Excesso: mais de 15 itens distintos — raro, pode gerar auditoria
+    n_itens = len(req.opme_items)
+    if n_itens > 15:
+        r.pendencias.append(
+            f"Alerta de convênio (CV002): {n_itens} itens OPME declarados. "
+            "Número elevado pode acionar auditoria de excesso de materiais. "
+            "Verificar se todos os itens são necessários e têm justificativa individual. "
+            "Convênios com auditoria rigorosa (autogestão, Cassi) revisam item a item."
+        )
+        r.logar(f"CV002_EXCESSO ep={ep} n_itens={n_itens}")
+
+    # Item com quantidade zero ou negativa
+    qtd_invalida = [
+        item.descricao for item in req.opme_items
+        if item.qtd is not None and item.qtd <= 0
+    ]
+    if qtd_invalida:
+        r.pendencias.append(
+            f"Pendência de convênio (CV002): Itens OPME com quantidade inválida (0 ou negativa): "
+            f"{', '.join(qtd_invalida[:3])}. "
+            "Quantidade zero causa rejeição automática na conferência de guia."
+        )
+        r.logar(f"CV002_QTD_INVALIDA ep={ep} itens={qtd_invalida}")
+
+    # Item sem descrição
+    sem_desc = sum(1 for item in req.opme_items if not (item.descricao or "").strip())
+    if sem_desc:
+        r.pendencias.append(
+            f"Pendência de convênio (CV002): {sem_desc} item(ns) OPME sem descrição. "
+            "Todo item OPME precisa de descrição para faturamento hospitalar."
+        )
+        r.logar(f"CV002_SEM_DESC ep={ep} n={sem_desc}")
+
+    if n_itens <= 15 and not qtd_invalida and not sem_desc:
+        r.logar(f"CV002_OK ep={ep} n_itens={n_itens}")
+
+
+# Procedimentos onde a RN 424/2017 exige 3 marcas distintas de OPME
+_PROC_EXIGE_3_MARCAS = [
+    "artrodese", "instrumentação", "cage", "implante vertebral",
+    "acdf", "artrodese cervical", "artroplastia cervical",
+    "craniotomia", "cranioplastia",
+    "embolização", "angioplastia", "stent",
+    "prótese", "protese",
+]
+
+def _regra_cv003(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CV003 — Regra das 3 marcas (RN 424/2017 ANS).
+    Para procedimentos com implante, ANS exige cotação de 3 marcas distintas
+    quando o médico especifica fabricante. Se apenas 1 fabricante for declarado
+    para todos os implantes, gerar alerta de compliance.
+    """
+    if req.necessita_opme != "Sim" or not req.opme_items:
+        r.logar(f"CV003_SKIP ep={ep} (sem OPME)")
+        return
+
+    proc = (req.procedimento or "").lower()
+    eh_proc_implante = any(p in proc for p in _PROC_EXIGE_3_MARCAS)
+    if not eh_proc_implante:
+        r.logar(f"CV003_SKIP ep={ep} (procedimento sem implante)")
+        return
+
+    # Coletar fabricantes declarados
+    fabricantes = [
+        (item.fabricante or "").strip().lower()
+        for item in req.opme_items
+        if (item.fabricante or "").strip()
+    ]
+    fabricantes_unicos = set(f for f in fabricantes if f)
+    n_itens_com_fab = len(fabricantes)
+    n_itens_total   = len(req.opme_items)
+
+    # Se todos os itens têm apenas 1 fabricante → alerta RN 424
+    if len(fabricantes_unicos) == 1 and n_itens_com_fab >= 3:
+        fab = list(fabricantes_unicos)[0]
+        r.pendencias.append(
+            f"Alerta RN 424/2017 (CV003): Todos os {n_itens_com_fab} itens OPME "
+            f"são do fabricante '{fab}'. "
+            "A RN 424/2017 ANS exige cotação de 3 marcas distintas para implantes. "
+            "Convênios podem glosar ou exigir justificativa de padronização de marca. "
+            "Incluir: 'Padronização de marca justificada por compatibilidade técnica dos componentes' "
+            "ou apresentar cotação de 3 marcas no laudo."
+        )
+        r.logar(f"CV003_MARCA_UNICA ep={ep} fab={fab} n={n_itens_com_fab}")
+    else:
+        r.logar(f"CV003_OK ep={ep} marcas_distintas={len(fabricantes_unicos)}")
+
+
+# Exames obrigatórios por tipo de caso
+_EXAMES_OBRIGATORIOS = {
+    "coluna_lombar": {
+        "exames": ["rm", "ressonância", "ressonancia", "tomografia"],
+        "label": "RM de coluna lombossacra",
+        "procs": ["microdiscectomia", "discectomia", "artrodese lombar", "laminectomia"],
+    },
+    "coluna_cervical": {
+        "exames": ["rm cervical", "ressonância cervical", "ressonancia cervical",
+                   "rm de cervical", "tomografia cervical"],
+        "label": "RM de coluna cervical",
+        "procs": ["acdf", "artrodese cervical", "discectomia cervical", "artroplastia cervical"],
+    },
+    "vascular_aneurisma": {
+        "exames": ["angiotomografia", "angio-tc", "angioRm", "angiografia",
+                   "angiotc", "angio tc"],
+        "label": "Angiotomografia ou Angiografia cerebral",
+        "procs": ["embolização aneurisma", "aneurisma endovascular", "clipagem"],
+    },
+    "avc_trombectomia": {
+        "exames": ["tc", "tomografia", "angiotc", "angiotomografia", "rm", "aspects"],
+        "label": "TC de crânio com ASPECTS",
+        "procs": ["trombectomia", "trombólise endovascular"],
+    },
+    "tumor_craniano": {
+        "exames": ["rm", "ressonância", "ressonancia", "tc", "tomografia",
+                   "gadolínio", "gadolinio", "contraste"],
+        "label": "RM de crânio com contraste",
+        "procs": ["craniotomia", "ressecção tumoral", "exérese de tumor"],
+    },
+}
+
+def _regra_cv004(req: DecideRequest, r: HardeningResult, ep: str):
+    """
+    CV004 — Exames obrigatórios pré-autorização por tipo de caso.
+    Verifica se o exame mínimo de imagem está mencionado para o perfil do caso.
+    Sem exame de imagem → auditores negam de pronto.
+    """
+    proc = (req.procedimento or "").lower()
+    indicacao = (req.indicacao_clinica or "").lower()
+    achados   = (req.achados_resumo or "").lower()
+    texto     = indicacao + " " + achados
+
+    for grupo, cfg in _EXAMES_OBRIGATORIOS.items():
+        # Verificar se o procedimento pertence a este grupo
+        eh_proc_grupo = any(p in proc for p in cfg["procs"])
+        if not eh_proc_grupo:
+            continue
+
+        # Verificar se algum exame do grupo está mencionado
+        tem_exame = any(e in texto for e in cfg["exames"])
+
+        if not tem_exame:
+            r.pendencias.append(
+                f"Pendência de convênio (CV004): {cfg['label']} não identificado "
+                f"na indicação clínica ou achados. "
+                "Exame de imagem é pré-requisito para autorização — convênios rejeitam "
+                "solicitação sem correlação com exame objetivo. "
+                f"Incluir: resultado do {cfg['label']} com data e achado relevante."
+            )
+            r.logar(f"CV004_EXAME_AUSENTE ep={ep} grupo={grupo} exame={cfg['label']}")
+        else:
+            r.logar(f"CV004_OK ep={ep} grupo={grupo}")
+        break  # aplicar apenas o primeiro grupo que casar
