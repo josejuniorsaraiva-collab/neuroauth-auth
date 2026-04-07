@@ -37,6 +37,9 @@ from app.services.structured_logger import NeuroLog
 logger = logging.getLogger("neuroauth.runner")
 
 ENGINE_VERSION   = "v2.2"
+LOCK_TTL_SECONDS = 300   # lock expira após 5 min — libera locks órfãos
+MAX_ATTEMPTS     = 3     # máximo de tentativas antes de erro definitivo
+RETRY_STATES     = {"pendente", "erro"}  # únicos estados que podem entrar no retry
 TAB_RUNNER_QUEUE = "23_RUNNER_QUEUE"
 
 SCOPES = [
@@ -183,6 +186,7 @@ def run_episode(req: DecideRequest) -> dict:
         "status":          "erro",
         "decision_run_id": None,
         "error":           None,
+        "lock_recovered":  False,
     }
 
     try:
@@ -197,8 +201,9 @@ def run_episode(req: DecideRequest) -> dict:
     row_idx = _find_row_index(ws, req.episodio_id)
 
     if item:
-        status_atual = item.get("final_status", "")
-        existing_idem = item.get("idempotency_key", "")
+        status_atual   = item.get("final_status", "")
+        existing_idem  = item.get("idempotency_key", "")
+        attempt_count  = int(item.get("attempt_count", "0") or "0")
 
         # Episódio já concluído: não reprocessar
         if status_atual == "concluido":
@@ -210,15 +215,43 @@ def run_episode(req: DecideRequest) -> dict:
             result["decision_run_id"] = item.get("decision_run_id")
             return result
 
-        # Episódio lockado por outro ciclo: não entrar
-        if status_atual in ("lockado", "processando"):
-            logger.warning(
-                f"[runner] SKIP ep={req.episodio_id} — lockado "
-                f"por={item.get('lock_owner')} em={item.get('lock_at')}"
+        # Limite de tentativas atingido: erro definitivo
+        # Aplica mesmo quando status='erro' (retry de falha anterior)
+        # Só não aplica quando já está 'concluido'
+        if attempt_count >= MAX_ATTEMPTS and status_atual != "concluido":
+            logger.error(
+                f"[runner] MAX_ATTEMPTS ep={req.episodio_id} "
+                f"attempt={attempt_count} >= {MAX_ATTEMPTS}"
             )
-            result["status"] = "skipped_locked"
-            result["error"] = "Episódio lockado por outro ciclo"
+            if row_idx:
+                _update_queue_row(ws, row_idx, {
+                    "final_status":  "erro",
+                    "error_message": f"MAX_ATTEMPTS={MAX_ATTEMPTS} atingido sem sucesso",
+                })
+            result["status"] = "erro"
+            result["error"]  = f"MAX_ATTEMPTS={MAX_ATTEMPTS} atingido"
             return result
+
+        # Episódio lockado: verificar TTL antes de bloquear
+        if status_atual in ("lockado", "processando"):
+            if _is_lock_expired(item):
+                # Lock vencido — recuperar e continuar
+                _recover_expired_lock(ws, row_idx, req.episodio_id,
+                                       item.get("lock_owner",""), log)
+                result["lock_recovered"] = True
+                logger.warning(
+                    f"[runner] LOCK_EXPIRED ep={req.episodio_id} — recuperado"
+                )
+                # Continua o processamento abaixo (não retorna)
+            else:
+                # Lock válido — não entrar
+                logger.warning(
+                    f"[runner] SKIP ep={req.episodio_id} — lockado "
+                    f"por={item.get('lock_owner')} em={item.get('lock_at')}"
+                )
+                result["status"] = "skipped_locked"
+                result["error"]  = "Episódio lockado por outro ciclo"
+                return result
 
         # Mesma idempotency_key já processada com sucesso: não duplicar
         if existing_idem == idem_key and status_atual == "concluido":
@@ -335,3 +368,123 @@ def run_episode(req: DecideRequest) -> dict:
         result["error"] = error_msg
         logger.error(f"[runner] ERROR ep={req.episodio_id} trace={trace_id}: {error_msg}")
         return result
+
+
+# ── TTL / LOCK ÓRFÃO ─────────────────────────────────────────────────────────
+
+def _is_lock_expired(item: dict) -> bool:
+    """
+    Retorna True se o lock está vencido (lock_at > LOCK_TTL_SECONDS atrás).
+    Lock sem lock_at é considerado não expirado (seguro por padrão).
+    """
+    lock_at_str = item.get("lock_at", "")
+    if not lock_at_str:
+        return False
+    try:
+        lock_at = datetime.fromisoformat(lock_at_str.replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - lock_at).total_seconds()
+        return age > LOCK_TTL_SECONDS
+    except Exception:
+        return False
+
+
+def _recover_expired_lock(
+    ws: gspread.Worksheet,
+    row_idx: int,
+    episode_id: str,
+    old_lock_owner: str,
+    log: "NeuroLog",
+) -> None:
+    """
+    Recupera lock expirado: reseta para 'pendente' e registra evento.
+    Chamado apenas quando _is_lock_expired() retorna True.
+    """
+    _update_queue_row(ws, row_idx, {
+        "final_status": "pendente",
+        "lock_owner":   "",
+        "lock_at":      "",
+    })
+    log.emit("lock_expired", status="recovered", details={
+        "recovered_from_owner": old_lock_owner,
+        "episode_id":           episode_id,
+        "ttl_seconds":          LOCK_TTL_SECONDS,
+    })
+    logger.warning(
+        f"[runner] LOCK_EXPIRED_RECOVERED ep={episode_id} "
+        f"old_owner={old_lock_owner} ttl={LOCK_TTL_SECONDS}s"
+    )
+
+
+# ── RELATÓRIO DE INTEGRIDADE DO BATCH ────────────────────────────────────────
+
+def batch_integrity_report(results: list) -> dict:
+    """
+    Gera relatório de integridade após execução de lote.
+    Verifica unicidade de trace_id e decision_run_id,
+    correlação auditável e estado final de cada caso.
+    """
+    total         = len(results)
+    concluidos    = [r for r in results if r["status"] == "concluido"]
+    erros         = [r for r in results if r["status"] == "erro"]
+    skipped       = [r for r in results if r["status"].startswith("skipped")]
+    locks_recup   = [r for r in results if r.get("lock_recovered")]
+
+    # Unicidade de trace_id
+    trace_ids = [r["trace_id"] for r in results if r.get("trace_id")]
+    trace_duplicados = len(trace_ids) - len(set(trace_ids))
+
+    # Unicidade de decision_run_id (apenas concluídos)
+    run_ids = [r["decision_run_id"] for r in concluidos if r.get("decision_run_id")]
+    run_duplicados = len(run_ids) - len(set(run_ids))
+
+    # Correlação: concluídos devem ter decision_run_id
+    sem_run_id = [r for r in concluidos if not r.get("decision_run_id")]
+
+    divergencias = []
+    if trace_duplicados > 0:
+        divergencias.append(f"trace_id duplicado: {trace_duplicados} ocorrências")
+    if run_duplicados > 0:
+        divergencias.append(f"decision_run_id duplicado: {run_duplicados} ocorrências")
+    if sem_run_id:
+        divergencias.append(f"concluídos sem decision_run_id: {len(sem_run_id)}")
+
+    return {
+        "total_recebidos":          total,
+        "total_concluido":          len(concluidos),
+        "total_erro":               len(erros),
+        "total_skipped":            len(skipped),
+        "total_locks_recuperados":  len(locks_recup),
+        "trace_ids_unicos":         len(set(trace_ids)),
+        "trace_ids_duplicados":     trace_duplicados,
+        "run_ids_unicos":           len(set(run_ids)),
+        "run_ids_duplicados":       run_duplicados,
+        "correlacao_completa":      len(sem_run_id) == 0,
+        "divergencias":             divergencias,
+        "integridade":              "OK" if not divergencias else "DIVERGENCIA",
+    }
+
+
+# ── EXECUÇÃO DE LOTE ──────────────────────────────────────────────────────────
+
+def run_batch(requests: list, stop_on_error: bool = False) -> dict:
+    """
+    Processa lista de DecideRequest com relatório de integridade final.
+    Cada episódio é independente — falha em 1 não bloqueia os demais.
+    stop_on_error=True para uso em testes onde 1 erro deve parar o lote.
+    """
+    results = []
+    for req in requests:
+        result = run_episode(req)
+        results.append(result)
+        if stop_on_error and result["status"] == "erro":
+            logger.warning(f"[runner] BATCH stop_on_error ativado — interrompendo em {req.episodio_id}")
+            break
+
+    report = batch_integrity_report(results)
+    logger.info(
+        f"[runner] BATCH_DONE total={report['total_recebidos']} "
+        f"concluido={report['total_concluido']} "
+        f"erro={report['total_erro']} "
+        f"integridade={report['integridade']}"
+    )
+    return {"results": results, "report": report}
