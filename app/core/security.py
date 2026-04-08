@@ -54,12 +54,16 @@ async def verify_google_token(id_token: str) -> dict:
 
     data = resp.json()
 
-    # Valida audience — aceita o client_id do frontend OU o configurado no env
+    # Valida audience — aceita client_id canônico do frontend OU o configurado no env
     token_aud = data.get("aud", "")
-    expected_aud = settings.GOOGLE_CLIENT_ID or ""
-    # Se GOOGLE_CLIENT_ID não está configurado, pular validação de aud
-    # (tokeninfo do Google já garantiu que o token é genuíno)
-    if expected_aud and token_aud != expected_aud:
+    # Client IDs autorizados (fase alpha)
+    ALLOWED_AUDIENCES = {
+        "118851719832-qaktum0kj1a6r2a2fp6c75hhag8p2tlf.apps.googleusercontent.com",  # NA_CLIENT_ID do frontend
+    }
+    # Adicionar o client_id do env se configurado
+    if settings.GOOGLE_CLIENT_ID:
+        ALLOWED_AUDIENCES.add(settings.GOOGLE_CLIENT_ID)
+    if ALLOWED_AUDIENCES and token_aud not in ALLOWED_AUDIENCES:
         raise HTTPException(status_code=401, detail="Audience inválido.")
 
     email = data.get("email", "").lower()
