@@ -52,23 +52,33 @@ async def make_proxy_get(
             resp = await client.get(url, params=params)
         logger.info("Make proxy GET [%s] -> %d", webhook_type, resp.status_code)
 
-        # Fase alpha: se perfil não encontrado (404) mas email está autorizado,
-        # retornar perfil mínimo de fallback para não bloquear o login
-        if resp.status_code == 404 and email and webhook_type == "profile":
+        # Fase alpha: fallback para emails autorizados sem perfil no Sheets
+        # Cobre: 404 explícito OU resposta sem user_email (Make retorna "Accepted")
+        if email and webhook_type == "profile":
             from app.core.security import AUTHORIZED_EMAILS
             if email.lower() in AUTHORIZED_EMAILS:
-                logger.info("Make proxy: perfil não encontrado para %s — usando fallback alpha", email)
-                fallback_perfil = {
-                    "user_email":             email,
-                    "medico_nome":            email.split("@")[0],
-                    "perfil_tipo":            "medico",
-                    "ativo":                  True,
-                    "hospital_padrao":        "HSA Barbalha",
-                    "convenios_habilitados":  "Unimed Cariri",
-                    "crm":                    "",
-                    "cbo":                    "225120",
-                }
-                return JSONResponse(status_code=200, content=fallback_perfil)
+                # Verificar se a resposta tem user_email válido
+                has_valid_profile = False
+                if resp.headers.get("content-type", "").startswith("application/json"):
+                    try:
+                        body_json = resp.json()
+                        has_valid_profile = bool(body_json.get("user_email"))
+                    except Exception:
+                        has_valid_profile = False
+
+                if not has_valid_profile:
+                    logger.info("Make proxy: sem perfil válido para %s — usando fallback alpha", email)
+                    fallback_perfil = {
+                        "user_email":            email,
+                        "medico_nome":           email.split("@")[0],
+                        "perfil_tipo":           "medico",
+                        "ativo":                 True,
+                        "hospital_padrao":       "HSA Barbalha",
+                        "convenios_habilitados": "Unimed Cariri",
+                        "crm":                   "",
+                        "cbo":                   "225120",
+                    }
+                    return JSONResponse(status_code=200, content=fallback_perfil)
 
         # Forward Make.com response as-is so frontend gets profile JSON directly
         return JSONResponse(
