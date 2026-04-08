@@ -225,7 +225,7 @@ def run_decision(req: DecideRequest) -> DecideResponse:
     if score >= SCORE_THRESHOLDS["GO"]:
         classification, decision_status = "GO", "APROVADO"
     elif score >= SCORE_THRESHOLDS["GO_COM_RESSALVAS"]:
-        classification, decision_status = "GO_COM_RESSALVAS", "PENDENTE"
+        classification, decision_status = "GO_COM_RESSALVAS", "AUTORIZADO_COM_RESSALVAS"
     else:
         classification, decision_status = "NO_GO", "NEGADO"
 
