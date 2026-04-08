@@ -57,7 +57,7 @@ async def verify_google_token(id_token: str) -> dict:
     # Valida audience — aceita client_id canônico do frontend OU o configurado no env
     token_aud = data.get("aud", "")
     # Client IDs autorizados (fase alpha)
-    ALLOWED_AUDIENCES = {
+    ALLOWED_AUDIENCES = {  # v3 — whitelist canônica
         "118851719832-qaktum0kj1a6r2a2fp6c75hhag8p2tlf.apps.googleusercontent.com",  # NA_CLIENT_ID do frontend
     }
     # Adicionar o client_id do env se configurado
