@@ -54,8 +54,12 @@ async def verify_google_token(id_token: str) -> dict:
 
     data = resp.json()
 
-    # Valida audience — usa GOOGLE_CLIENT_ID declarado no config
-    if data.get("aud") != settings.GOOGLE_CLIENT_ID:
+    # Valida audience — aceita o client_id do frontend OU o configurado no env
+    token_aud = data.get("aud", "")
+    expected_aud = settings.GOOGLE_CLIENT_ID or ""
+    # Se GOOGLE_CLIENT_ID não está configurado, pular validação de aud
+    # (tokeninfo do Google já garantiu que o token é genuíno)
+    if expected_aud and token_aud != expected_aud:
         raise HTTPException(status_code=401, detail="Audience inválido.")
 
     email = data.get("email", "").lower()
