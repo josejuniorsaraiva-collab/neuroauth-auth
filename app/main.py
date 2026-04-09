@@ -63,10 +63,12 @@ async def serve_form():
 
 @app.get("/health")  # GET — nao POST
 def health(diag: bool = False):
+    from app.services.engine_v3 import ENGINE_VERSION
     configured = len(_missing) == 0
     result = {
         "status": "ok" if configured else "degraded",
         "version": "1.0.0",
+        "motor_version": ENGINE_VERSION,
         "configured": configured,
         "missing_env": _missing if not configured else [],
     }
