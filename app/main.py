@@ -34,7 +34,7 @@ if _missing:
 app = FastAPI(
     title="NEUROAUTH API",
     version="1.0.0",
-    docs_url=None,  # desabilitar Swagger em producao
+    docs_url="/docs",
     redoc_url=None,
 )
 
@@ -43,7 +43,7 @@ app.add_middleware(
     allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])

@@ -27,8 +27,8 @@ async def decide(
     background_tasks: BackgroundTasks,
     user: dict = Depends(require_authorized),
 ):
-    # Gerar trace_id se não veio no header (futuramente via X-Trace-Id)
-    trace_id = f"TR-{str(uuid.uuid4())[:12].upper()}"
+    # trace_id: usar do request (frontend v3) ou gerar
+    trace_id = req.trace_id or f"TR-{str(uuid.uuid4())[:12].upper()}"
     t_start = datetime.now(timezone.utc)
 
     log = NeuroLog(
@@ -60,6 +60,13 @@ async def decide(
 
         # Executar motor
         resultado: DecideResponse = run_decision(req)
+
+        # Popular campos extras para frontend v3
+        resultado.ok = True
+        resultado.decision = resultado.classification
+        resultado.trace_id = trace_id
+        resultado.ts = resultado.timestamp
+        resultado.motor_version = "1.0"
 
         # Atualizar run_id no log agora que foi gerado
         log.set_run_id(resultado.decision_run_id)
@@ -144,7 +151,7 @@ async def _persist_and_verify(
             )
             return
 
-        # Evento 6 — persist_success (sem número de linha disponível aqui — sheets async)
+        # Evento 6 — persist_success
         log.emit("persist_success", status="ok", details={
             "persisted_decision_run_id": res.decision_run_id,
             "target_ledger":   "21_DECISION_RUNS",
