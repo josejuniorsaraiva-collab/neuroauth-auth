@@ -2,6 +2,7 @@
 app/routers/decide.py
 POST /decide — endpoint principal. Requer JWT válido.
 Instrumentado com NeuroLog (Noite 6) para rastreabilidade completa.
+Idempotência: payload_hash + user + janela 5min → rejeita duplicatas.
 """
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
@@ -15,10 +16,41 @@ import httpx
 import logging
 import uuid
 import hashlib
+import time
 from datetime import datetime, timezone
 
 router = APIRouter()
 logger = logging.getLogger("neuroauth.decide")
+
+# ── Idempotency cache (in-memory, suficiente para single-instance Render) ──
+# key: idempotency_key, value: (timestamp, DecideResponse.dict())
+_IDEMPOTENCY_CACHE: dict = {}
+IDEMPOTENCY_WINDOW_SEC = 300  # 5 minutos
+
+
+def _compute_idempotency_key(req: DecideRequest, user_email: str) -> str:
+    """Hash determinístico do payload + user para detectar duplo envio."""
+    raw = f"{user_email}|{req.cid_principal}|{req.procedimento}|{req.convenio}|{req.indicacao_clinica}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _check_idempotency(key: str) -> dict | None:
+    """Retorna resposta cacheada se dentro da janela, senão None."""
+    now = time.time()
+    # Limpar entradas antigas (garbage collect)
+    expired = [k for k, (ts, _) in _IDEMPOTENCY_CACHE.items() if now - ts > IDEMPOTENCY_WINDOW_SEC]
+    for k in expired:
+        del _IDEMPOTENCY_CACHE[k]
+    # Verificar cache
+    entry = _IDEMPOTENCY_CACHE.get(key)
+    if entry and (now - entry[0]) < IDEMPOTENCY_WINDOW_SEC:
+        return entry[1]
+    return None
+
+
+def _store_idempotency(key: str, response_dict: dict) -> None:
+    """Armazena resposta no cache de idempotência."""
+    _IDEMPOTENCY_CACHE[key] = (time.time(), response_dict)
 
 
 @router.post("", response_model=DecideResponse)
@@ -30,6 +62,17 @@ async def decide(
     # trace_id: usar do request (frontend v3) ou gerar
     trace_id = req.trace_id or f"TR-{str(uuid.uuid4())[:12].upper()}"
     t_start = datetime.now(timezone.utc)
+    user_email = user.get("email", "unknown")
+
+    # ── Idempotência: detectar duplo envio ──
+    idem_key = _compute_idempotency_key(req, user_email)
+    cached = _check_idempotency(idem_key)
+    if cached:
+        logger.info(
+            f"[decide] IDEMPOTENCY_HIT key={idem_key} trace={trace_id} "
+            f"returning cached run={cached.get('decision_run_id')}"
+        )
+        return DecideResponse(**cached)
 
     log = NeuroLog(
         trace_id=trace_id,
@@ -44,8 +87,9 @@ async def decide(
 
     log.emit("request_received", status="ok", details={
         "payload_hash":    payload_hash,
+        "idempotency_key": idem_key,
         "request_origin":  "api",
-        "user_email":      user.get("email", "unknown"),
+        "user_email":      user_email,
         "procedimento":    req.procedimento,
         "convenio":        req.convenio,
         "cid_principal":   req.cid_principal,
@@ -104,14 +148,18 @@ async def decide(
                 _dispatch_make_docs,
                 req=req,
                 res=resultado,
-                user_email=user["email"],
+                user_email=user_email,
             )
+
+        # ── Armazenar no cache de idempotência ──
+        _store_idempotency(idem_key, resultado.model_dump())
 
         # Evento 8 — response_sent
         latency = int((datetime.now(timezone.utc) - t_start).total_seconds() * 1000)
         log.emit("response_sent", status="ok", details={
             "http_status":      200,
             "total_latency_ms": latency,
+            "idempotency_key":  idem_key,
         }, latency_ms=latency)
 
         return resultado
