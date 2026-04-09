@@ -64,22 +64,54 @@ async def audit_query(
         runs_data = ws_runs.get_all_values()
 
         if len(runs_data) > 0:
-            runs_header = runs_data[0]
-            for row in runs_data[1:]:
-                row_dict = dict(zip(runs_header, row))
-                match = False
-                if decision_run_id and row_dict.get("decision_run_id") == decision_run_id:
-                    match = True
-                if episode_id and row_dict.get("episodio_id") == episode_id:
-                    match = True
-                if match:
-                    # Converter score para int se possível
-                    if row_dict.get("score"):
-                        try:
-                            row_dict["score"] = int(float(row_dict["score"]))
-                        except (ValueError, TypeError):
-                            pass
-                    result["decision_runs"].append(row_dict)
+            # Encontrar header row dinamicamente — busca linha com "decision_run_id"
+            runs_header = None
+            header_idx = 0
+            for idx, row in enumerate(runs_data):
+                if any(cell.strip().lower() == "decision_run_id" for cell in row):
+                    runs_header = [c.strip().lower() for c in row]
+                    header_idx = idx
+                    break
+
+            if runs_header is None:
+                # Fallback: usar índices fixos (mesma lógica do metrics.py)
+                logger.warning("[audit] Header 'decision_run_id' não encontrado em 21_DECISION_RUNS, usando índices fixos")
+                FIXED_COLS = ["decision_run_id", "episodio_id", "timestamp",
+                              "classification", "decision_status", "score",
+                              "risco_glosa", "justificativa", "pendencias",
+                              "pontos_frageis", "cid_principal", "procedimento",
+                              "convenio", "crm_solicitante"]
+                for row in runs_data:
+                    if not row or not row[0].strip().startswith("DR-"):
+                        continue
+                    row_dict = dict(zip(FIXED_COLS, row))
+                    match = False
+                    if decision_run_id and row_dict.get("decision_run_id") == decision_run_id:
+                        match = True
+                    if episode_id and row_dict.get("episodio_id") == episode_id:
+                        match = True
+                    if match:
+                        if row_dict.get("score"):
+                            try:
+                                row_dict["score"] = int(float(row_dict["score"]))
+                            except (ValueError, TypeError):
+                                pass
+                        result["decision_runs"].append(row_dict)
+            else:
+                for row in runs_data[header_idx + 1:]:
+                    row_dict = dict(zip(runs_header, row))
+                    match = False
+                    if decision_run_id and row_dict.get("decision_run_id") == decision_run_id:
+                        match = True
+                    if episode_id and row_dict.get("episodio_id") == episode_id:
+                        match = True
+                    if match:
+                        if row_dict.get("score"):
+                            try:
+                                row_dict["score"] = int(float(row_dict["score"]))
+                            except (ValueError, TypeError):
+                                pass
+                        result["decision_runs"].append(row_dict)
 
         result["integridade"]["encontrado_21"] = len(result["decision_runs"]) > 0
     except Exception as e:
