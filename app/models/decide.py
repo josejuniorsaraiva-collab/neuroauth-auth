@@ -55,7 +55,7 @@ class DecideResponse(BaseModel):
     classification: str
     # GO | GO_COM_RESSALVAS | NO_GO | PRE_ANALISE_APENAS
     decision_status: str
-    # APROVADO | PENDENTE | NEGADO | PRE_ANALISE
+    # APROVADO | AUTORIZADO_COM_RESSALVAS | NEGADO | PRE_ANALISE
     score: Optional[int] = None
     # None quando PRE_ANALISE_APENAS (score não é definitivo)
     justificativa: str
@@ -71,5 +71,14 @@ class DecideResponse(BaseModel):
     decision: str = ""         # espelho de classification para frontend
     trace_id: str = ""
     document_url: Optional[str] = None
-    motor_version: str = "1.0"
+    motor_version: str = "1.3"
     ts: str = ""               # espelho de timestamp para frontend
+    # v1.3 — Motor 3 camadas: output estruturado
+    falhas: List[str] = []             # anti-glosa falhas
+    correcoes: List[str] = []          # sugestões de correção
+    score_clinico: Optional[float] = None  # 0.0-1.0
+    camada1: str = ""                  # PASS | FAIL
+    camada2_score: Optional[float] = None  # score clínico 0-1
+    camada3_risco: str = ""            # baixo|moderado|alto|critico
+    gate_reason: str = ""              # razão do gate binário
+    tempo_execucao_ms: Optional[int] = None  # tempo de execução do motor

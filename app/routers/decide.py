@@ -98,8 +98,8 @@ async def decide(
     try:
         # Evento 2 — decision_started
         log.emit("decision_started", status="ok", details={
-            "engine_version":  "v2.2",
-            "ruleset_version": "lote02+noite4",
+            "engine_version":  "v1.3",
+            "ruleset_version": "3-camadas-deterministico",
         })
 
         # Executar motor
@@ -110,7 +110,7 @@ async def decide(
         resultado.decision = resultado.classification
         resultado.trace_id = trace_id
         resultado.ts = resultado.timestamp
-        resultado.motor_version = "1.0"
+        # motor_version já vem preenchido pelo engine_v3 (v1.3)
 
         # Atualizar run_id no log agora que foi gerado
         log.set_run_id(resultado.decision_run_id)

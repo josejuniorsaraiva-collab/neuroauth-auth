@@ -300,7 +300,17 @@ def _append_decision_run(
             "risco_glosa", "justificativa",
             "pendencias", "pontos_frageis",
             "cid_principal", "procedimento", "convenio", "crm_solicitante",
+            "score_clinico", "camada1", "camada3_risco",
+            "gate_reason", "tempo_ms", "versao_motor",
         ])
+
+    # v1.3: campos extras com fallback seguro para retrocompat
+    score_clinico = getattr(res, "score_clinico", None) or ""
+    camada1 = getattr(res, "camada1", "") or ""
+    camada3_risco = getattr(res, "camada3_risco", "") or ""
+    gate_reason = getattr(res, "gate_reason", "") or ""
+    tempo_ms = getattr(res, "tempo_execucao_ms", None) or ""
+    versao_motor = getattr(res, "motor_version", "1.0")
 
     ws.append_row([
         res.decision_run_id,
@@ -317,6 +327,12 @@ def _append_decision_run(
         req.procedimento,
         req.convenio,
         req.crm,
+        score_clinico,
+        camada1,
+        camada3_risco,
+        gate_reason,
+        tempo_ms,
+        versao_motor,
     ], value_input_option="USER_ENTERED")
 
 
