@@ -1,0 +1,143 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-04-09",
+  "commit_base": "5544119",
+  "description": "Máquina de estados do episódio NEUROAUTH Motor 1. Baseada no comportamento real observado em produção.",
+  "initial_state": "PENDENTE",
+  "terminal_states": [
+    "APROVADO",
+    "AUTORIZADO_COM_RESSALVAS",
+    "NEGADO",
+    "PRE_ANALISE",
+    "ERRO_OPERACIONAL"
+  ],
+  "states": {
+    "PENDENTE": {
+      "label": "Aguardando decisão",
+      "description": "Estado inicial do episódio. Motor ainda não processou.",
+      "terminal": false,
+      "visible_to_user": false,
+      "allowed_transitions": ["APROVADO","AUTORIZADO_COM_RESSALVAS","NEGADO","PRE_ANALISE","ERRO_OPERACIONAL"]
+    },
+    "APROVADO": {
+      "label": "Autorizado",
+      "description": "Motor classificou GO (score >= 75). Caso elegível para envio ao convênio.",
+      "terminal": true,
+      "visible_to_user": true,
+      "user_message": "✅ Motor: GO — caso aprovado, pronto para envio ao convênio.",
+      "allowed_transitions": [],
+      "reason_code": "SUCCESS_GO"
+    },
+    "AUTORIZADO_COM_RESSALVAS": {
+      "label": "Autorizado com ressalvas",
+      "description": "Motor classificou GO_COM_RESSALVAS (score 50–74). Elegível com pendências.",
+      "terminal": true,
+      "visible_to_user": true,
+      "user_message": "⚠️ Motor: GO com ressalvas — revise as pendências antes do envio.",
+      "allowed_transitions": [],
+      "reason_code": "SUCCESS_GO_RESSALVAS"
+    },
+    "NEGADO": {
+      "label": "Negado",
+      "description": "Motor classificou NO_GO (score < 50). Caso bloqueado por regra impeditiva.",
+      "terminal": true,
+      "visible_to_user": true,
+      "user_message": "❌ Motor: bloqueado — revise a indicação clínica e a documentação.",
+      "allowed_transitions": [],
+      "reason_code": "SUCCESS_NEGADO"
+    },
+    "PRE_ANALISE": {
+      "label": "Pré-análise apenas",
+      "description": "Convênio ausente. Análise clínica emitida sem decisão de cobertura.",
+      "terminal": true,
+      "visible_to_user": true,
+      "user_message": "ℹ️ Análise clínica emitida — informe o convênio para decisão completa.",
+      "allowed_transitions": [],
+      "reason_code": "PRE_ANALISE_APENAS"
+    },
+    "ERRO_OPERACIONAL": {
+      "label": "Erro operacional",
+      "description": "Falha interna. Episódio não concluído. Sujeito a retry até MAX_ATTEMPTS=3.",
+      "terminal": false,
+      "terminal_after_max_attempts": true,
+      "visible_to_user": true,
+      "user_message": "❌ Falha operacional — o caso não foi concluído. Tente novamente.",
+      "allowed_transitions": ["PENDENTE"],
+      "retry_condition": "attempts < MAX_ATTEMPTS (3)"
+    }
+  },
+  "classification_to_status_map": {
+    "GO":                "APROVADO",
+    "GO_COM_RESSALVAS":  "AUTORIZADO_COM_RESSALVAS",
+    "NO_GO":             "NEGADO",
+    "PRE_ANALISE_APENAS":"PRE_ANALISE"
+  },
+  "score_thresholds": {
+    "GO":              75,
+    "GO_COM_RESSALVAS": 50,
+    "NO_GO":            0
+  },
+  "reason_codes": {
+    "AUTH_MISSING":             "JWT ausente no request",
+    "AUTH_INVALID":             "JWT expirado ou inválido",
+    "AUTH_AUDIENCE":            "Audience do token não autorizado",
+    "AUTH_EMAIL":               "Email não está na whitelist",
+    "SCHEMA_INVALID":           "Payload com campos obrigatórios ausentes",
+    "CID_FRACO":                "CID incompatível com procedimento",
+    "CONSERVADOR_INSUFICIENTE": "Tratamento conservador abaixo do mínimo",
+    "OPME_SEM_3_MARCAS":        "Menos de 3 fabricantes (RN 424/2017)",
+    "OPME_GENERICO":            "Fabricante genérico não aceito",
+    "OPME_INCOMPATIVEL":        "OPME incompatível com procedimento",
+    "RULE_BLOCK_RN424":         "Bloqueio pela RN 424/2017",
+    "RULE_RESSALVA_CONVENIO":   "Ressalva específica do convênio",
+    "RULE_MULTINIVEL":          "Multinível sem justificativa adequada",
+    "NETWORK_FAILURE":          "Falha de rede no frontend",
+    "PERSISTENCE_FAILURE":      "Falha ao escrever nas Sheets",
+    "SHEETS_QUOTA":             "Rate limit 429 do Google Sheets API",
+    "MAX_ATTEMPTS_REACHED":     "Runner atingiu MAX_ATTEMPTS=3",
+    "SUCCESS_GO":               "Classificado GO",
+    "SUCCESS_GO_RESSALVAS":     "Classificado GO_COM_RESSALVAS",
+    "SUCCESS_NEGADO":           "Classificado NO_GO",
+    "PRE_ANALISE_APENAS":       "Convênio ausente — análise parcial"
+  },
+  "runner_states": {
+    "description": "Estados internos do runner (23_RUNNER_QUEUE). Não expostos em 22_EPISODIOS.",
+    "states": ["pendente","lockado","processando","persistido","verificado","concluido","erro"],
+    "terminal": ["concluido","erro"],
+    "lock_ttl_seconds": 300,
+    "max_attempts": 3
+  },
+  "known_divergences": [
+    {
+      "point": "Estado em_decisao",
+      "ideal": "Exposto em 22_EPISODIOS durante processamento",
+      "current": "Apenas interno no runner",
+      "impact": "baixo"
+    },
+    {
+      "point": "Tabela de eventos de transição",
+      "ideal": "Registrar cada mudança de estado com timestamp e actor",
+      "current": "Não implementado",
+      "impact": "médio — auditoria futura"
+    },
+    {
+      "point": "ERRO_OPERACIONAL em 22_EPISODIOS",
+      "ideal": "Propagar status final para o episódio",
+      "current": "Visível apenas no runner_queue",
+      "impact": "baixo"
+    },
+    {
+      "point": "Estado cancelado",
+      "ideal": "Cancelamento explícito pelo usuário",
+      "current": "Não implementado",
+      "impact": "baixo — fase alpha"
+    }
+  ],
+  "v2_criteria": [
+    "Tabela de eventos de transição implementada",
+    "ERRO_OPERACIONAL propagado para 22_EPISODIOS",
+    "Estado cancelado implementado",
+    "Billing acoplado ao estado terminal",
+    "Learning loop alimentado por desfecho real"
+  ]
+}
