@@ -174,12 +174,15 @@ async def decide(
         raise HTTPException(status_code=500, detail="Erro interno no motor de decisão.")
 
 
-async def _persist_and_verify(
+def _persist_and_verify(
     req: DecideRequest,
     res: DecideResponse,
     log: NeuroLog,
 ) -> None:
-    """Background: persiste e verifica com logs estruturados."""
+    """Background: persiste e verifica com logs estruturados.
+    IMPORTANTE: def (não async) para que FastAPI execute em thread pool,
+    evitando bloquear o event loop com I/O síncrono do gspread.
+    """
     try:
         # Evento 5 — persist_start
         log.emit("persist_start", status="ok", details={
@@ -234,12 +237,14 @@ async def _persist_and_verify(
         )
 
 
-async def _dispatch_make_docs(
+def _dispatch_make_docs(
     req: DecideRequest,
     res: DecideResponse,
     user_email: str,
 ) -> None:
-    """Periférico: falha aqui não afeta a decisão."""
+    """Periférico: falha aqui não afeta a decisão.
+    NOTA: def (não async) para thread pool. Usa httpx sync client.
+    """
     try:
         payload = {
             "decision_run_id": res.decision_run_id,
@@ -252,8 +257,8 @@ async def _dispatch_make_docs(
             "cid_principal":   req.cid_principal,
             "user_email":      user_email,
         }
-        async with httpx.AsyncClient(timeout=15) as client:
-            await client.post(settings.MAKE_DOC_WEBHOOK, json=payload)
+        with httpx.Client(timeout=15) as client:
+            client.post(settings.MAKE_DOC_WEBHOOK, json=payload)
     except Exception as e:
         logger.warning(
             f"[decide] Make dispatch falhou: {type(e).__name__}: {str(e)[:80]}"

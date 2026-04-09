@@ -62,11 +62,30 @@ async def serve_form():
 
 
 @app.get("/health")  # GET — nao POST
-def health():
+def health(diag: bool = False):
     configured = len(_missing) == 0
-    return {
+    result = {
         "status": "ok" if configured else "degraded",
         "version": "1.0.0",
         "configured": configured,
         "missing_env": _missing if not configured else [],
     }
+    # ?diag=true → testa conectividade com Sheets (sem JWT)
+    if diag and configured:
+        try:
+            from app.services.sheets_store import _get_client, TAB_DECISION_RUNS
+            gc = _get_client()
+            ss = gc.open_by_key(settings.SPREADSHEET_ID)
+            ws = ss.worksheet(TAB_DECISION_RUNS)
+            row_count = len(ws.get_all_values())
+            result["sheets"] = {
+                "connected": True,
+                "tab": TAB_DECISION_RUNS,
+                "total_rows": row_count,
+            }
+        except Exception as e:
+            result["sheets"] = {
+                "connected": False,
+                "error": f"{type(e).__name__}: {str(e)[:200]}",
+            }
+    return result
