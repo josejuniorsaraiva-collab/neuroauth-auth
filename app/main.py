@@ -17,7 +17,7 @@ logging.basicConfig(
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import decide, auth, make_proxy, metrics, audit, cockpit
+from app.routers import decide, auth, make_proxy, metrics, audit, cockpit, hub
 from app.core.config import settings
 
 logger = logging.getLogger("neuroauth.app")
@@ -52,6 +52,7 @@ app.include_router(make_proxy.router, prefix="/api", tags=["proxy"])
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 app.include_router(audit.router, prefix="/audit", tags=["audit"])
 app.include_router(cockpit.router, prefix="/cockpit", tags=["cockpit"])
+app.include_router(hub.router, prefix="/hub", tags=["hub"])
 
 
 @app.get("/form")
