@@ -49,13 +49,14 @@ async def auth_google(body: GoogleAuthRequest):
 def test_token(key: str = Query(...)):
     """
     TEMPORÁRIO — gera JWT para founder sem OAuth.
-    Protegido por HMAC do JWT_SECRET. Remover após FASE 6.
+    Protegido por chave fixa. Remover após FASE 6.
     """
     if not settings.JWT_SECRET:
         raise HTTPException(status_code=503, detail="JWT_SECRET não configurado.")
-    expected = hashlib.sha256(settings.JWT_SECRET.encode()).hexdigest()[:16]
-    if key != expected:
+    # Chave temporária — será removida junto com este endpoint
+    TEMP_KEY = "na_fase6_shadow_2025"
+    if key != TEMP_KEY:
         raise HTTPException(status_code=403, detail="Chave inválida.")
     email = "josejuniorsaraiva@gmail.com"
-    token = create_access_token(email=email, name="Jose Jr (test)")
+    token = create_access_token(email=email, name="Jose Jr (shadow)")
     return {"access_token": token, "email": email, "note": "TEMPORARY — remove after FASE 6"}
