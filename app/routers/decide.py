@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse
 from app.models.decide import DecideRequest, DecideResponse
 from app.services.decision_engine import run_decision
+from app.services.auth_package import generate_authorization_package
 import traceback as tb_mod
 from app.services.sheets_store import persist_decision, verify_persistence
 from app.services.structured_logger import NeuroLog
@@ -25,21 +26,45 @@ router = APIRouter()
 logger = logging.getLogger("neuroauth.decide")
 
 
-@router.post("/diag", response_class=JSONResponse)
-async def decide_diag(
+@router.post("/package", response_class=JSONResponse)
+async def decide_package(
     req: DecideRequest,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(require_authorized),
 ):
-    """TEMPORÁRIO — retorna traceback completo para debug PROC001."""
+    """
+    POST /decide/package — Decisão + Pacote de Autorização completo.
+    Executa o motor, gera checklist, justificativas e texto SADT.
+    """
     try:
-        resultado = run_decision(req)
-        return {"ok": True, "classification": resultado.classification, "score": resultado.score}
-    except Exception as exc:
-        return JSONResponse(status_code=200, content={
-            "ok": False,
-            "error": str(exc),
-            "traceback": tb_mod.format_exc(),
+        resultado: DecideResponse = run_decision(req)
+        resultado.ok = True
+        resultado.decision = resultado.classification
+        resultado.trace_id = req.trace_id or f"TR-{str(uuid.uuid4())[:12].upper()}"
+        resultado.ts = resultado.timestamp
+
+        # Gerar pacote de autorização
+        package = generate_authorization_package(req, resultado)
+
+        # Persistência em background
+        background_tasks.add_task(
+            _persist_and_verify, req=req, res=resultado,
+            log=NeuroLog(
+                trace_id=resultado.trace_id,
+                episode_id=req.episodio_id,
+                service_name="neuroauth.decide.package",
+            ),
+        )
+
+        return JSONResponse(content={
+            "decision": resultado.model_dump(),
+            "package": package,
         })
+
+    except Exception as exc:
+        logger.exception("[decide/package] Erro")
+        raise HTTPException(status_code=500, detail=f"Erro no pacote de autorização: {str(exc)[:200]}")
+
 
 # ── Idempotency cache (in-memory, suficiente para single-instance Render) ──
 # key: idempotency_key, value: (timestamp, DecideResponse.dict())
