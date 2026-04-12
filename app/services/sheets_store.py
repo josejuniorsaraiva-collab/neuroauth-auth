@@ -302,6 +302,7 @@ def _append_decision_run(
             "cid_principal", "procedimento", "convenio", "crm_solicitante",
             "score_clinico", "camada1", "camada3_risco",
             "gate_reason", "tempo_ms", "versao_motor",
+            "v2_trace_json",
         ])
 
     # v1.3: campos extras com fallback seguro para retrocompat
@@ -311,6 +312,16 @@ def _append_decision_run(
     gate_reason = getattr(res, "gate_reason", "") or ""
     tempo_ms = getattr(res, "tempo_execucao_ms", None) or ""
     versao_motor = getattr(res, "motor_version", "1.0")
+
+    # v2.0: trace completo do motor (JSON compacto — campo extra)
+    v2_trace = ""
+    try:
+        raw_trace = getattr(res, "v2_trace", None)
+        if raw_trace:
+            import json as _json
+            v2_trace = _json.dumps(raw_trace, ensure_ascii=False)[:5000]
+    except Exception:
+        pass
 
     ws.append_row([
         res.decision_run_id,
@@ -333,6 +344,7 @@ def _append_decision_run(
         gate_reason,
         tempo_ms,
         versao_motor,
+        v2_trace,
     ], value_input_option="USER_ENTERED")
 
 

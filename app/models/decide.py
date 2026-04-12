@@ -82,3 +82,5 @@ class DecideResponse(BaseModel):
     camada3_risco: str = ""            # baixo|moderado|alto|critico
     gate_reason: str = ""              # razão do gate binário
     tempo_execucao_ms: Optional[int] = None  # tempo de execução do motor
+    # v2.0: trace estruturado completo (para persistência e hub explicável)
+    v2_trace: Optional[dict] = None

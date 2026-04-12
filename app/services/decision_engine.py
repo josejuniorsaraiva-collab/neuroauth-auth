@@ -483,6 +483,41 @@ def _decision_to_response(d: dict, req: Any) -> Any:
             if t.get("step") == "GATE_LOGIC"
         )[:200],
         falhas            = [f[:120] for f in d["opme_flags"][:5]],
+        # v2.0 trace estruturado completo
+        v2_trace          = {
+            "final_gate":              d["final_gate"],
+            "final_score":             d["final_score"],
+            "final_risk":              d["final_risk"],
+            "layer_status":            d["layer_status"],
+            "blocking_rules":          d["blocking_rules"],
+            "warning_rules":           d["warning_rules"][:5],
+            "pending_items":           d["pending_items"][:5],
+            "recommended_next_action": d["recommended_next_action"][:200],
+            "defense_ready":           d["defense_ready"],
+            "summary":                 d["summary"][:300],
+            "trace":                   d["decision_trace"][:8],
+            "layer_results_summary": {
+                "ans": {
+                    "overall":       r_ans.get("overall"),
+                    "failed_rules":  r_ans.get("failed_rules",[]),
+                    "blocked_by":    r_ans.get("blocked_by"),
+                },
+                "evidencia": {
+                    "overall":           r_evid.get("overall"),
+                    "clinical_strength": r_evid.get("clinical_strength"),
+                    "evidence_score":    r_evid.get("evidence_score"),
+                    "junta_rules":       r_evid.get("junta_rules",[]),
+                    "failed_rules":      r_evid.get("failed_rules",[])[:5],
+                },
+                "operadora": {
+                    "overall":           r_op.get("overall"),
+                    "operator_name":     r_op.get("operator_name"),
+                    "risk_level":        r_op.get("operator_risk_level"),
+                    "pending_items":     r_op.get("operator_pending_items",[])[:4],
+                    "failed_rules":      r_op.get("failed_rules",[])[:5],
+                },
+            },
+        },
     )
 
 

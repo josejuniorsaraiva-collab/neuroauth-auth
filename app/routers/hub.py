@@ -114,26 +114,74 @@ def _normalize_run(r: dict) -> dict:
 
     if run_id.startswith("RUN_"):
         # Schema moderno — colunas corretas
-        alertas  = _safe_json(r.get("alertas_json",  "[]"))
+        alertas   = _safe_json(r.get("alertas_json",  "[]"))
         bloqueios = _safe_json(r.get("bloqueios_json", "[]"))
         score_raw = r.get("score_final", "")
         score = _safe_float(score_raw)
-        # score 0.0-1.0 → converte para percentual 0-100
         if score is not None and score <= 1.0:
             score = round(score * 100, 1)
-        # score já em percentual (ex: 78.4) → mantém como está
+
+        # Lê trace v2.0 se disponível (coluna v2_trace_json)
+        v2 = _safe_json(r.get("v2_trace_json", "{}") or "{}")
+        if not isinstance(v2, dict):
+            v2 = {}
+
+        # Gate: preferir do trace v2.0; fallback para classification
+        gate = (v2.get("final_gate") or
+                r.get("classification") or
+                r.get("decision_status") or "")
+
+        # Pendências e regras falhadas do trace
+        pending   = v2.get("pending_items", [])
+        blocking  = v2.get("blocking_rules", [])
+        warnings  = v2.get("warning_rules", [])
+        lrs       = v2.get("layer_results_summary", {})
+        defense   = v2.get("defense_ready", False)
+        summary   = v2.get("summary", "")
+        action    = v2.get("recommended_next_action", "")
+        layer_st  = v2.get("layer_status", {})
+
         return {
             "decision_run_id": run_id,
             "episodio_id":     r.get("episodio_id", ""),
             "profile_id":      r.get("profile_id", ""),
-            "gate":            "",   # v2 não tem gate direto — deixa vazio por enquanto
-            "score":           score,
+            "gate":            gate,
+            "score":           v2.get("final_score", score),
+            "final_risk":      v2.get("final_risk", r.get("risco_glosa","")),
             "risco_glosa":     min(len(alertas) * 15, 100),
             "motor_version":   r.get("motor_version", ""),
             "created_at":      _parse_date(r.get("created_at", "")),
             "hub_action":      r.get("hub_action", ""),
             "alertas":         alertas,
             "bloqueios":       bloqueios,
+            # ── trace v2.0 explicável ──────────────────────────────────
+            "has_v2_trace":    bool(v2),
+            "layer_status":    layer_st,
+            "pending_items":   pending,
+            "blocking_rules":  blocking,
+            "warning_rules":   warnings[:5],
+            "defense_ready":   defense,
+            "summary":         summary,
+            "recommended_action": action,
+            "layer_ans": {
+                "overall":      lrs.get("ans",{}).get("overall",""),
+                "failed_rules": lrs.get("ans",{}).get("failed_rules",[]),
+                "blocked_by":   lrs.get("ans",{}).get("blocked_by"),
+            },
+            "layer_evidencia": {
+                "overall":           lrs.get("evidencia",{}).get("overall",""),
+                "clinical_strength": lrs.get("evidencia",{}).get("clinical_strength",""),
+                "evidence_score":    lrs.get("evidencia",{}).get("evidence_score"),
+                "junta_rules":       lrs.get("evidencia",{}).get("junta_rules",[]),
+                "failed_rules":      lrs.get("evidencia",{}).get("failed_rules",[]),
+            },
+            "layer_operadora": {
+                "overall":       lrs.get("operadora",{}).get("overall",""),
+                "operator":      lrs.get("operadora",{}).get("operator_name",""),
+                "risk_level":    lrs.get("operadora",{}).get("risk_level",""),
+                "pending_items": lrs.get("operadora",{}).get("pending_items",[]),
+                "failed_rules":  lrs.get("operadora",{}).get("failed_rules",[]),
+            },
         }
     else:
         # Schema legado DR- (colunas deslocadas)
