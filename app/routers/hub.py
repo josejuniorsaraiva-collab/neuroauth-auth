@@ -138,6 +138,7 @@ def _normalize_run(r: dict) -> dict:
     else:
         # Schema legado DR- (colunas deslocadas)
         # DR- legado: score gravado como inteiro 0-100
+        gate      = r.get("input_context_json", "")
         score_raw = r.get("opcao_escolhida_json", "")
         score_int = _safe_float(score_raw)
         # garante que não ultrapassa 100

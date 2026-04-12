@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     SPREADSHEET_ID: str = ""
 
     # CORS — stored as str to avoid pydantic-settings JSON parse on List[str]
-    ALLOWED_ORIGINS: str = "https://josejuniorsaraiva-collab.github.io"
+    ALLOWED_ORIGINS: str = "https://josejuniorsaraiva-collab.github.io,https://neuroauth.com.br"
 
     # Make.com webhooks (proxy seguro via /api/make-proxy)
     MAKE_WEBHOOK_PROFILE: str = ""
