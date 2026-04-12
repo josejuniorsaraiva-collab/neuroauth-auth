@@ -118,9 +118,10 @@ def _normalize_run(r: dict) -> dict:
         bloqueios = _safe_json(r.get("bloqueios_json", "[]"))
         score_raw = r.get("score_final", "")
         score = _safe_float(score_raw)
-        # score 0.0-1.0 → converte para 0-100
+        # score 0.0-1.0 → converte para percentual 0-100
         if score is not None and score <= 1.0:
             score = round(score * 100, 1)
+        # score já em percentual (ex: 78.4) → mantém como está
         return {
             "decision_run_id": run_id,
             "episodio_id":     r.get("episodio_id", ""),
@@ -136,11 +137,12 @@ def _normalize_run(r: dict) -> dict:
         }
     else:
         # Schema legado DR- (colunas deslocadas)
-        # col2=created_at, col3=gate, col4=hub_action, col5=score(int),
-        # col6=risco_texto, col7=resumo_clinico, col8=alertas_glosa, col9=alertas_extra
-        gate      = r.get("input_context_json", "")
+        # DR- legado: score gravado como inteiro 0-100
         score_raw = r.get("opcao_escolhida_json", "")
         score_int = _safe_float(score_raw)
+        # garante que não ultrapassa 100
+        if score_int is not None and score_int > 100:
+            score_int = 100.0
         risco_txt = r.get("score_final", "")
         risco_map = {"baixo": 10, "moderado": 40, "alto": 75}
         risco_num = risco_map.get(risco_txt.lower(), 0) if risco_txt else 0
