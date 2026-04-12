@@ -10,7 +10,6 @@ from fastapi.responses import JSONResponse
 from app.models.decide import DecideRequest, DecideResponse
 from app.services.decision_engine import run_decision
 from app.services.auth_package import generate_authorization_package
-import traceback as tb_mod
 from app.services.sheets_store import persist_decision, verify_persistence
 from app.services.structured_logger import NeuroLog
 from app.core.security import require_authorized

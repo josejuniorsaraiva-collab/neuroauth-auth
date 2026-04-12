@@ -3,7 +3,7 @@ app/routers/auth.py
 POST /auth/google — troca id_token Google por JWT NEUROAUTH.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.core.security import verify_google_token, create_access_token, AUTHORIZED_EMAILS
 from app.core.config import settings
@@ -42,13 +42,3 @@ async def auth_google(body: GoogleAuthRequest):
         name=user["name"],
         role=role,
     )
-
-
-@router.get("/test-token")
-def test_token(key: str = Query(...)):
-    """TEMPORÁRIO — gera JWT para founder. Remover após validação."""
-    if key != "na_proc001":
-        raise HTTPException(status_code=403, detail="Chave inválida.")
-    email = "josejuniorsaraiva@gmail.com"
-    token = create_access_token(email=email, name="Jose Jr")
-    return {"access_token": token, "email": email}
