@@ -395,8 +395,7 @@ def decide(ctx: dict) -> dict:
 
 def _req_to_ctx(req: Any) -> dict:
     """Converte DecideRequest para o dict de contexto dos validators."""
-    from app.services.validator_ans import _extrair_semanas, _detectar_deficit_motor  # type: ignore
-    from app.services.engine_v3    import normalize_input                              # type: ignore
+    from app.services.engine_v3 import normalize_input  # type: ignore
 
     n = normalize_input(req)
     return {
