@@ -6,8 +6,10 @@ Idempotência: payload_hash + user + janela 5min → rejeita duplicatas.
 """
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi.responses import JSONResponse
 from app.models.decide import DecideRequest, DecideResponse
 from app.services.decision_engine import run_decision
+import traceback as tb_mod
 from app.services.sheets_store import persist_decision, verify_persistence
 from app.services.structured_logger import NeuroLog
 from app.core.security import require_authorized
@@ -21,6 +23,23 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 logger = logging.getLogger("neuroauth.decide")
+
+
+@router.post("/diag", response_class=JSONResponse)
+async def decide_diag(
+    req: DecideRequest,
+    user: dict = Depends(require_authorized),
+):
+    """TEMPORÁRIO — retorna traceback completo para debug PROC001."""
+    try:
+        resultado = run_decision(req)
+        return {"ok": True, "classification": resultado.classification, "score": resultado.score}
+    except Exception as exc:
+        return JSONResponse(status_code=200, content={
+            "ok": False,
+            "error": str(exc),
+            "traceback": tb_mod.format_exc(),
+        })
 
 # ── Idempotency cache (in-memory, suficiente para single-instance Render) ──
 # key: idempotency_key, value: (timestamp, DecideResponse.dict())
