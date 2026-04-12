@@ -557,19 +557,19 @@ def _gate_from_results(results: list[dict]) -> str:
 # INTERFACE PÚBLICA
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _load_external_evid_rules() -> list[dict]:
+    try:
+        from app.services.rule_library_adapter import get_rules_by_layer
+        return get_rules_by_layer("EVIDENCIA")
+    except Exception as exc:
+        logger.debug("validator_evidencia: Rule Library indisponível (%s) — usando fallback", exc)
+        return []
+
+
 def run_evidencia_validation(ctx: dict) -> dict:
     """
     Executa todas as regras de Evidência em ordem de prioridade.
-
-    ctx: dict com campos do caso clínico:
-        cid_principal, diagnostico, procedimento,
-        indicacao_clinica, queixa_principal, achados_resumo, laudo_imagem,
-        exame_fisico, tto_conservador, semanas_conservador,
-        tem_deficit_motor, urgencia, red_flags,
-        mielopatia (bool), correlacao_clinica_radiologica (bool)
-
-    Retorna dict consolidado com evidence_score, clinical_strength,
-    recommended_path e results por regra.
+    Tenta usar regras externas (Sheets); fallback para embutidas se indisponível.
     """
     results: list[dict] = []
     total_delta   = 0
@@ -577,6 +577,34 @@ def run_evidencia_validation(ctx: dict) -> dict:
     boost_rules:  list[str] = []
     failed_rules: list[str] = []
     gate = "GO"
+
+    # Regras externas (suplemento — não substituem as embutidas)
+    ext_rules = _load_external_evid_rules()
+    for ext_rule in sorted(ext_rules, key=lambda r: r.get("priority", 99)):
+        try:
+            from app.services.rule_library_adapter import evaluate_condition
+            applies  = evaluate_condition(ext_rule.get("applies_if_json",""), ctx)
+            excludes = evaluate_condition(ext_rule.get("excludes_if_json",""), ctx) if ext_rule.get("excludes_if_json") else False
+            if not applies or excludes:
+                continue
+            passed = evaluate_condition(ext_rule.get("validation_logic_json",""), ctx)
+            delta  = ext_rule.get("score_impact", 0) if not passed else 0
+            results.append({
+                "rule_id": ext_rule["rule_id"], "rule_name": ext_rule["rule_name"],
+                "layer": "EVIDENCIA", "passed": passed,
+                "severity": ext_rule.get("severity","MODERADA"), "blocking": False,
+                "failure_action": ext_rule.get("failure_action","WARN") if not passed else "PASS",
+                "gate_suggestion": ext_rule.get("gate_if_fail") if not passed else "GO",
+                "score_delta": delta,
+                "user_message": ext_rule.get("user_message","") if not passed else "",
+                "technical_rationale": "",
+                "rule_source": ext_rule.get("source_type",""),
+            })
+            total_delta += delta
+            if not passed:
+                failed_rules.append(ext_rule["rule_id"])
+        except Exception as exc:
+            logger.warning("validator_evidencia: erro em regra externa %s: %s", ext_rule.get("rule_id"), exc)
 
     sorted_rules = sorted(EVID_RULES, key=lambda r: r["priority"])
 

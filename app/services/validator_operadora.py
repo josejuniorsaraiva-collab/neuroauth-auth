@@ -642,12 +642,65 @@ def run_operadora_validation(ctx: dict) -> dict:
     operator_profile pode ser injetado via ctx['_operator_profile']
     para override (ex: carregado de Sheets).
     """
-    profile  = ctx.get("_operator_profile") or get_operator_profile(ctx.get("convenio", ""))
+    # Tenta enriquecer perfil da operadora com dados do Sheets
+    profile = ctx.get("_operator_profile")
+    if not profile:
+        try:
+            from app.services.rule_library_adapter import get_operator_profiles
+            ext_profiles = get_operator_profiles()
+            convenio_cl  = (ctx.get("convenio") or "").lower()
+            for key, ep in ext_profiles.items():
+                if key in convenio_cl or convenio_cl in key:
+                    # Mescla dados externos com perfil embutido (embutido tem prioridade em campos críticos)
+                    base = get_operator_profile(ctx.get("convenio", ""))
+                    base.update({k: v for k, v in ep.items() if k not in base or not base[k]})
+                    profile = base
+                    logger.debug("validator_operadora: perfil enriquecido do Sheets para %s", ep.get("name"))
+                    break
+        except Exception as exc:
+            logger.debug("validator_operadora: Rule Library indisponível (%s)", exc)
+    if not profile:
+        profile = get_operator_profile(ctx.get("convenio", ""))
+
     results  : list[dict] = []
     failed   : list[str]  = []
     pending  : list[str]  = []
     delta    = 0
     gate     = "GO"
+
+    # Regras externas de operadora (camada OPERADORA da Rule Library)
+    try:
+        from app.services.rule_library_adapter import get_rules_by_layer, evaluate_condition
+        ext_op_rules = get_rules_by_layer("OPERADORA")
+        convenio_id  = profile.get("convenio_id","GLOBAL")
+        for ext_rule in sorted(ext_op_rules, key=lambda r: r.get("priority", 99)):
+            op_target = ext_rule.get("operator_name","GLOBAL")
+            if op_target not in ("GLOBAL","") and op_target.upper() != convenio_id.upper():
+                if op_target.lower() not in (ctx.get("convenio","") or "").lower():
+                    continue
+            applies = evaluate_condition(ext_rule.get("applies_if_json",""), ctx)
+            if not applies:
+                continue
+            passed = evaluate_condition(ext_rule.get("validation_logic_json",""), ctx)
+            rule_delta = ext_rule.get("score_impact", 0) if not passed else 0
+            delta += rule_delta
+            res = {
+                "rule_id": ext_rule["rule_id"], "rule_name": ext_rule["rule_name"],
+                "layer": "OPERADORA", "passed": passed,
+                "severity": ext_rule.get("severity","MODERADA"), "blocking": False,
+                "failure_action": ext_rule.get("failure_action","WARN") if not passed else "PASS",
+                "gate_suggestion": ext_rule.get("gate_if_fail") if not passed else "GO",
+                "score_delta": rule_delta,
+                "user_message": ext_rule.get("user_message","") if not passed else "",
+                "technical_rationale": "", "rule_source": ext_rule.get("source_type",""),
+            }
+            results.append(res)
+            if not passed:
+                failed.append(ext_rule["rule_id"])
+                if res["user_message"]:
+                    pending.append(res["user_message"])
+    except Exception as exc:
+        logger.debug("validator_operadora: regras externas indisponíveis (%s)", exc)
 
     sorted_rules = sorted(OP_RULES, key=lambda r: r["priority"])
 

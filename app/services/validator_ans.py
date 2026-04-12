@@ -447,9 +447,45 @@ _EVALUATORS = {
 # INTERFACE PÚBLICA
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _load_external_ans_rules() -> list[dict]:
+    """
+    Tenta carregar regras ANS da Rule Library externa.
+    Retorna lista vazia se Sheets não disponível (validators usam fallback embutido).
+    """
+    try:
+        from app.services.rule_library_adapter import get_rules_by_layer
+        rules = get_rules_by_layer("ANS")
+        if rules:
+            logger.info("validator_ans: %d regras externas carregadas", len(rules))
+        return rules
+    except Exception as exc:
+        logger.debug("validator_ans: Rule Library externa indisponível (%s) — usando fallback", exc)
+        return []
+
+
+def _apply_external_rule(rule: dict, ctx: dict) -> dict | None:
+    """
+    Avalia uma regra externa usando o parser do adapter.
+    Retorna resultado padronizado ou None se a regra não se aplica.
+    """
+    try:
+        from app.services.rule_library_adapter import evaluate_condition
+        applies = evaluate_condition(rule.get("applies_if_json", ""), ctx)
+        excludes = evaluate_condition(rule.get("excludes_if_json", ""), ctx) if rule.get("excludes_if_json") else False
+        if excludes or not applies:
+            return None
+        passed = evaluate_condition(rule.get("validation_logic_json", ""), ctx)
+        return _resultado(rule, passed,
+            rule.get("user_message", "") if not passed else "")
+    except Exception as exc:
+        logger.warning("validator_ans: erro em regra externa %s: %s", rule.get("rule_id"), exc)
+        return None
+
+
 def run_ans_validation(ctx: dict) -> dict:
     """
     Executa todas as regras ANS em ordem de prioridade.
+    Tenta usar regras externas (Sheets); fallback para embutidas se indisponível.
 
     ctx: dict com campos do caso clínico:
         cid_principal, procedimento, procedimento_tuss, convenio,
@@ -463,8 +499,39 @@ def run_ans_validation(ctx: dict) -> dict:
     blocked = False
     blocked_by: str | None = None
     gate = "GO"
+    external_applied = 0
+
+    # Tentar regras externas como suplemento (não substituição das embutidas críticas)
+    ext_rules = _load_external_ans_rules()
+    for ext_rule in sorted(ext_rules, key=lambda r: r.get("priority", 99)):
+        result = _apply_external_rule(ext_rule, ctx)
+        if result is None:
+            continue
+        results.append(result)
+        external_applied += 1
+        if not result["passed"]:
+            total_score_impact += result["score_impact"]
+            sug = result.get("gate_suggestion", "")
+            if sug == "NO_GO": gate = "NO_GO"
+            elif sug == "GO_COM_RESSALVAS" and gate != "NO_GO": gate = "GO_COM_RESSALVAS"
+            if result["blocking"] and not blocked:
+                blocked = True
+                blocked_by = ext_rule["rule_id"]
+                break
+
+    if external_applied:
+        logger.info("validator_ans: %d regras externas aplicadas", external_applied)
 
     sorted_rules = sorted(ANS_RULES, key=lambda r: r["priority"])
+    # Se ANS já foi bloqueado por regra externa crítica, pula as embutidas
+    if blocked:
+        failed = [r["rule_id"] for r in results if not r["passed"]]
+        overall = "FAIL"
+        return {
+            "layer": "ANS", "overall": overall, "blocking": blocked,
+            "gate": gate, "score_impact": total_score_impact,
+            "results": results, "failed_rules": failed, "blocked_by": blocked_by,
+        }
 
     for rule in sorted_rules:
         rule_id = rule["rule_id"]
