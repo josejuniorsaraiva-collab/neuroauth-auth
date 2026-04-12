@@ -80,6 +80,88 @@ def _safe_json(val: Any) -> list:
         return []
 
 
+def _parse_date(val: str) -> str:
+    """Normaliza datas para ISO — aceita ISO8601, DD/MM/YYYY HH:MM e variantes."""
+    if not val or val in ("[]", "{}"):
+        return ""
+    val = val.strip()
+    # já ISO
+    try:
+        datetime.fromisoformat(val.replace("Z", "+00:00"))
+        return val
+    except Exception:
+        pass
+    # DD/MM/YYYY HH:MM  ou  DD/MM/YYYY
+    for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(val, fmt).isoformat()
+        except Exception:
+            pass
+    return ""
+
+
+def _normalize_run(r: dict) -> dict:
+    """
+    Detecta o schema do run pelo prefixo do decision_run_id e retorna
+    um dict normalizado com chaves canônicas.
+
+    Schemas conhecidos:
+      RUN_*  — schema v2.0.0 (colunas alinhadas com o header)
+      DR-*   — schema legado (colunas deslocadas)
+      outros — tenta RUN_ primeiro, cai no DR- como fallback
+    """
+    run_id = r.get("decision_run_id", "")
+
+    if run_id.startswith("RUN_"):
+        # Schema moderno — colunas corretas
+        alertas  = _safe_json(r.get("alertas_json",  "[]"))
+        bloqueios = _safe_json(r.get("bloqueios_json", "[]"))
+        score_raw = r.get("score_final", "")
+        score = _safe_float(score_raw)
+        # score 0.0-1.0 → converte para 0-100
+        if score is not None and score <= 1.0:
+            score = round(score * 100, 1)
+        return {
+            "decision_run_id": run_id,
+            "episodio_id":     r.get("episodio_id", ""),
+            "profile_id":      r.get("profile_id", ""),
+            "gate":            "",   # v2 não tem gate direto — deixa vazio por enquanto
+            "score":           score,
+            "risco_glosa":     min(len(alertas) * 15, 100),
+            "motor_version":   r.get("motor_version", ""),
+            "created_at":      _parse_date(r.get("created_at", "")),
+            "hub_action":      r.get("hub_action", ""),
+            "alertas":         alertas,
+            "bloqueios":       bloqueios,
+        }
+    else:
+        # Schema legado DR- (colunas deslocadas)
+        # col2=created_at, col3=gate, col4=hub_action, col5=score(int),
+        # col6=risco_texto, col7=resumo_clinico, col8=alertas_glosa, col9=alertas_extra
+        gate      = r.get("input_context_json", "")
+        score_raw = r.get("opcao_escolhida_json", "")
+        score_int = _safe_float(score_raw)
+        risco_txt = r.get("score_final", "")
+        risco_map = {"baixo": 10, "moderado": 40, "alto": 75}
+        risco_num = risco_map.get(risco_txt.lower(), 0) if risco_txt else 0
+        alerta1   = r.get("bloqueios_json", "")
+        alerta2   = r.get("motor_version", "")
+        alertas_txt = " | ".join(a for a in [alerta1, alerta2] if a)
+        return {
+            "decision_run_id": run_id,
+            "episodio_id":     r.get("episodio_id", ""),
+            "profile_id":      "",
+            "gate":            gate,
+            "score":           score_int,
+            "risco_glosa":     risco_num,
+            "motor_version":   "legado",
+            "created_at":      _parse_date(r.get("profile_id", "")),
+            "hub_action":      r.get("opcoes_geradas_json", ""),
+            "alertas":         [alertas_txt] if alertas_txt else [],
+            "bloqueios":       [],
+        }
+
+
 # ── Models ─────────────────────────────────────────────────────────────────────
 
 class HubActionRequest(BaseModel):
@@ -110,16 +192,16 @@ async def hub_metrics(user: dict = Depends(get_current_user)):
         run_id = r.get("decision_run_id", "")
         if not run_id:
             continue
+        n = _normalize_run(r)
         total += 1
-        gate = r.get("decision_status", r.get("gate", "UNKNOWN"))
+        gate = n["gate"] or "SEM_GATE"
         gate_dist[gate] = gate_dist.get(gate, 0) + 1
-        sc = _safe_float(r.get("score_final") or r.get("score_clinico"))
-        if sc is not None:
-            scores.append(sc)
-        alertas_list = _safe_json(r.get("alertas_json", "[]"))
-        risco_glosas.append(min(len(alertas_list) * 15, 100))
-        motor_version = r.get("motor_version", motor_version) or motor_version
-        created = r.get("created_at", "")
+        if n["score"] is not None:
+            scores.append(n["score"])
+        risco_glosas.append(n["risco_glosa"])
+        if n["motor_version"] and n["motor_version"] != "legado":
+            motor_version = n["motor_version"]
+        created = n["created_at"]
         if created:
             try:
                 dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
@@ -170,26 +252,12 @@ async def list_decision_runs(
         run_id = r.get("decision_run_id", "")
         if not run_id:
             continue
-        r_gate    = r.get("decision_status", r.get("gate", ""))
-        r_profile = r.get("profile_id", "")
-        if gate and gate.upper() not in r_gate.upper():
+        n = _normalize_run(r)
+        if gate and gate.upper() not in n["gate"].upper():
             continue
-        if profile_id and profile_id.upper() not in r_profile.upper():
+        if profile_id and profile_id.upper() not in n["profile_id"].upper():
             continue
-        alertas_list = _safe_json(r.get("alertas_json", "[]"))
-        runs.append({
-            "decision_run_id": run_id,
-            "episodio_id":     r.get("episodio_id", ""),
-            "profile_id":      r_profile,
-            "gate":            r_gate,
-            "score":           _safe_float(r.get("score_final") or r.get("score_clinico")),
-            "risco_glosa":     min(len(alertas_list) * 15, 100),
-            "motor_version":   r.get("motor_version", ""),
-            "created_at":      r.get("created_at", ""),
-            "hub_action":      r.get("hub_action", ""),
-            "alertas":         alertas_list,
-            "bloqueios":       _safe_json(r.get("bloqueios_json", "[]")),
-        })
+        runs.append(n)
 
     runs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"total": len(runs[:limit]), "limit": limit, "items": runs[:limit]}
