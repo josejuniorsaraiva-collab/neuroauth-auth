@@ -1,7 +1,7 @@
 """
 NEUROAUTH — Aplicação Flask
 
-Versão: 2.1.1
+Versão: 2.1.2
 
 Ponto de entrada. Registra blueprints, configura logging.
 
@@ -40,22 +40,21 @@ def create_app() -> Flask:
     def health():
         from flask import jsonify
         from motor.decision_classifier import ENGINE_VERSION
-        return jsonify({"status": "ok", "engine_version": ENGINE_VERSION}), 200
+        return jsonify({"status": "ok", "engine_version": ENGINE_VERSION, "motor_version": ENGINE_VERSION})
 
-    @app.get("/form")
-    def serve_form():
-        """
-        GET /form — Formulário oficial de entrada v2.
-        Serve neuroauth_form_v2.html diretamente do diretório frontend/.
-        URL pública: https://neuroauth-auth.onrender.com/form
-        """
-        import os
-        frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
-        return send_from_directory(frontend_dir, "neuroauth_form_v2.html")
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>", methods=["GET"])
+    def serve_frontend(path):
+        """Serve arquivos estáticos do frontend (fallback)."""
+        try:
+            if path and not path.startswith("api/"):
+                return send_from_directory("static", path)
+        except Exception:
+            pass
+        return send_from_directory("static", "index.html")
 
-    # ── GET /clinical/protocols ────────────────────────────────────────────────────────────────────────────
     @app.get("/clinical/protocols")
-    def get_clinical_protocols():
+    def clinical_protocols():
         """
         GET /clinical/protocols
         Lista todos os protocolos clínicos ativos do seed local.
@@ -78,7 +77,7 @@ def create_app() -> Flask:
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
         return resp, 204
 
-    # ── Global JSON error handler ────────────────────────────────────────────────────────────────────────────
+    # ── Global JSON error handler ─────────────────────────────────────────────
     @app.errorhandler(Exception)
     def handle_unhandled_exception(e: Exception):
         logging.getLogger("neuroauth.app").error(
@@ -96,7 +95,7 @@ def create_app() -> Flask:
 # Exportar instância para gunicorn (Render / WSGI)
 # Dois aliases: 'application' (Procfile) e 'app' (Render Start Command legado)
 application = create_app()
-app = application # backward compat: gunicorm app:app
+app = application  # backward compat: gunicorn app:app
 
 if __name__ == "__main__":
     application.run(debug=True, port=5099)
