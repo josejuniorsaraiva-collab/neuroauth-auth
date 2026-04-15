@@ -1,22 +1,20 @@
 """
 app/routers/hub.py
-NEUROAUTH CONTROL HUB — FastAPI router
-Versão: 1.0.0
+NEUROAUTH CONTROL HUB — FastAPI Router v1.0.0
 
 Endpoints:
-  GET   /hub/metrics         — métricas agregadas de 21_DECISION_RUNS
-  GET   /hub/decision_runs   — lista 21_DECISION_RUNS (filtros opcionais)
-  GET   /hub/episodes        — lista 22_EPISODIOS (filtros opcionais)
-  PATCH /hub/runs/{run_id}/action — gate humano: APROVADO | SEGURADO | REVISAO
+  GET  /hub/decision_runs        — lista 21_DECISION_RUNS
+  GET  /hub/episodes             — lista 22_EPISODIOS
+  GET  /hub/metrics              — métricas agregadas
+  PATCH /hub/runs/{run_id}/action — gate humano
 
-Auth: JWT via get_current_user (mesmo padrão do sistema)
+Auth: Bearer JWT via get_current_user (mesmo padrão de metrics.py)
 """
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any, Optional
+from typing import Optional
 
 import gspread
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -29,343 +27,299 @@ from app.core.security import get_current_user
 logger = logging.getLogger("neuroauth.hub")
 router = APIRouter()
 
-_RUNS_SHEET = "21_DECISION_RUNS"
-_EPIS_SHEET = "22_EPISODIOS"
-_HEAD       = 3
-
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
+TAB_RUNS = "21_DECISION_RUNS"
+TAB_EPIS = "22_EPISODIOS"
 
-# ── Sheets helpers ─────────────────────────────────────────────────────────────
-
-def _get_client() -> gspread.Client:
+# ── Sheets client ─────────────────────────────────────────────────────────────
+def _get_sheet(tab: str) -> gspread.Worksheet:
     creds = Credentials.from_service_account_file(
         settings.GOOGLE_APPLICATION_CREDENTIALS, scopes=SCOPES
     )
-    return gspread.authorize(creds)
-
-
-def _read_sheet_as_dicts(sheet_name: str, head: int = _HEAD) -> list[dict]:
-    gc = _get_client()
+    gc = gspread.authorize(creds)
     ss = gc.open_by_key(settings.SPREADSHEET_ID)
-    ws = ss.worksheet(sheet_name)
-    all_values = ws.get_all_values()
-    if len(all_values) <= head:
-        return []
-    headers = [str(h).strip() for h in all_values[head - 1]]
-    rows = all_values[head:]
-    result = []
-    for row in rows:
-        if not any(str(c).strip() for c in row):
-            continue
-        d = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
-        result.append(d)
-    return result
+    return ss.worksheet(tab)
 
 
-def _safe_float(val: Any) -> Optional[float]:
+def _safe_str(v) -> str:
+    return (v or "").strip()
+
+
+def _safe_float(v) -> Optional[float]:
     try:
-        return float(val) if val not in (None, "") else None
+        return float(v)
     except (ValueError, TypeError):
         return None
 
 
-def _safe_json(val: Any) -> list:
-    try:
-        return json.loads(val) if val else []
-    except Exception:
-        return []
+# ── Models ────────────────────────────────────────────────────────────────────
+class RunItem(BaseModel):
+    decision_run_id: str
+    episodio_id: str
+    classification: str
+    decision_status: str
+    score: Optional[float]
+    risk_level: str
+    motor_version: str
+    created_at: str
+    hub_action: str
 
 
-def _parse_date(val: str) -> str:
-    """Normaliza datas para ISO — aceita ISO8601, DD/MM/YYYY HH:MM e variantes."""
-    if not val or val in ("[]", "{}"):
-        return ""
-    val = val.strip()
-    # já ISO
-    try:
-        datetime.fromisoformat(val.replace("Z", "+00:00"))
-        return val
-    except Exception:
-        pass
-    # DD/MM/YYYY HH:MM  ou  DD/MM/YYYY
-    for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(val, fmt).isoformat()
-        except Exception:
-            pass
-    return ""
+class EpisodeItem(BaseModel):
+    episodio_id: str
+    paciente: str
+    profile_id: str
+    convenio_id: str
+    cid_principal: str
+    decision_status: str
+    score_confianca: Optional[float]
+    created_at: str
 
 
-def _normalize_run(r: dict) -> dict:
-    """
-    Detecta o schema do run pelo prefixo do decision_run_id e retorna
-    um dict normalizado com chaves canônicas.
-
-    Schemas conhecidos:
-      RUN_*  — schema v2.0.0 (colunas alinhadas com o header)
-      DR-*   — schema legado (colunas deslocadas)
-      outros — tenta RUN_ primeiro, cai no DR- como fallback
-    """
-    run_id = r.get("decision_run_id", "")
-
-    if run_id.startswith("RUN_"):
-        # Schema moderno — colunas corretas
-        alertas   = _safe_json(r.get("alertas_json",  "[]"))
-        bloqueios = _safe_json(r.get("bloqueios_json", "[]"))
-        score_raw = r.get("score_final", "")
-        score = _safe_float(score_raw)
-        if score is not None and score <= 1.0:
-            score = round(score * 100, 1)
-
-        # Lê trace v2.0 se disponível (coluna v2_trace_json)
-        v2 = _safe_json(r.get("v2_trace_json", "{}") or "{}")
-        if not isinstance(v2, dict):
-            v2 = {}
-
-        # Gate: preferir do trace v2.0; fallback para classification
-        gate = (v2.get("final_gate") or
-                r.get("classification") or
-                r.get("decision_status") or "")
-
-        # Pendências e regras falhadas do trace
-        pending   = v2.get("pending_items", [])
-        blocking  = v2.get("blocking_rules", [])
-        warnings  = v2.get("warning_rules", [])
-        lrs       = v2.get("layer_results_summary", {})
-        defense   = v2.get("defense_ready", False)
-        summary   = v2.get("summary", "")
-        action    = v2.get("recommended_next_action", "")
-        layer_st  = v2.get("layer_status", {})
-
-        return {
-            "decision_run_id": run_id,
-            "episodio_id":     r.get("episodio_id", ""),
-            "profile_id":      r.get("profile_id", ""),
-            "gate":            gate,
-            "score":           v2.get("final_score", score),
-            "final_risk":      v2.get("final_risk", r.get("risco_glosa","")),
-            "risco_glosa":     min(len(alertas) * 15, 100),
-            "motor_version":   r.get("motor_version", ""),
-            "created_at":      _parse_date(r.get("created_at", "")),
-            "hub_action":      r.get("hub_action", ""),
-            "alertas":         alertas,
-            "bloqueios":       bloqueios,
-            # ── trace v2.0 explicável ──────────────────────────────────
-            "has_v2_trace":    bool(v2),
-            "layer_status":    layer_st,
-            "pending_items":   pending,
-            "blocking_rules":  blocking,
-            "warning_rules":   warnings[:5],
-            "defense_ready":   defense,
-            "summary":         summary,
-            "recommended_action": action,
-            "layer_ans": {
-                "overall":      lrs.get("ans",{}).get("overall",""),
-                "failed_rules": lrs.get("ans",{}).get("failed_rules",[]),
-                "blocked_by":   lrs.get("ans",{}).get("blocked_by"),
-            },
-            "layer_evidencia": {
-                "overall":           lrs.get("evidencia",{}).get("overall",""),
-                "clinical_strength": lrs.get("evidencia",{}).get("clinical_strength",""),
-                "evidence_score":    lrs.get("evidencia",{}).get("evidence_score"),
-                "junta_rules":       lrs.get("evidencia",{}).get("junta_rules",[]),
-                "failed_rules":      lrs.get("evidencia",{}).get("failed_rules",[]),
-            },
-            "layer_operadora": {
-                "overall":       lrs.get("operadora",{}).get("overall",""),
-                "operator":      lrs.get("operadora",{}).get("operator_name",""),
-                "risk_level":    lrs.get("operadora",{}).get("risk_level",""),
-                "pending_items": lrs.get("operadora",{}).get("pending_items",[]),
-                "failed_rules":  lrs.get("operadora",{}).get("failed_rules",[]),
-            },
-        }
-    else:
-        # Schema legado DR- (colunas deslocadas)
-        # DR- legado: score gravado como inteiro 0-100
-        gate      = r.get("input_context_json", "")
-        score_raw = r.get("opcao_escolhida_json", "")
-        score_int = _safe_float(score_raw)
-        # garante que não ultrapassa 100
-        if score_int is not None and score_int > 100:
-            score_int = 100.0
-        risco_txt = r.get("score_final", "")
-        risco_map = {"baixo": 10, "moderado": 40, "alto": 75}
-        risco_num = risco_map.get(risco_txt.lower(), 0) if risco_txt else 0
-        alerta1   = r.get("bloqueios_json", "")
-        alerta2   = r.get("motor_version", "")
-        alertas_txt = " | ".join(a for a in [alerta1, alerta2] if a)
-        return {
-            "decision_run_id": run_id,
-            "episodio_id":     r.get("episodio_id", ""),
-            "profile_id":      "",
-            "gate":            gate,
-            "score":           score_int,
-            "risco_glosa":     risco_num,
-            "motor_version":   "legado",
-            "created_at":      _parse_date(r.get("profile_id", "")),
-            "hub_action":      r.get("opcoes_geradas_json", ""),
-            "alertas":         [alertas_txt] if alertas_txt else [],
-            "bloqueios":       [],
-        }
+class HubMetrics(BaseModel):
+    total_runs: int
+    gate_distribution: dict
+    avg_score: Optional[float]
+    avg_risk_score: Optional[float]
+    volume_by_day: list
+    motor_version: str
 
 
-# ── Models ─────────────────────────────────────────────────────────────────────
-
-class HubActionRequest(BaseModel):
+class ActionRequest(BaseModel):
     action: str
     nota: Optional[str] = ""
 
 
-# ── GET /hub/metrics ───────────────────────────────────────────────────────────
+class ActionResponse(BaseModel):
+    run_id: str
+    action: str
+    recorded: str
 
-@router.get("/metrics")
-async def hub_metrics(user: dict = Depends(get_current_user)):
+
+# ── GET /hub/decision_runs ────────────────────────────────────────────────────
+@router.get("/decision_runs")
+async def list_decision_runs(
+    gate: Optional[str] = Query(None),
+    limit: int = Query(50, le=200),
+    user: dict = Depends(get_current_user),
+):
+    """Lista runs de 21_DECISION_RUNS, mais recentes primeiro."""
+    try:
+        ws = _get_sheet(TAB_RUNS)
+        all_rows = ws.get_all_values()
+    except Exception as e:
+        logger.error("hub decision_runs: Sheets error: %s", e)
+        raise HTTPException(status_code=503, detail=f"Sheets unavailable: {e}")
+
+    items = []
+    for row in all_rows:
+        if not row or not _safe_str(row[0]).startswith("DR-"):
+            continue
+        run_id  = _safe_str(row[0])
+        ep_id   = _safe_str(row[1]) if len(row) > 1 else ""
+        ts      = _safe_str(row[2]) if len(row) > 2 else ""
+        classif = _safe_str(row[3]) if len(row) > 3 else ""
+        status  = _safe_str(row[4]) if len(row) > 4 else ""
+        score   = _safe_float(row[5]) if len(row) > 5 else None
+        risk    = _safe_str(row[6]) if len(row) > 6 else ""
+        motor_v = _safe_str(row[7]) if len(row) > 7 else ""
+        hub_act = _safe_str(row[8]) if len(row) > 8 else ""
+
+        gate_val = classif or status
+        if gate and gate.upper() not in gate_val.upper():
+            continue
+
+        items.append(RunItem(
+            decision_run_id=run_id,
+            episodio_id=ep_id,
+            classification=classif,
+            decision_status=status,
+            score=score,
+            risk_level=risk,
+            motor_version=motor_v,
+            created_at=ts,
+            hub_action=hub_act,
+        ))
+
+    items.sort(key=lambda x: x.created_at, reverse=True)
+    page = items[:limit]
+    return {"total": len(items), "limit": limit, "items": [i.dict() for i in page]}
+
+
+# ── GET /hub/episodes ─────────────────────────────────────────────────────────
+@router.get("/episodes")
+async def list_episodes(
+    limit: int = Query(50, le=200),
+    user: dict = Depends(get_current_user),
+):
+    """Lista episódios de 22_EPISODIOS via header discovery."""
+    try:
+        ws = _get_sheet(TAB_EPIS)
+        all_rows = ws.get_all_values()
+    except Exception as e:
+        logger.error("hub episodes: Sheets error: %s", e)
+        raise HTTPException(status_code=503, detail=f"Sheets unavailable: {e}")
+
+    # Header discovery — skip até encontrar linha com "episodio_id"
+    header_idx = None
+    for i, row in enumerate(all_rows):
+        if any("episodio_id" in str(c).lower() for c in row):
+            header_idx = i
+            break
+
+    if header_idx is None:
+        return {"total": 0, "limit": limit, "items": []}
+
+    headers = [_safe_str(h).lower() for h in all_rows[header_idx]]
+    data_rows = all_rows[header_idx + 1:]
+
+    def col(row, name):
+        try:
+            idx = headers.index(name)
+            return _safe_str(row[idx]) if idx < len(row) else ""
+        except ValueError:
+            return ""
+
+    items = []
+    for row in data_rows:
+        ep_id = col(row, "episodio_id")
+        if not ep_id:
+            continue
+
+        paciente = col(row, "paciente_id") or col(row, "nome_paciente")
+        parts = paciente.strip().split()
+        iniciais = (
+            f"{parts[0][:2].upper()}.{parts[-1][:2].upper()}."
+            if len(parts) >= 2 else parts[0][:3].upper() if parts else "??"
+        )
+
+        items.append(EpisodeItem(
+            episodio_id=ep_id,
+            paciente=iniciais,
+            profile_id=col(row, "profile_id"),
+            convenio_id=col(row, "convenio_id"),
+            cid_principal=col(row, "cid_principal"),
+            decision_status=col(row, "decision_status"),
+            score_confianca=_safe_float(col(row, "score_confianca")),
+            created_at=col(row, "created_at"),
+        ))
+
+    items.sort(key=lambda x: x.created_at, reverse=True)
+    page = items[:limit]
+    return {"total": len(items), "limit": limit, "items": [i.dict() for i in page]}
+
+
+# ── GET /hub/metrics ──────────────────────────────────────────────────────────
+@router.get("/metrics", response_model=HubMetrics)
+async def hub_metrics(
+    user: dict = Depends(get_current_user),
+):
     """Métricas agregadas de 21_DECISION_RUNS para o cockpit."""
     try:
-        runs_rows = _read_sheet_as_dicts(_RUNS_SHEET)
-    except Exception as exc:
-        logger.error("hub_metrics: Sheets error: %s", exc)
-        raise HTTPException(status_code=503, detail=f"Falha ao ler planilha: {exc}")
+        ws = _get_sheet(TAB_RUNS)
+        all_rows = ws.get_all_values()
+    except Exception as e:
+        logger.error("hub metrics: Sheets error: %s", e)
+        raise HTTPException(status_code=503, detail=f"Sheets unavailable: {e}")
 
     total = 0
-    gate_dist: dict[str, int] = {}
-    scores: list[float] = []
-    risco_glosas: list[float] = []
-    volume_by_day: dict[str, int] = {}
-    motor_version = "?"
+    gate_dist: dict = {}
+    scores: list = []
+    risks: list = []
+    vbd: dict = {}
+    motor_v = "?"
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
-    for r in runs_rows:
-        run_id = r.get("decision_run_id", "")
-        if not run_id:
+    for row in all_rows:
+        if not row or not _safe_str(row[0]).startswith("DR-"):
             continue
-        n = _normalize_run(r)
         total += 1
-        gate = n["gate"] or "SEM_GATE"
+        classif = _safe_str(row[3]) if len(row) > 3 else "UNKNOWN"
+        status  = _safe_str(row[4]) if len(row) > 4 else ""
+        gate    = classif or status or "UNKNOWN"
         gate_dist[gate] = gate_dist.get(gate, 0) + 1
-        if n["score"] is not None:
-            scores.append(n["score"])
-        risco_glosas.append(n["risco_glosa"])
-        if n["motor_version"] and n["motor_version"] != "legado":
-            motor_version = n["motor_version"]
-        created = n["created_at"]
-        if created:
+
+        sc = _safe_float(row[5]) if len(row) > 5 else None
+        if sc is not None:
+            scores.append(sc)
+
+        risk_str = _safe_str(row[6]) if len(row) > 6 else ""
+        risk_map = {"baixo": 10, "moderado": 35, "alto": 65, "crítico": 90}
+        if risk_str.lower() in risk_map:
+            risks.append(float(risk_map[risk_str.lower()]))
+
+        mv = _safe_str(row[7]) if len(row) > 7 else ""
+        if mv:
+            motor_v = mv
+
+        ts = _safe_str(row[2]) if len(row) > 2 else ""
+        if ts:
             try:
-                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                 if dt >= cutoff:
                     day = dt.strftime("%Y-%m-%d")
-                    volume_by_day[day] = volume_by_day.get(day, 0) + 1
+                    vbd[day] = vbd.get(day, 0) + 1
             except Exception:
                 pass
 
-    daily_series = [
-        {
-            "date": (datetime.now(timezone.utc) - timedelta(days=6 - i)).strftime("%Y-%m-%d"),
-            "count": volume_by_day.get(
-                (datetime.now(timezone.utc) - timedelta(days=6 - i)).strftime("%Y-%m-%d"), 0
-            ),
-        }
+    series = [
+        {"date": (datetime.now(timezone.utc) - timedelta(days=6 - i)).strftime("%Y-%m-%d"),
+         "count": vbd.get((datetime.now(timezone.utc) - timedelta(days=6 - i)).strftime("%Y-%m-%d"), 0)}
         for i in range(7)
     ]
 
-    return {
-        "total_runs":        total,
-        "gate_distribution": gate_dist,
-        "avg_score":         round(sum(scores) / len(scores), 4) if scores else None,
-        "avg_risco_glosa":   round(sum(risco_glosas) / len(risco_glosas), 1) if risco_glosas else None,
-        "volume_by_day":     daily_series,
-        "motor_version":     motor_version,
-    }
+    return HubMetrics(
+        total_runs=total,
+        gate_distribution=gate_dist,
+        avg_score=round(sum(scores) / len(scores), 4) if scores else None,
+        avg_risk_score=round(sum(risks) / len(risks), 1) if risks else None,
+        volume_by_day=series,
+        motor_version=motor_v,
+    )
 
 
-# ── GET /hub/decision_runs ─────────────────────────────────────────────────────
-
-@router.get("/decision_runs")
-async def list_decision_runs(
-    gate: str = Query(""),
-    profile_id: str = Query(""),
-    limit: int = Query(50, le=200),
+# ── PATCH /hub/runs/{run_id}/action ──────────────────────────────────────────
+@router.patch("/runs/{run_id}/action", response_model=ActionResponse)
+async def hub_action(
+    run_id: str,
+    body: ActionRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Lista runs de 21_DECISION_RUNS com filtros opcionais."""
+    """Gate humano: APROVADO | SEGURADO | REVISAO"""
+    VALID = {"APROVADO", "SEGURADO", "REVISAO"}
+    action = body.action.upper().strip()
+    if action not in VALID:
+        raise HTTPException(status_code=400, detail=f"action inválida: {action}. Use: {sorted(VALID)}")
+
     try:
-        rows = _read_sheet_as_dicts(_RUNS_SHEET)
-    except Exception as exc:
-        logger.error("list_decision_runs: Sheets error: %s", exc)
-        raise HTTPException(status_code=503, detail=f"Falha ao ler planilha: {exc}")
+        ws = _get_sheet(TAB_RUNS)
+        all_rows = ws.get_all_values()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Sheets unavailable: {e}")
 
-    runs = []
-    for r in rows:
-        run_id = r.get("decision_run_id", "")
-        if not run_id:
-            continue
-        n = _normalize_run(r)
-        if gate and gate.upper() not in n["gate"].upper():
-            continue
-        if profile_id and profile_id.upper() not in n["profile_id"].upper():
-            continue
-        runs.append(n)
+    # Encontrar linha do run_id
+    row_idx = None
+    for i, row in enumerate(all_rows):
+        if row and _safe_str(row[0]) == run_id:
+            row_idx = i + 1  # gspread 1-indexed
+            break
 
-    runs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    return {"total": len(runs[:limit]), "limit": limit, "items": runs[:limit]}
+    if row_idx is None:
+        raise HTTPException(status_code=404, detail=f"run_id '{run_id}' não encontrado")
 
+    now = datetime.now(timezone.utc).isoformat()
+    val = f"{action} | {now}" + (f" | {body.nota}" if body.nota else "")
 
-# ── GET /hub/episodes ──────────────────────────────────────────────────────────
-
-@router.get("/episodes")
-async def list_episodes(
-    status: str = Query(""),
-    convenio_id: str = Query(""),
-    limit: int = Query(50, le=200),
-    user: dict = Depends(get_current_user),
-):
-    """Lista episódios de 22_EPISODIOS com filtros opcionais."""
+    # Gravar na coluna 9 (índice 8, 0-based) = hub_action
+    # Se a coluna não existir ainda, o valor será escrito na posição correta
     try:
-        rows = _read_sheet_as_dicts(_EPIS_SHEET)
-    except Exception as exc:
-        logger.error("list_episodes: Sheets error: %s", exc)
-        raise HTTPException(status_code=503, detail=f"Falha ao ler planilha: {exc}")
+        ws.update_cell(row_idx, 9, val)  # col 9 = hub_action
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Falha ao gravar: {e}")
 
-    episodes = []
-    for r in rows:
-        ep_id = r.get("episodio_id", "")
-        if not ep_id:
-            continue
-        r_status   = r.get("decision_status", "")
-        r_convenio = r.get("convenio_id", "")
-        if status and status.upper() not in r_status.upper():
-            continue
-        if convenio_id and convenio_id.upper() not in r_convenio.upper():
-            continue
-        paciente = r.get("paciente_id", "")
-        parts    = paciente.strip().split()
-        iniciais = (
-            f"{parts[0][:2].upper()}.{parts[-1][:2].upper()}."
-            if len(parts) >= 2 else (parts[0][:3].upper() if parts else "??")
-        )
-        procedimento = ""
-        try:
-            ctx = json.loads(r.get("clinical_context_json", "{}") or "{}")
-            procedimento = ctx.get("procedimento", "") or ctx.get("indicacao_clinica", "")
-        except Exception:
-            pass
-        episodes.append({
-            "episodio_id":        ep_id,
-            "paciente":           iniciais,
-            "profile_id":         r.get("profile_id", ""),
-            "convenio_id":        r_convenio,
-            "cid_principal":      r.get("cid_principal", ""),
-            "procedimento":       (procedimento or "")[:80],
-            "decision_status":    r_status,
-            "status_operacional": r.get("status_operacional", ""),
-            "decision_run_id":    r.get("decision_run_id", ""),
-            "score_confianca":    _safe_float(r.get("score_confianca")),
-            "created_at":         r.get("created_at", ""),
-        })
-
-    episodes.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    return {"total": len(episodes[:limit]), "limit": limit, "items": episodes[:limit]}
+    logger.info("hub_action: run_id=%s action=%s user=%s", run_id, action, user.get("email", ""))
+    return ActionResponse(run_id=run_id, action=action, recorded=now)
