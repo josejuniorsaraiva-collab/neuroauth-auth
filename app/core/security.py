@@ -16,6 +16,8 @@ bearer_scheme = HTTPBearer()
 # Evolução futura: buscar do Sheets (tab MEDICOS_AUTORIZADOS)
 AUTHORIZED_EMAILS: set[str] = {
     "josejuniorsaraiva@gmail.com",   # founder — nunca remover
+    "josecorreiasaraivajunior@gmail.com",  # dev
+    "francelinob571@gmail.com",      # secretária operacional
     # "medico2@email.com",           # adicionar médicos alpha aqui
 }
 
