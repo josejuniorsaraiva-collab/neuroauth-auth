@@ -293,7 +293,7 @@ def _append_decision_run(
     try:
         ws = ss.worksheet(TAB_DECISION_RUNS)
     except gspread.WorksheetNotFound:
-        ws = ss.add_worksheet(title=TAB_DECISION_RUNS, rows=1000, cols=20)
+        ws = ss.add_worksheet(title=TAB_DECISION_RUNS, rows=1000, cols=28)
         ws.append_row([
             "decision_run_id", "episodio_id", "timestamp",
             "classification", "decision_status", "score",
@@ -303,6 +303,10 @@ def _append_decision_run(
             "score_clinico", "camada1", "camada3_risco",
             "gate_reason", "tempo_ms", "versao_motor",
             "v2_trace_json",
+            # v1.0 clinical enrichment
+            "schema_version", "glosa_probability", "trace_id",
+            "engine_version", "raciocinio_clinico",
+            "fundamento_regulatorio", "texto_convenio",
         ])
 
     # v1.3: campos extras com fallback seguro para retrocompat
@@ -322,6 +326,26 @@ def _append_decision_run(
             v2_trace = _json.dumps(raw_trace, ensure_ascii=False)[:5000]
     except Exception:
         pass
+
+    # ── Clinical enrichment v1.0: extrair campos do clinical_v1 ──────────
+    # Fonte: v2_trace → clinical_v1 (injetado pelo decision_engine_v1.py)
+    # Fallback seguro: se não existir, grava vazio (nunca quebra o append)
+    _cv1 = {}
+    try:
+        _raw_v2 = getattr(res, "v2_trace", None) or {}
+        _cv1 = _raw_v2.get("clinical_v1", {}) or {}
+    except Exception:
+        pass
+
+    cv1_schema_version   = _cv1.get("schema_version", "") or ""
+    cv1_glosa_prob       = _cv1.get("glosa_probability", "") if _cv1.get("glosa_probability") is not None else ""
+    cv1_trace_id         = _cv1.get("trace_id", "") or ""
+    cv1_engine_version   = versao_motor
+
+    _sj = _cv1.get("structured_justification", {}) or {}
+    cv1_raciocinio       = (_sj.get("raciocinio_clinico", "") or "")[:1200]
+    cv1_fundamento       = (_sj.get("fundamento_regulatorio", "") or "")[:1200]
+    cv1_texto_convenio   = (_sj.get("texto_convenio", "") or "")[:1200]
 
     ws.append_row([
         res.decision_run_id,
@@ -345,6 +369,14 @@ def _append_decision_run(
         tempo_ms,
         versao_motor,
         v2_trace,
+        # ── v1.0 clinical enrichment (colunas 22-28) ──
+        cv1_schema_version,
+        cv1_glosa_prob,
+        cv1_trace_id,
+        cv1_engine_version,
+        cv1_raciocinio,
+        cv1_fundamento,
+        cv1_texto_convenio,
     ], value_input_option="USER_ENTERED")
 
 
