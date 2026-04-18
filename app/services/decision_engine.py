@@ -366,7 +366,7 @@ def decide(ctx: dict) -> dict:
         (time.time() - t0) * 1000,
     )
 
-    return {
+    result = {
         "engine_version":        ENGINE_VERSION,
         "final_gate":            gate,
         "final_score":           final_score,
@@ -386,6 +386,19 @@ def decide(ctx: dict) -> dict:
             "operadora": r_op,
         },
     }
+
+    # ── Clinical enrichment layer v1.0 (opcional, resiliente) ────────────
+    try:
+        from app.services.decision_engine_v1 import build_clinical_decision_output
+        result = build_clinical_decision_output(result, ctx)
+    except Exception as enrich_err:
+        logger.warning(
+            "decision_engine: clinical enrichment v1.0 falhou (%s) — "
+            "retornando resultado base v2.0",
+            enrich_err,
+        )
+
+    return result
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -482,8 +495,16 @@ def _decision_to_response(d: dict, req: Any) -> Any:
             if t.get("step") == "GATE_LOGIC"
         )[:200],
         falhas            = [f[:120] for f in d["opme_flags"][:5]],
-        # v2.0 trace estruturado completo
+        # v2.0 trace estruturado completo + v1.0 clinical enrichment
         v2_trace          = {
+            # ── Clinical enrichment v1.0 (namespace isolado) ──
+            "clinical_v1": {
+                "schema_version":          d.get("schema_version"),
+                "glosa_probability":       d.get("glosa_probability"),
+                "trace_id":                d.get("trace_id"),
+                "structured_justification":d.get("structured_justification"),
+            },
+            # ── v2.0 base ──
             "final_gate":              d["final_gate"],
             "final_score":             d["final_score"],
             "final_risk":              d["final_risk"],
