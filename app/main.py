@@ -17,8 +17,7 @@ logging.basicConfig(
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from app.routers import decide, auth, make_proxy, metrics, audit, cockpit, hub, relay
@@ -36,7 +35,14 @@ if _missing:
     )
 
 # ── Rate Limiter (slowapi) ──────────────────────────────────
-limiter = Limiter(key_func=get_remote_address)
+def _get_real_ip(request: Request) -> str:
+    """Extrai IP real do cliente atrás do proxy Render (X-Forwarded-For)."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+limiter = Limiter(key_func=_get_real_ip)
 
 app = FastAPI(
     title="NEUROAUTH API",
@@ -45,7 +51,19 @@ app = FastAPI(
     redoc_url=None,
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Handler customizado: log de auditoria + resposta JSON padronizada."""
+    ip = _get_real_ip(request)
+    logger.warning("[RATE_LIMIT] 429 ip=%s path=%s", ip, request.url.path)
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "rate_limit_exceeded", "ip": ip},
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(

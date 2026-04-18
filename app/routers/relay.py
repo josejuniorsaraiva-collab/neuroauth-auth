@@ -19,13 +19,22 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from typing import Optional
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from app.core.config import settings
 from app.core.security import require_authorized
 
 logger = logging.getLogger("neuroauth.relay")
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+
+
+def _get_real_ip(request: Request) -> str:
+    """Extrai IP real atrás do proxy Render."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+limiter = Limiter(key_func=_get_real_ip)
 
 # ── Idempotência (in-memory, suficiente para single-instance Render) ──
 _RELAY_IDEMPOTENCY: dict = {}
@@ -33,9 +42,11 @@ _RELAY_IDEM_WINDOW = 300  # 5 minutos
 
 
 def _relay_idem_key(body: dict, user_email: str) -> str:
-    """Hash determinístico do payload + user para detectar duplo envio."""
-    raw = json.dumps(body, sort_keys=True, default=str) + "|" + user_email
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    """Hash determinístico do payload + user para detectar duplo envio.
+    JSON canonizado (sort_keys + separators compactos) evita colisão por whitespace."""
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    raw = f"{canonical}|{user_email}"
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _relay_idem_check(key: str) -> dict | None:
@@ -165,7 +176,7 @@ async def relay_notify(request: Request, user: dict = Depends(require_authorized
                     trace_id, idem_key, user_email)
         return JSONResponse(
             status_code=200,
-            content={**cached, "idempotency": "duplicate_ignored", "trace_id": trace_id},
+            content={"status": "ok", "idempotency": "duplicate_ignored", "trace_id": trace_id},
         )
 
     try:
