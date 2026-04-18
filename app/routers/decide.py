@@ -104,6 +104,7 @@ async def decide(
 ):
     # trace_id: usar do request (frontend v3) ou gerar
     trace_id = req.trace_id or f"TR-{str(uuid.uuid4())[:12].upper()}"
+    req.trace_id = trace_id  # propagar para o engine (usado por clinical_v1)
     t_start = datetime.now(timezone.utc)
     user_email = user.get("email", "unknown")
 
