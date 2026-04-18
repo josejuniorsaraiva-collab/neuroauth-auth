@@ -11,10 +11,11 @@ These replace the old /api/make-proxy routes with cleaner frontend URLs.
 """
 import logging
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from typing import Optional
 from app.core.config import settings
+from app.core.security import require_authorized
 
 logger = logging.getLogger("neuroauth.relay")
 router = APIRouter()
@@ -40,6 +41,7 @@ def _get_webhook_url(webhook_type: str) -> str:
 async def relay_profile(
     email: Optional[str] = Query(None),
     procedimento: Optional[str] = Query(None),
+    user: dict = Depends(require_authorized),
 ):
     """
     Busca perfil do médico ou dados do procedimento via Make.com.
@@ -57,7 +59,7 @@ async def relay_profile(
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(url, params=params)
-        logger.info("Relay profile GET -> %d", resp.status_code)
+        logger.info("Relay profile GET -> %d (user=%s)", resp.status_code, user.get("email", "?"))
 
         # Fallback alpha: emails autorizados sem perfil no Sheets
         if email:
@@ -99,10 +101,10 @@ async def relay_profile(
 
 # ── POST /relay/notify ──────────────────────────────────────
 @router.post("/notify")
-async def relay_notify(request: Request):
+async def relay_notify(request: Request, user: dict = Depends(require_authorized)):
     """
     Encaminha payload de submissão para Make.com webhook (general).
-    Aceita qualquer JSON body do frontend.
+    Aceita qualquer JSON body do frontend. Requer JWT válido (Gate A).
     """
     url = _get_webhook_url("general")
 
@@ -114,7 +116,7 @@ async def relay_notify(request: Request):
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=body)
-        logger.info("Relay notify POST -> %d", resp.status_code)
+        logger.info("Relay notify POST -> %d (user=%s)", resp.status_code, user.get("email", "?"))
 
         return JSONResponse(
             status_code=resp.status_code,
