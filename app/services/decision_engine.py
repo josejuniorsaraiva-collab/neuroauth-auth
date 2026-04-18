@@ -547,5 +547,7 @@ def run_decision(req: Any) -> Any:
     Recebe DecideRequest, devolve DecideResponse.
     """
     ctx = _req_to_ctx(req)
+    # Propagar trace_id do request para o ctx (usado pelo clinical_v1)
+    ctx["trace_id"] = getattr(req, "trace_id", None) or ""
     d   = decide(ctx)
     return _decision_to_response(d, req)
