@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from app.routers import decide, auth, make_proxy, metrics, audit, cockpit, hub, relay
+from app.routers import decide, decide_v2, auth, make_proxy, metrics, audit, cockpit, hub, relay
 from app.core.config import settings
 
 logger = logging.getLogger("neuroauth.app")
@@ -82,6 +82,7 @@ app.include_router(audit.router, prefix="/audit", tags=["audit"])
 app.include_router(cockpit.router, prefix="/cockpit", tags=["cockpit"])
 app.include_router(hub.router, prefix="/hub", tags=["hub"])
 app.include_router(relay.router, prefix="/relay", tags=["relay"])
+app.include_router(decide_v2.router, prefix="/v2", tags=["decide_v2"])
 
 
 @app.get("/form")

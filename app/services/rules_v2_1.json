@@ -1,0 +1,591 @@
+{
+  "schema_version": "2.1",
+  "generated_at": "2026-04-19",
+  "metadata": {
+    "name": "NEUROAUTH Motor Decisorio",
+    "owner": "HSA / INEC - Barbalha CE",
+    "description": "Modelo computavel executavel de decisao de aprovacao/glosa. Estrutura 100% Python-ready com condicoes parseaveis, pesos individuais por regra, correcao acionavel e versionamento por regra.",
+    "fontes_regulatorias": [
+      "RN 465/2021 - Rol ANS",
+      "Lei 14.454/2022 - Rol exemplificativo",
+      "Sumula 102 TJSP",
+      "Resolucao CFM 2.152/2016 - Junta Medica",
+      "DUTs por procedimento"
+    ]
+  },
+
+  "camadas": {
+    "ANS":       { "weight_global": 0.5, "implementacao": "validator_ans.py" },
+    "EVIDENCIA": { "weight_global": 0.3, "implementacao": "validator_evidencia.py" },
+    "OPERADORA": { "weight_global": 0.2, "implementacao": "validator_operadora.py" }
+  },
+
+  "perfis_operadora": {
+    "UNIMED_CARIRI": {
+      "rigor_documental": 1.20,
+      "rigor_opme":       1.15,
+      "tolerancia_fora_rol": 0.80,
+      "judicial_threshold": 0.70
+    },
+    "BRADESCO": {
+      "rigor_documental": 1.10,
+      "rigor_opme":       1.30,
+      "tolerancia_fora_rol": 0.95,
+      "judicial_threshold": 0.65
+    },
+    "SULAMERICA": {
+      "rigor_documental": 1.05,
+      "rigor_opme":       1.25,
+      "tolerancia_fora_rol": 1.00,
+      "judicial_threshold": 0.60
+    },
+    "AMIL": {
+      "rigor_documental": 1.10,
+      "rigor_opme":       1.20,
+      "tolerancia_fora_rol": 0.90,
+      "judicial_threshold": 0.70
+    },
+    "DEFAULT": {
+      "rigor_documental": 1.00,
+      "rigor_opme":       1.00,
+      "tolerancia_fora_rol": 1.00,
+      "judicial_threshold": 0.70
+    }
+  },
+
+  "consolidacao": {
+    "ordem_execucao": [
+      "1_aplicar_regras_duras",
+      "2_aplicar_overrides_urgencia",
+      "3_calcular_score_por_camada",
+      "4_aplicar_boosts",
+      "5_calcular_score_final_ponderado",
+      "6_aplicar_judicializacao_preventiva",
+      "7_decidir_pelo_score_final",
+      "8_montar_v2_trace_json"
+    ],
+    "limiares_score": {
+      "GO":       { "min": 80, "max": 100 },
+      "RESSALVA": { "min": 50, "max": 79 },
+      "NO_GO":    { "min": 0,  "max": 49 }
+    },
+    "score_inicial_por_camada": 100
+  },
+
+  "rules": [
+
+    {
+      "id": "ANS_001",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 20,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "tuss",         "op": "not_in",  "value": "rol_ans_465" },
+          { "field": "fora_rol_lei_14454_invocada", "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "Procedimento fora do Rol da ANS sem invocacao de Lei 14.454/2022",
+      "correcao": "Invocar Lei 14.454/2022 com evidencia robusta + ausencia de alternativa documentada, ou substituir por procedimento equivalente no Rol",
+      "override_possivel": true,
+      "override_por": ["evidencia_forte_e_ausencia_alternativa"]
+    },
+    {
+      "id": "ANS_002",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 20,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "dut_aplicavel",          "op": "equals", "value": true },
+          { "field": "dut_cumprida_integral",  "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "DUT da RN 465/2021 nao cumprida integralmente",
+      "correcao": "Listar criterios faltantes da DUT e completar documentacao ponto a ponto",
+      "override_possivel": false
+    },
+    {
+      "id": "ANS_003",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 18,
+      "action": "NO_GO",
+      "condition": {
+        "field": "cid_compativel_com_tuss",
+        "op": "equals",
+        "value": false
+      },
+      "mensagem": "CID incompativel com procedimento solicitado",
+      "correcao": "Revisar codificacao CID e TUSS para garantir coerencia diagnostico-procedimento",
+      "override_possivel": false
+    },
+    {
+      "id": "ANS_004",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 18,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "opme_presente",          "op": "equals",  "value": true },
+          { "field": "opme.registro_anvisa",   "op": "is_empty","value": null }
+        ]
+      },
+      "mensagem": "OPME sem registro ANVISA",
+      "correcao": "Anexar numero de registro ANVISA do material ou substituir por OPME registrada",
+      "override_possivel": false
+    },
+    {
+      "id": "ANS_005",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 20,
+      "action": "NO_GO",
+      "condition": {
+        "field": "convenio",
+        "op": "is_empty",
+        "value": null
+      },
+      "mensagem": "Convenio ausente ou inconsistente - pre-analise apenas",
+      "correcao": "Preencher convenio do paciente para liberar analise completa",
+      "override_possivel": false
+    },
+    {
+      "id": "ANS_006",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 18,
+      "action": "NO_GO",
+      "condition": {
+        "field": "carencia_contratual_violada",
+        "op": "equals",
+        "value": true
+      },
+      "mensagem": "Carencia contratual nao cumprida",
+      "correcao": "Aguardar cumprimento de carencia ou justificar urgencia/emergencia conforme RN 195/2009",
+      "override_possivel": true,
+      "override_por": ["urgencia_caracterizada"]
+    },
+    {
+      "id": "EV_001",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "DURA",
+      "weight": 18,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "falha_terapeutica_exigida",      "op": "equals", "value": true },
+          { "field": "falha_terapeutica_documentada",  "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "Ausencia de documentacao de falha terapeutica conservadora exigida pela DUT",
+      "correcao": "Documentar modalidades nominadas, duracao e desfecho do tratamento conservador previo",
+      "override_possivel": true,
+      "override_por": ["urgencia_caracterizada"]
+    },
+    {
+      "id": "EV_002",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "DURA",
+      "weight": 20,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "procedimento_experimental", "op": "equals", "value": true },
+          { "field": "evidencia_robusta",         "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "Procedimento experimental sem evidencia clinica robusta",
+      "correcao": "Anexar evidencia nivel 1A ou substituir por procedimento de evidencia consolidada",
+      "override_possivel": false
+    },
+    {
+      "id": "EV_003",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "DURA",
+      "weight": 15,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "reoperacao",                    "op": "equals", "value": true },
+          { "field": "laudo_cirurgia_anterior_anexado","op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "Reoperacao sem laudo de cirurgia anterior - impossivel diferenciar recidiva de fibrose",
+      "correcao": "Anexar laudo cirurgico anterior e relatorio de imagem comparativa",
+      "override_possivel": true,
+      "override_por": ["urgencia_caracterizada"]
+    },
+    {
+      "id": "OP_001",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "DURA",
+      "weight": 18,
+      "action": "NO_GO",
+      "condition": {
+        "field": "opme_coerente_com_procedimento",
+        "op": "equals",
+        "value": false
+      },
+      "mensagem": "OPME incompativel com procedimento descrito",
+      "correcao": "Revisar lista de OPME para garantir coerencia tecnica com a tecnica cirurgica",
+      "override_possivel": false
+    },
+    {
+      "id": "OP_002",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "DURA",
+      "weight": 20,
+      "action": "NO_GO",
+      "condition": {
+        "field": "divergencia_grave_entre_guias",
+        "op": "equals",
+        "value": true
+      },
+      "mensagem": "Divergencia grave entre guias SADT, Internacao e OPME",
+      "correcao": "Sincronizar as tres guias usando SADT como fonte unica de verdade",
+      "override_possivel": false
+    },
+
+    {
+      "id": "ANS_M01",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "MODERADA",
+      "weight": 15,
+      "action": "RESSALVA",
+      "condition": {
+        "field": "dut_cumprida_parcial",
+        "op": "equals",
+        "value": true
+      },
+      "mensagem": "DUT cumprida parcialmente",
+      "correcao": "Completar criterios da DUT faltantes (ver lista detalhada no trace)"
+    },
+    {
+      "id": "ANS_M02",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "MODERADA",
+      "weight": 10,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "OR",
+        "clauses": [
+          { "field": "tuss_format_invalido", "op": "equals", "value": true },
+          { "field": "cid_format_invalido",  "op": "equals", "value": true }
+        ]
+      },
+      "mensagem": "Erro de formatacao em codigo TUSS ou CID",
+      "correcao": "Normalizar codigo conforme padrao TUSS/TISS (com hifenizacao correta)"
+    },
+    {
+      "id": "EV_M01",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "MODERADA",
+      "weight": 12,
+      "action": "RESSALVA",
+      "condition": {
+        "field": "exame_imagem_idade_meses",
+        "op": "greater_than",
+        "value": 6
+      },
+      "mensagem": "Exame de imagem com mais de 6 meses",
+      "correcao": "Anexar exame de imagem recente (menor que 6 meses) com correlacao clinica"
+    },
+    {
+      "id": "EV_M02",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "MODERADA",
+      "weight": 10,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "deficit_motor_mencionado",        "op": "equals", "value": true },
+          { "field": "graduacao_objetiva_0_5_presente", "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "Deficit motor sem graduacao na escala 0-5",
+      "correcao": "Adicionar graduacao MRC 0-5 do deficit motor nos grupos musculares afetados"
+    },
+    {
+      "id": "EV_M03",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "MODERADA",
+      "weight": 15,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "OR",
+        "clauses": [
+          { "field": "justificativa_clinica_length", "op": "less_than", "value": 200 },
+          { "field": "contains_termos_vagos",        "op": "equals",    "value": true }
+        ]
+      },
+      "mensagem": "Justificativa clinica generica ou insuficiente",
+      "correcao": "Reescrever justificativa em estrutura SCQA: Situacao, Complicacao, Questao, Resposta"
+    },
+    {
+      "id": "EV_M04",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "MODERADA",
+      "weight": 8,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "lateralidade_aplicavel", "op": "equals", "value": true },
+          { "field": "lateralidade_ausente",   "op": "equals", "value": true }
+        ]
+      },
+      "mensagem": "Lateralidade ou nivel cirurgico nao especificados",
+      "correcao": "Especificar lateralidade (D/E) e nivel anatomico (ex: L4-L5 paramediana esquerda)"
+    },
+    {
+      "id": "EV_M05",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "MODERADA",
+      "weight": 10,
+      "action": "RESSALVA",
+      "condition": {
+        "field": "tempo_evolucao_documentado",
+        "op": "equals",
+        "value": false
+      },
+      "mensagem": "Tempo de evolucao nao documentado",
+      "correcao": "Adicionar tempo de evolucao em dias, semanas ou meses na narrativa clinica"
+    },
+    {
+      "id": "OP_M01",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "MODERADA",
+      "weight": 12,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "opme_presente",            "op": "equals",       "value": true },
+          { "field": "opme_cotacoes_count",      "op": "less_than",    "value": 3 },
+          { "field": "opme_tem_similar_nacional","op": "equals",       "value": false }
+        ]
+      },
+      "mensagem": "OPME sem 3 cotacoes ou comparativo nacional (regra VBHC)",
+      "correcao": "Anexar 3 cotacoes ou justificar tecnicamente a ausencia de similar nacional"
+    },
+    {
+      "id": "OP_M02",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "MODERADA",
+      "weight": 10,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "opme_especificada_por_marca",         "op": "equals", "value": true },
+          { "field": "opme_especificacao_tecnica_presente", "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "OPME especificada por marca, fere Resolucao CFM 1.956/2010",
+      "correcao": "Reescrever OPME por especificacao tecnica (diametro, comprimento, material, mecanismo)"
+    },
+    {
+      "id": "OP_M03",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "MODERADA",
+      "weight": 8,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "OR",
+        "clauses": [
+          { "field": "assinatura_presente", "op": "equals", "value": false },
+          { "field": "carimbo_presente",    "op": "equals", "value": false },
+          { "field": "crm_presente",        "op": "equals", "value": false }
+        ]
+      },
+      "mensagem": "Identificacao administrativa incompleta",
+      "correcao": "Completar assinatura, carimbo e CRM do solicitante"
+    },
+    {
+      "id": "OP_M04",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "MODERADA",
+      "weight": 15,
+      "action": "RESSALVA",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "custo_acima_teto_convenio", "op": "equals",    "value": true },
+          { "field": "narrativa_score",           "op": "less_than", "value": 70 }
+        ]
+      },
+      "mensagem": "Alto custo com narrativa clinica fraca",
+      "correcao": "Reforcar narrativa de necessidade clinica, funcao preservada e desfecho esperado"
+    },
+
+    {
+      "id": "FLEX_001",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "FLEXIVEL",
+      "weight": 0,
+      "action": "FORCE_GO",
+      "condition": {
+        "operator": "OR",
+        "clauses": [
+          { "field": "urgencia_caracterizada",                       "op": "equals", "value": true },
+          { "field": "risco_neurologico_progressivo_documentado",    "op": "equals", "value": true }
+        ]
+      },
+      "mensagem": "Urgencia clinica documentada - auditoria a posteriori conforme protocolo de urgencia ANS",
+      "correcao": null,
+      "justificativa_automatica": "Urgencia clinica caracterizada. Auditoria a posteriori conforme RN 259/2011 e Resolucao CFM 1.451/1995"
+    },
+    {
+      "id": "FLEX_002",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "OPERADORA",
+      "tipo": "FLEXIVEL",
+      "weight": 0,
+      "action": "PROMOTE_RESSALVA_TO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "judicial_risk_score",      "op": "greater_than", "value": "perfil.judicial_threshold" },
+          { "field": "indicacao_clinica_clara",  "op": "equals",       "value": true }
+        ]
+      },
+      "mensagem": "Custo de negativa supera custo de autorizacao. Risco de liminar elevado.",
+      "correcao": null,
+      "justificativa_automatica": "Score preditivo de judicializacao acima do threshold do convenio. Aprovacao administrativa excepcional recomendada."
+    },
+    {
+      "id": "FLEX_003",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "ANS",
+      "tipo": "FLEXIVEL",
+      "weight": 0,
+      "action": "GENERATE_DEFENSE",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "fora_do_rol",                     "op": "equals", "value": true },
+          { "field": "evidencia_forte",                 "op": "equals", "value": true },
+          { "field": "ausencia_alternativa_documentada","op": "equals", "value": true }
+        ]
+      },
+      "mensagem": "Defesa Lei 14.454/2022 montada automaticamente",
+      "correcao": null,
+      "texto_defesa": "Conforme Lei 14.454/2022, o Rol da ANS e exemplificativo. Ha prescricao medica fundamentada e ausencia de alternativa terapeutica eficaz documentada. Sumula 102 TJSP aplicavel. Jurisprudencia consolidada do STJ reconhece negativa abusiva como dano moral indenizavel."
+    },
+    {
+      "id": "FLEX_004",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "FLEXIVEL",
+      "weight": 0,
+      "action": "BOOST_SCORE",
+      "condition": {
+        "field": "guideline_aplicavel_citado",
+        "op": "in",
+        "value": ["SBN", "AMB", "AANS", "ESMINT", "WFNS"]
+      },
+      "mensagem": "Guideline aplicavel citado na justificativa",
+      "correcao": null,
+      "score_boost": 10
+    },
+    {
+      "id": "FLEX_005",
+      "version": "1.0",
+      "last_update": "2026-04-19",
+      "camada": "EVIDENCIA",
+      "tipo": "FLEXIVEL",
+      "weight": 0,
+      "action": "BOOST_SCORE",
+      "condition": {
+        "field": "termos_alta_conversao_count",
+        "op": "greater_than_or_equal",
+        "value": 3
+      },
+      "mensagem": "Linguagem de alta conversao detectada (refratario, progressivo, irreversivel, etc.)",
+      "correcao": null,
+      "score_boost": 5
+    }
+  ],
+
+  "v2_trace_schema": {
+    "campos_obrigatorios": [
+      "final_gate", "final_score", "final_risk",
+      "layer_ans", "layer_evidencia", "layer_operadora",
+      "pending_items", "recommended_action", "defense_ready",
+      "summary", "judicial_risk_score", "cost_vs_judicialization_ratio",
+      "rules_fired", "perfil_operadora_aplicado"
+    ]
+  },
+
+  "learning_loop": {
+    "habilitado": false,
+    "tabela_outcome": "22_DECISION_OUTCOMES",
+    "campos_outcome": [
+      "run_id", "data_decisao", "decisao_motor", "decisao_real_operadora",
+      "tempo_resposta_dias", "glosa_motivo", "valor_glosado",
+      "recurso_administrativo", "recurso_provido"
+    ],
+    "estrategia_recalibracao": "ajuste_pesos_por_correlacao_decisao_motor_x_real",
+    "frequencia_revisao": "mensal"
+  }
+}
