@@ -84,3 +84,5 @@ class DecideResponse(BaseModel):
     tempo_execucao_ms: Optional[int] = None  # tempo de execução do motor
     # v2.0: trace estruturado completo (para persistência e hub explicável)
     v2_trace: Optional[dict] = None
+    # v2.1: idempotência explícita
+    idempotent_replay: bool = False

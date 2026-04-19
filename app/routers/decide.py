@@ -66,9 +66,21 @@ async def decide_package(
 
 
 # ── Idempotency cache (in-memory, suficiente para single-instance Render) ──
+# Duas camadas: trace_id (explícito) + payload hash (fallback)
 # key: idempotency_key, value: (timestamp, DecideResponse.dict())
 _IDEMPOTENCY_CACHE: dict = {}
+# Camada adicional: trace_id -> resposta (prioridade sobre hash)
+_TRACE_IDEMPOTENCY: dict = {}
 IDEMPOTENCY_WINDOW_SEC = 300  # 5 minutos
+
+
+def _gc_caches() -> None:
+    """Garbage-collect entradas expiradas de ambos os caches."""
+    now = time.time()
+    for cache in (_IDEMPOTENCY_CACHE, _TRACE_IDEMPOTENCY):
+        expired = [k for k, (ts, _) in cache.items() if now - ts > IDEMPOTENCY_WINDOW_SEC]
+        for k in expired:
+            del cache[k]
 
 
 def _compute_idempotency_key(req: DecideRequest, user_email: str) -> str:
@@ -77,23 +89,29 @@ def _compute_idempotency_key(req: DecideRequest, user_email: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def _check_idempotency(key: str) -> dict | None:
-    """Retorna resposta cacheada se dentro da janela, senão None."""
+def _check_idempotency(key: str, trace_id: str | None = None) -> dict | None:
+    """Retorna resposta cacheada se dentro da janela, senão None.
+    Prioridade: trace_id explícito > payload hash."""
+    _gc_caches()
     now = time.time()
-    # Limpar entradas antigas (garbage collect)
-    expired = [k for k, (ts, _) in _IDEMPOTENCY_CACHE.items() if now - ts > IDEMPOTENCY_WINDOW_SEC]
-    for k in expired:
-        del _IDEMPOTENCY_CACHE[k]
-    # Verificar cache
+    # Camada 1: trace_id explícito (enviado pelo frontend)
+    if trace_id:
+        entry = _TRACE_IDEMPOTENCY.get(trace_id)
+        if entry and (now - entry[0]) < IDEMPOTENCY_WINDOW_SEC:
+            return entry[1]
+    # Camada 2: hash de payload (fallback)
     entry = _IDEMPOTENCY_CACHE.get(key)
     if entry and (now - entry[0]) < IDEMPOTENCY_WINDOW_SEC:
         return entry[1]
     return None
 
 
-def _store_idempotency(key: str, response_dict: dict) -> None:
-    """Armazena resposta no cache de idempotência."""
-    _IDEMPOTENCY_CACHE[key] = (time.time(), response_dict)
+def _store_idempotency(key: str, response_dict: dict, trace_id: str | None = None) -> None:
+    """Armazena resposta em ambos os caches."""
+    now = time.time()
+    _IDEMPOTENCY_CACHE[key] = (now, response_dict)
+    if trace_id:
+        _TRACE_IDEMPOTENCY[trace_id] = (now, response_dict)
 
 
 @router.post("", response_model=DecideResponse)
@@ -108,15 +126,17 @@ async def decide(
     t_start = datetime.now(timezone.utc)
     user_email = user.get("email", "unknown")
 
-    # ── Idempotência: detectar duplo envio ──
+    # ── Idempotência: detectar duplo envio (trace_id > hash) ──
     idem_key = _compute_idempotency_key(req, user_email)
-    cached = _check_idempotency(idem_key)
+    cached = _check_idempotency(idem_key, trace_id=trace_id)
     if cached:
         logger.info(
             f"[decide] IDEMPOTENCY_HIT key={idem_key} trace={trace_id} "
             f"returning cached run={cached.get('decision_run_id')}"
         )
-        return DecideResponse(**cached)
+        replay = DecideResponse(**cached)
+        replay.idempotent_replay = True
+        return replay
 
     log = NeuroLog(
         trace_id=trace_id,
@@ -195,8 +215,8 @@ async def decide(
                 user_email=user_email,
             )
 
-        # ── Armazenar no cache de idempotência ──
-        _store_idempotency(idem_key, resultado.model_dump())
+        # ── Armazenar no cache de idempotência (ambas camadas) ──
+        _store_idempotency(idem_key, resultado.model_dump(), trace_id=trace_id)
 
         # Evento 8 — response_sent
         latency = int((datetime.now(timezone.utc) - t_start).total_seconds() * 1000)
