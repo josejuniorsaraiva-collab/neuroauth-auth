@@ -172,6 +172,88 @@ async def v2_decide(
     })
 
     try:
+        # ── HARDENING V1 REUTILIZADO ──
+        # Converte dict→DecideRequest, roda hardening, injeta campos derivados
+        try:
+            from app.services.input_hardening import run_hardening, _detectar_deficit_motor
+            from app.models.decide import DecideRequest as DR, OpmeItem
+
+            # Construir DecideRequest a partir do dict do frontend
+            opme_raw = case.get("opme_items", [])
+            opme_items = []
+            if isinstance(opme_raw, list):
+                for o in opme_raw:
+                    if isinstance(o, dict):
+                        opme_items.append(OpmeItem(
+                            descricao=o.get("descricao", ""),
+                            qtd=int(o.get("qtd", 1)) if o.get("qtd") else 1,
+                            fabricante=o.get("fabricante", ""),
+                        ))
+
+            dr = DR(
+                cid_principal=case.get("cid_principal", ""),
+                procedimento=case.get("procedimento", ""),
+                cod_cbhpm=case.get("cod_cbhpm", ""),
+                convenio=case.get("convenio", ""),
+                indicacao_clinica=case.get("indicacao_clinica", ""),
+                achados_resumo=case.get("achados_resumo", ""),
+                tto_conservador=case.get("tto_conservador", ""),
+                necessita_opme=case.get("necessita_opme", "Não"),
+                opme_items=opme_items,
+                crm=case.get("crm", ""),
+                cbo=case.get("cbo", ""),
+                medico_solicitante=case.get("medico_solicitante", ""),
+            )
+
+            hr = run_hardening(dr)
+
+            # Injetar campos derivados no case para o motor v2
+            case["cid"] = case.get("cid_principal", "") or "CID nao informado"
+            case["procedimento_descricao"] = case.get("procedimento", "")
+            case["urgencia_caracterizada"] = hr.urgencia_hsa or (
+                case.get("carater", "").lower() in ("urgência", "urgencia", "emergência", "emergencia")
+            )
+            case["deficit_motor_mencionado"] = _detectar_deficit_motor(
+                (case.get("indicacao_clinica", "") or "") + " " + (case.get("achados_resumo", "") or "")
+            )
+            case["cid_format_invalido"] = not bool(
+                (case.get("cid_principal", "") or "").strip()
+            ) or not (case.get("cid_principal", "") or "")[0:1].isalpha()
+            case["crm_presente"] = bool((case.get("crm", "") or "").strip())
+            case["assinatura_presente"] = bool((case.get("medico_solicitante", "") or "").strip())
+            case["carimbo_presente"] = case["crm_presente"]
+            case["justificativa_clinica_length"] = len(
+                (case.get("indicacao_clinica", "") or "").strip()
+            )
+            case["conservador_documentado"] = not hr.conservador_incompleto
+            case["imagem_mencionada"] = any(
+                t in ((case.get("indicacao_clinica", "") or "") + " " + (case.get("achados_resumo", "") or "")).lower()
+                for t in ["rm", "ressonância", "ressonancia", "tc", "tomografia", "mri"]
+            )
+            case["opme_presente"] = case.get("necessita_opme", "") == "Sim"
+            case["opme_cotacoes_count"] = len(opme_items)
+            case["lateralidade_ausente"] = not bool((case.get("lateralidade", "") or "").strip())
+            case["lateralidade_aplicavel"] = any(
+                t in (case.get("procedimento", "") or "").lower()
+                for t in ["lombar", "cervical", "craniotomia"]
+            )
+            case["convenio_perfil"] = case.get("convenio", "DEFAULT")
+
+            # Injetar hardening pendências como campo auxiliar
+            case["_hardening_pendencias_count"] = len(hr.pendencias)
+            case["_hardening_bloqueios_count"] = len(hr.bloqueios)
+            case["_hardening_pre_analise"] = hr.pre_analise_apenas
+
+            logger.info(
+                "[v2] hardening OK: pendencias=%d bloqueios=%d deficit=%s cid_ok=%s just_len=%d",
+                len(hr.pendencias), len(hr.bloqueios),
+                case["deficit_motor_mencionado"],
+                not case["cid_format_invalido"],
+                case["justificativa_clinica_length"],
+            )
+        except Exception as e:
+            logger.warning("[v2] hardening falhou: %s", e)
+
         # Executar motor v2.3.1
         log.emit("decision_started", status="ok", details={
             "engine_version": "v2.3.1",

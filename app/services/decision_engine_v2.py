@@ -191,17 +191,24 @@ class DecisionEngine:
         self.consolidacao = ruleset["consolidacao"]
         self.context = context or {}
 
-        # Indexar por camada
+        # Indexar por camada (pular regras desativadas)
         self.rules_by_layer = {"ANS": [], "EVIDENCIA": [], "OPERADORA": []}
+        n_disabled = 0
         for rule in self.rules:
+            if rule.get("disabled"):
+                n_disabled += 1
+                continue
             camada = rule["camada"]
             if camada in self.rules_by_layer:
                 self.rules_by_layer[camada].append(rule)
 
         logger.info(
-            "Motor v%s carregado: %d regras (%d ANS, %d EV, %d OP), %d perfis",
+            "Motor v%s carregado: %d regras (%d ativas, %d desativadas) "
+            "(%d ANS, %d EV, %d OP), %d perfis",
             ruleset.get("schema_version", "?"),
             len(self.rules),
+            len(self.rules) - n_disabled,
+            n_disabled,
             len(self.rules_by_layer["ANS"]),
             len(self.rules_by_layer["EVIDENCIA"]),
             len(self.rules_by_layer["OPERADORA"]),
@@ -236,6 +243,8 @@ class DecisionEngine:
                 referencias_faltando.add((rule_id, value))
 
         for rule in self.rules:
+            if rule.get("disabled"):
+                continue
             inspect(rule["condition"], rule["id"])
 
         if referencias_faltando:
@@ -532,7 +541,7 @@ class DecisionEngine:
         """
         Defesa pre-montada usando contexto clinico real do caso.
         """
-        cid = case.get("cid", "CID nao informado")
+        cid = case.get("cid") or case.get("cid_principal") or "CID nao informado"
         proc = case.get("procedimento_descricao", "procedimento")
         urgencia = case.get("urgencia_caracterizada", False)
         deficit = case.get("deficit_motor_mencionado", False)
@@ -590,7 +599,7 @@ class DecisionEngine:
     @staticmethod
     def _build_summary(case: dict, result: DecisionResult, layers: dict) -> str:
         proc = case.get("procedimento_descricao", "Procedimento")
-        cid = case.get("cid", "CID nao informado")
+        cid = case.get("cid") or case.get("cid_principal") or "CID nao informado"
         return (
             f"{proc} (CID {cid}). Decisao: {result.final_gate} "
             f"(score {result.final_score}/100, risco {result.final_risk}). "

@@ -76,6 +76,8 @@
 
     {
       "id": "ANS_001",
+      "disabled": true,
+      "disabled_reason": "campo fora_rol_lei_14454_invocada indisponivel + rol_ans_465 nao no context",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -96,6 +98,8 @@
     },
     {
       "id": "ANS_002",
+      "disabled": true,
+      "disabled_reason": "campos dut_aplicavel e dut_cumprida_integral indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -115,6 +119,8 @@
     },
     {
       "id": "ANS_003",
+      "disabled": true,
+      "disabled_reason": "campo cid_compativel_com_tuss indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -132,6 +138,8 @@
     },
     {
       "id": "ANS_004",
+      "disabled": true,
+      "disabled_reason": "campo opme.registro_anvisa indisponivel (item-level ANVISA nao parseado)",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -168,6 +176,8 @@
     },
     {
       "id": "ANS_006",
+      "disabled": true,
+      "disabled_reason": "campo carencia_contratual_violada indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -186,6 +196,8 @@
     },
     {
       "id": "EV_001",
+      "disabled": true,
+      "disabled_reason": "campos falha_terapeutica_exigida e falha_terapeutica_documentada indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -206,6 +218,8 @@
     },
     {
       "id": "EV_002",
+      "disabled": true,
+      "disabled_reason": "campos procedimento_experimental e evidencia_robusta indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -225,6 +239,8 @@
     },
     {
       "id": "EV_003",
+      "disabled": true,
+      "disabled_reason": "campos reoperacao e laudo_cirurgia_anterior_anexado indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -245,6 +261,8 @@
     },
     {
       "id": "OP_001",
+      "disabled": true,
+      "disabled_reason": "campo opme_coerente_com_procedimento indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "OPERADORA",
@@ -262,6 +280,8 @@
     },
     {
       "id": "OP_002",
+      "disabled": true,
+      "disabled_reason": "campo divergencia_grave_entre_guias indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "OPERADORA",
@@ -280,6 +300,8 @@
 
     {
       "id": "ANS_M01",
+      "disabled": true,
+      "disabled_reason": "campo dut_cumprida_parcial indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -314,6 +336,8 @@
     },
     {
       "id": "EV_M01",
+      "disabled": true,
+      "disabled_reason": "campo exame_imagem_idade_meses indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -330,6 +354,8 @@
     },
     {
       "id": "EV_M02",
+      "disabled": true,
+      "disabled_reason": "campo graduacao_objetiva_0_5_presente indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -384,6 +410,8 @@
     },
     {
       "id": "EV_M05",
+      "disabled": true,
+      "disabled_reason": "campo tempo_evolucao_documentado indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -400,6 +428,8 @@
     },
     {
       "id": "OP_M01",
+      "disabled": true,
+      "disabled_reason": "campo opme_tem_similar_nacional indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "OPERADORA",
@@ -419,6 +449,8 @@
     },
     {
       "id": "OP_M02",
+      "disabled": true,
+      "disabled_reason": "campo opme_especificada_por_marca e opme_especificacao_tecnica_presente indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "OPERADORA",
@@ -456,6 +488,8 @@
     },
     {
       "id": "OP_M04",
+      "disabled": true,
+      "disabled_reason": "campos custo_acima_teto_convenio e narrativa_score indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "OPERADORA",
@@ -494,6 +528,8 @@
     },
     {
       "id": "FLEX_002",
+      "disabled": true,
+      "disabled_reason": "campos judicial_risk_score e indicacao_clinica_clara indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "OPERADORA",
@@ -513,6 +549,8 @@
     },
     {
       "id": "FLEX_003",
+      "disabled": true,
+      "disabled_reason": "campos fora_do_rol, evidencia_forte, ausencia_alternativa_documentada indisponiveis",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "ANS",
@@ -533,6 +571,8 @@
     },
     {
       "id": "FLEX_004",
+      "disabled": true,
+      "disabled_reason": "campo guideline_aplicavel_citado indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
@@ -550,6 +590,8 @@
     },
     {
       "id": "FLEX_005",
+      "disabled": true,
+      "disabled_reason": "campo termos_alta_conversao_count indisponivel",
       "version": "1.0",
       "last_update": "2026-04-19",
       "camada": "EVIDENCIA",
