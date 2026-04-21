@@ -239,6 +239,43 @@ async def v2_decide(
             )
             case["convenio_perfil"] = case.get("convenio", "DEFAULT")
 
+            # ── P1: Conservador mínimo por convênio em coluna eletiva ──
+            # Campos derivados para regra ANS_COL_001
+            _COLUNA_KEYWORDS = [
+                "artrodese", "laminectomia", "discectomia", "foraminotomia",
+                "coluna", "cervical", "lombar", "torácica", "toracica", "acdf",
+                "descompressão", "descompressao", "fusão", "fusao", "corpectomia",
+            ]
+            _proc_lower = (case.get("procedimento", "") or "").lower()
+            _cid_lower = (case.get("cid_principal", "") or "").lower()
+            _text_coluna = f"{_proc_lower} {_cid_lower}"
+            _is_coluna = any(kw in _text_coluna for kw in _COLUNA_KEYWORDS)
+            _is_urgencia = case.get("urgencia_caracterizada", False)
+            _has_deficit = case.get("deficit_motor_mencionado", False)
+
+            case["coluna_eletiva_sem_excecao"] = _is_coluna and not _is_urgencia and not _has_deficit
+
+            # Mínimo de semanas por convênio
+            _conv = (case.get("convenio", "") or "").strip().lower()
+            if "bradesco" in _conv or "sul" in _conv:
+                _min_weeks = 8
+            elif "unimed" in _conv:
+                _min_weeks = 6
+            else:
+                _min_weeks = 4
+
+            _raw_sem = case.get("semanas_conservador", 0)
+            try:
+                _sem = int(_raw_sem) if _raw_sem else 0
+            except (ValueError, TypeError):
+                _sem = 0
+
+            case["conservador_abaixo_minimo_convenio"] = _sem < _min_weeks
+            case["_p1_min_weeks"] = _min_weeks
+            case["_p1_semanas_doc"] = _sem
+            case["_p1_is_coluna"] = _is_coluna
+            # ── FIM P1 ──
+
             # Injetar hardening pendências como campo auxiliar
             case["_hardening_pendencias_count"] = len(hr.pendencias)
             case["_hardening_bloqueios_count"] = len(hr.bloqueios)

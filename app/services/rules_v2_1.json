@@ -175,6 +175,26 @@
       "override_possivel": false
     },
     {
+      "id": "ANS_COL_001",
+      "version": "1.0",
+      "last_update": "2026-04-21",
+      "camada": "ANS",
+      "tipo": "DURA",
+      "weight": 20,
+      "action": "NO_GO",
+      "condition": {
+        "operator": "AND",
+        "clauses": [
+          { "field": "coluna_eletiva_sem_excecao",        "op": "equals", "value": true },
+          { "field": "conservador_abaixo_minimo_convenio", "op": "equals", "value": true }
+        ]
+      },
+      "mensagem": "Tratamento conservador abaixo do minimo exigido pelo convenio para cirurgia eletiva de coluna",
+      "correcao": "Documentar tratamento conservador previo com duracao minima conforme exigencia do convenio (Unimed 6sem, Bradesco/SulAmerica 8sem, demais 4sem), ou justificar urgencia/deficit motor objetivo",
+      "override_possivel": true,
+      "override_por": ["urgencia_caracterizada", "deficit_motor_objetivo"]
+    },
+    {
       "id": "ANS_006",
       "disabled": true,
       "disabled_reason": "campo carencia_contratual_violada indisponivel",
