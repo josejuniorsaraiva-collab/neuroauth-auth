@@ -355,6 +355,22 @@
       "correcao": "Normalizar codigo conforme padrao TUSS/TISS (com hifenizacao correta)"
     },
     {
+      "id": "EVID_STRUCT_001",
+      "version": "1.0",
+      "last_update": "2026-04-21",
+      "camada": "EVIDENCIA",
+      "tipo": "MODERADA",
+      "weight": 15,
+      "action": "RESSALVA",
+      "condition": {
+        "field": "evidencia_estrutura_pobre",
+        "op": "equals",
+        "value": true
+      },
+      "mensagem": "Estrutura clinica insuficiente: 2 ou mais pilares documentais ausentes (indicacao clinica, achados de imagem, diagnostico)",
+      "correcao": "Completar: indicacao clinica detalhada (min 30 chars), achados de imagem ou laudo (min 20 chars) e diagnostico/CID"
+    },
+    {
       "id": "EV_M01",
       "disabled": true,
       "disabled_reason": "campo exame_imagem_idade_meses indisponivel",

@@ -276,6 +276,30 @@ async def v2_decide(
             case["_p1_is_coluna"] = _is_coluna
             # ── FIM P1 ──
 
+            # ── P2: Coerência estrutural clínica (EVID_STRUCT_001) ──
+            # Conta quantos dos 3 pilares documentais estão fracos/ausentes
+            _ind_len = len((case.get("indicacao_clinica", "") or "").strip())
+            _ach_len = len((case.get("achados_resumo", "") or "").strip())
+            _diag = (case.get("diagnostico", "") or case.get("cid_principal", "") or "").strip()
+            _laudo_len = len((case.get("laudo_imagem", "") or "").strip())
+
+            # Pilares fracos: indicação <30 chars, achados <20 chars, diagnóstico vazio
+            _pilares_fracos = 0
+            if _ind_len < 30:
+                _pilares_fracos += 1
+            if _ach_len < 20 and _laudo_len < 20:
+                _pilares_fracos += 1
+            if not _diag or len(_diag) < 3:
+                _pilares_fracos += 1
+
+            # Dispara se 2+ pilares fracos (estrutura realmente pobre)
+            case["evidencia_estrutura_pobre"] = _pilares_fracos >= 2
+            case["_p2_pilares_fracos"] = _pilares_fracos
+            case["_p2_ind_len"] = _ind_len
+            case["_p2_ach_len"] = _ach_len
+            case["_p2_diag_present"] = bool(_diag and len(_diag) >= 3)
+            # ── FIM P2 ──
+
             # Injetar hardening pendências como campo auxiliar
             case["_hardening_pendencias_count"] = len(hr.pendencias)
             case["_hardening_bloqueios_count"] = len(hr.bloqueios)
