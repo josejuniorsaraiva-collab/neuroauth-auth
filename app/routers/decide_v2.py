@@ -380,10 +380,29 @@ class ShadowLogPayload(BaseModel):
 
 TAB_SHADOW_COMPARE = "23_SHADOW_COMPARE"
 
-# Critérios de virada automática
-SHADOW_MIN_CASES = 5           # Mínimo de casos para avaliar
-SHADOW_CONCORDANCE_THRESHOLD = 0.7  # 70% concordância mínima
-SHADOW_FALSE_NOGO_MAX = 1     # Máximo de falsos NO_GO tolerados
+# ── Critérios de promoção v2 → produção ──────────────────────
+# Fase 1 (atual): concordância v1 vs v2
+SHADOW_MIN_CASES = 10          # Mínimo de casos para primeira análise
+SHADOW_CONCORDANCE_THRESHOLD = 0.70  # 70% concordância mínima (fase 1)
+SHADOW_FALSE_NOGO_MAX = 1     # Máximo de falsos NO_GO v2 tolerados
+
+# Fase 2 (com desfecho real): acurácia v2 vs operadora
+SHADOW_MIN_DESFECHOS = 10      # Mínimo de desfechos reais para avaliar acurácia
+SHADOW_V2_ACCURACY_MIN = 0.80  # v2 precisa ≥80% acurácia vs desfecho real
+SHADOW_V2_FP_MAX_RATE = 0.05   # Máximo 5% falso positivo (GO quando operadora glosa)
+SHADOW_V2_FN_TOLERANCE = 0.15  # Até 15% falso negativo tolerável (NO_GO quando aprovaria)
+
+# Colunas extras para desfecho real (preenchimento manual)
+SHADOW_EXTRA_COLS = [
+    "desfecho_real",        # AUTORIZADO / GLOSADO / PARCIAL / JUDICIALIZADO / PENDENTE
+    "v1_acerto",            # VP / VN / FP / FN (fórmula Sheets — S2 olha H2 e R2)
+    "v2_acerto",            # VP / VN / FP / FN (fórmula Sheets — T2 olha K2 e R2)
+    "erro_critico",         # SIM / NAO
+    "nota_clinica",         # texto livre
+    "data_desfecho",        # ISO date
+    "tipo_divergencia",     # V1_GO_V2_NO_GO / V1_NO_GO_V2_GO / IGUAL (auto)
+    "procedimento_cluster", # cervical / lombar / tumor / aneurisma / opme / endovascular / outro
+]
 
 
 def _persist_shadow_log(payload: ShadowLogPayload, user_email: str) -> None:
@@ -399,7 +418,7 @@ def _persist_shadow_log(payload: ShadowLogPayload, user_email: str) -> None:
         try:
             ws = ss.worksheet(TAB_SHADOW_COMPARE)
         except Exception:
-            ws = ss.add_worksheet(title=TAB_SHADOW_COMPARE, rows=500, cols=20)
+            ws = ss.add_worksheet(title=TAB_SHADOW_COMPARE, rows=500, cols=25)
             ws.append_row([
                 "timestamp", "user_email",
                 "trace_id_v1", "trace_id_v2",
@@ -408,6 +427,10 @@ def _persist_shadow_log(payload: ShadowLogPayload, user_email: str) -> None:
                 "v2_gate", "v2_score", "v2_risk",
                 "v2_pending_count", "v2_pending_items",
                 "v2_summary", "concordancia",
+                # Colunas de desfecho (manual + fórmula)
+                "desfecho_real", "v1_acerto", "v2_acerto",
+                "erro_critico", "nota_clinica", "data_desfecho",
+                "tipo_divergencia", "procedimento_cluster",
             ])
 
         # Determinar concordância
@@ -496,78 +519,224 @@ async def v2_shadow_report(user: dict = Depends(require_authorized)):
         discordantes = total - concordantes
         taxa_concordancia = concordantes / total if total > 0 else 0
 
-        # Falsos NO_GO: v2 deu NO_GO/RESSALVA mas v1 aprovou
-        falsos_nogo = sum(
+        # Falsos NO_GO v2: v2 deu NO_GO mas v1 aprovou
+        falsos_nogo_v2 = sum(
             1 for r in rows
             if r.get("v1_gate") in ("GO", "GO_COM_RESSALVAS", "APROVADO")
             and r.get("v2_gate") in ("NO_GO", "RESSALVA")
         )
 
-        # v2 mais rigoroso: casos onde v2 pegou mais pendências
+        # Falsos GO v2: v2 deu GO mas v1 bloqueou (v2 permissivo)
+        falsos_go_v2 = sum(
+            1 for r in rows
+            if r.get("v1_gate") == "NO_GO"
+            and r.get("v2_gate") in ("GO", "GO_COM_RESSALVAS")
+        )
+
+        # v2 mais rigoroso: v2 pegou pendências em caso aprovado pelo v1
         v2_mais_rigoroso = sum(
             1 for r in rows
             if int(r.get("v2_pending_count", 0) or 0) > 0
             and r.get("v1_gate") in ("GO", "GO_COM_RESSALVAS", "APROVADO")
         )
 
+        # Score distribution v2
+        v2_scores = [int(r.get("v2_score", 0) or 0) for r in rows]
+        score_min = min(v2_scores) if v2_scores else 0
+        score_max = max(v2_scores) if v2_scores else 0
+        score_avg = round(sum(v2_scores) / len(v2_scores), 1) if v2_scores else 0
+        score_spread = score_max - score_min
+
+        # ── Tipo de divergência (calculado) ────────────────────────
+        divergencia_counts = {"V1_GO_V2_NO_GO": 0, "V1_NO_GO_V2_GO": 0, "IGUAL": 0}
+        for r in rows:
+            v1_aprova = r.get("v1_gate") in ("GO", "GO_COM_RESSALVAS", "APROVADO")
+            v2_aprova = r.get("v2_gate") in ("GO", "GO_COM_RESSALVAS")
+            if v1_aprova == v2_aprova:
+                divergencia_counts["IGUAL"] += 1
+            elif v1_aprova and not v2_aprova:
+                divergencia_counts["V1_GO_V2_NO_GO"] += 1
+            else:
+                divergencia_counts["V1_NO_GO_V2_GO"] += 1
+
+        # ── Cluster de procedimentos ──────────────────────────────
+        cluster_counts: dict = {}
+        for r in rows:
+            c = r.get("procedimento_cluster", "") or "nao_classificado"
+            cluster_counts[c] = cluster_counts.get(c, 0) + 1
+
+        # ── FASE 2: Acurácia vs desfecho real ──────────────────────
+        # JUDICIALIZADO é excluído da matriz VP/VN/FP/FN — contado separadamente
+        all_desfecho_rows = [r for r in rows if r.get("desfecho_real") and
+                             r.get("desfecho_real") not in ("PENDENTE", "")]
+        judicializados = [r for r in all_desfecho_rows if r.get("desfecho_real") == "JUDICIALIZADO"]
+        desfecho_rows = [r for r in all_desfecho_rows if r.get("desfecho_real") != "JUDICIALIZADO"]
+        n_desfechos = len(desfecho_rows)
+        n_judicializados = len(judicializados)
+
+        acuracia = None
+        if n_desfechos > 0:
+            def _classify(gate: str, desfecho: str) -> str:
+                aprova = gate in ("GO", "GO_COM_RESSALVAS", "APROVADO")
+                real_ok = desfecho in ("AUTORIZADO", "PARCIAL")
+                if aprova and real_ok:     return "VP"
+                if not aprova and not real_ok: return "VN"
+                if aprova and not real_ok: return "FP"
+                return "FN"
+
+            v1_matrix = {"VP": 0, "VN": 0, "FP": 0, "FN": 0}
+            v2_matrix = {"VP": 0, "VN": 0, "FP": 0, "FN": 0}
+            for r in desfecho_rows:
+                d = r.get("desfecho_real", "")
+                v1_class = _classify(r.get("v1_gate", ""), d)
+                v2_class = _classify(r.get("v2_gate", ""), d)
+                v1_matrix[v1_class] += 1
+                v2_matrix[v2_class] += 1
+
+            v1_accuracy = (v1_matrix["VP"] + v1_matrix["VN"]) / n_desfechos
+            v2_accuracy = (v2_matrix["VP"] + v2_matrix["VN"]) / n_desfechos
+            v2_fp_rate = v2_matrix["FP"] / n_desfechos if n_desfechos > 0 else 0
+            v2_fn_rate = v2_matrix["FN"] / n_desfechos if n_desfechos > 0 else 0
+            erros_criticos = sum(1 for r in desfecho_rows if r.get("erro_critico") == "SIM")
+
+            acuracia = {
+                "n_desfechos": n_desfechos,
+                "n_judicializados": n_judicializados,
+                "nota_judicializado": "Excluídos da matriz — classe separada, mistura mérito+estratégia jurídica",
+                "v1": {"accuracy": round(v1_accuracy, 3), **v1_matrix},
+                "v2": {"accuracy": round(v2_accuracy, 3), **v2_matrix},
+                "v2_fp_rate": round(v2_fp_rate, 3),
+                "v2_fn_rate": round(v2_fn_rate, 3),
+                "erros_criticos": erros_criticos,
+                "v2_melhor_que_v1": v2_accuracy >= v1_accuracy,
+            }
+
         # Análise por caso
         casos = []
         for r in rows:
-            casos.append({
+            caso = {
                 "timestamp": r.get("timestamp", ""),
                 "procedimento": r.get("procedimento", ""),
                 "v1_gate": r.get("v1_gate", ""),
                 "v2_gate": r.get("v2_gate", ""),
+                "v2_score": r.get("v2_score", ""),
                 "v2_risk": r.get("v2_risk", ""),
                 "concordancia": r.get("concordancia", ""),
-            })
+                "desfecho_real": r.get("desfecho_real", ""),
+            }
+            casos.append(caso)
 
-        # Recomendação
+        # ── RECOMENDAÇÃO (cascata de critérios) ────────────────────
         if total < SHADOW_MIN_CASES:
             recommendation = "AGUARDAR"
+            phase = "coleta"
             message = (
                 f"Apenas {total} caso(s) coletado(s). "
-                f"Mínimo {SHADOW_MIN_CASES} para avaliar. "
+                f"Mínimo {SHADOW_MIN_CASES} para análise de concordância. "
                 f"Continue enviando casos."
             )
-        elif falsos_nogo > SHADOW_FALSE_NOGO_MAX:
-            recommendation = "CALIBRAR"
+        elif taxa_concordancia < SHADOW_CONCORDANCE_THRESHOLD:
+            recommendation = "CALIBRAR_REGRAS"
+            phase = "concordancia"
             message = (
-                f"{falsos_nogo} falso(s) NO_GO detectado(s). "
-                f"O v2 está bloqueando casos que o v1 aprova. "
-                f"Revisar regras antes de promover."
+                f"Concordância {taxa_concordancia:.0%} ({concordantes}/{total}). "
+                f"Abaixo do limiar de {SHADOW_CONCORDANCE_THRESHOLD:.0%}. "
+                f"Reativar regras para fechar gap. "
+                f"Falsos GO v2: {falsos_go_v2}. Falsos NO_GO v2: {falsos_nogo_v2}."
             )
-        elif taxa_concordancia >= SHADOW_CONCORDANCE_THRESHOLD:
-            recommendation = "PRONTO_PARA_VIRADA"
+        elif n_desfechos < SHADOW_MIN_DESFECHOS:
+            recommendation = "COLETAR_DESFECHOS"
+            phase = "desfecho"
             message = (
-                f"Taxa de concordância {taxa_concordancia:.0%} ({concordantes}/{total}). "
-                f"Falsos NO_GO: {falsos_nogo}. "
-                f"O v2.3.1 está pronto para virar motor principal."
+                f"Concordância OK ({taxa_concordancia:.0%}). "
+                f"Mas apenas {n_desfechos}/{SHADOW_MIN_DESFECHOS} desfechos reais registrados. "
+                f"Preencha a coluna 'desfecho_real' no Sheets para {SHADOW_MIN_DESFECHOS - n_desfechos} casos."
+            )
+        elif acuracia and acuracia["v2_fp_rate"] > SHADOW_V2_FP_MAX_RATE:
+            recommendation = "CALIBRAR_FP"
+            phase = "acuracia"
+            message = (
+                f"Taxa de falso positivo v2: {acuracia['v2_fp_rate']:.0%} "
+                f"(>{SHADOW_V2_FP_MAX_RATE:.0%} tolerado). "
+                f"v2 está aprovando casos que a operadora glosa. "
+                f"Adicionar regras mais restritivas."
+            )
+        elif acuracia and acuracia["v2"]["accuracy"] < SHADOW_V2_ACCURACY_MIN:
+            recommendation = "CALIBRAR_ACURACIA"
+            phase = "acuracia"
+            message = (
+                f"Acurácia v2: {acuracia['v2']['accuracy']:.0%} "
+                f"(mínimo {SHADOW_V2_ACCURACY_MIN:.0%}). "
+                f"v1: {acuracia['v1']['accuracy']:.0%}. "
+                f"v2 ainda não atingiu acurácia mínima."
+            )
+        elif acuracia and not acuracia["v2_melhor_que_v1"]:
+            recommendation = "AVALIAR_MANUAL"
+            phase = "acuracia"
+            message = (
+                f"v2 ({acuracia['v2']['accuracy']:.0%}) ainda pior que v1 "
+                f"({acuracia['v1']['accuracy']:.0%}). "
+                f"Precisa igualar ou superar v1 para promoção."
+            )
+        elif acuracia and acuracia["erros_criticos"] > 0:
+            recommendation = "BLOQUEADO_ERRO_CRITICO"
+            phase = "seguranca"
+            message = (
+                f"{acuracia['erros_criticos']} erro(s) crítico(s) registrado(s). "
+                f"Investigar antes de promover."
+            )
+        elif acuracia and acuracia["v2_melhor_que_v1"]:
+            recommendation = "PRONTO_PARA_VIRADA"
+            phase = "pronto"
+            message = (
+                f"v2 acurácia {acuracia['v2']['accuracy']:.0%} ≥ v1 "
+                f"({acuracia['v1']['accuracy']:.0%}). "
+                f"FP: {acuracia['v2_fp_rate']:.0%} ≤ {SHADOW_V2_FP_MAX_RATE:.0%}. "
+                f"Concordância: {taxa_concordancia:.0%}. "
+                f"Zero erros críticos. v2 pronto para produção."
             )
         else:
             recommendation = "AVALIAR"
-            message = (
-                f"Taxa de concordância {taxa_concordancia:.0%} ({concordantes}/{total}). "
-                f"Abaixo do limiar de {SHADOW_CONCORDANCE_THRESHOLD:.0%}. "
-                f"Analisar os {discordantes} caso(s) discordante(s)."
-            )
+            phase = "indeterminado"
+            message = f"Concordância: {taxa_concordancia:.0%}. Desfechos: {n_desfechos}. Avaliar manualmente."
 
         return {
             "status": "analyzed",
+            "phase": phase,
             "total_cases": total,
-            "concordantes": concordantes,
-            "discordantes": discordantes,
-            "taxa_concordancia": round(taxa_concordancia, 3),
-            "falsos_nogo_v2": falsos_nogo,
-            "v2_mais_rigoroso": v2_mais_rigoroso,
+            # Concordância v1 vs v2
+            "concordancia": {
+                "concordantes": concordantes,
+                "discordantes": discordantes,
+                "taxa": round(taxa_concordancia, 3),
+                "falsos_nogo_v2": falsos_nogo_v2,
+                "falsos_go_v2": falsos_go_v2,
+                "v2_mais_rigoroso": v2_mais_rigoroso,
+            },
+            # Score distribution
+            "v2_scores": {
+                "min": score_min, "max": score_max,
+                "avg": score_avg, "spread": score_spread,
+            },
+            # Acurácia vs desfecho real (null se sem desfechos)
+            "acuracia": acuracia,
+            # Divergência e clusters
+            "divergencia": divergencia_counts,
+            "clusters": cluster_counts,
+            # Recomendação
             "recommendation": recommendation,
             "message": message,
+            # Critérios configurados
             "thresholds": {
                 "min_cases": SHADOW_MIN_CASES,
                 "concordance_min": SHADOW_CONCORDANCE_THRESHOLD,
                 "false_nogo_max": SHADOW_FALSE_NOGO_MAX,
+                "min_desfechos": SHADOW_MIN_DESFECHOS,
+                "v2_accuracy_min": SHADOW_V2_ACCURACY_MIN,
+                "v2_fp_max_rate": SHADOW_V2_FP_MAX_RATE,
+                "v2_fn_tolerance": SHADOW_V2_FN_TOLERANCE,
             },
-            "casos": casos[-10:],  # últimos 10
+            "casos": casos[-15:],  # últimos 15
         }
 
     except Exception as exc:
