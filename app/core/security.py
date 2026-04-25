@@ -17,8 +17,8 @@ bearer_scheme = HTTPBearer()
 AUTHORIZED_EMAILS: set[str] = {
     "josejuniorsaraiva@gmail.com",   # founder — nunca remover
     "josecorreiasaraivajunior@gmail.com",  # dev
-    "francelinob571@gmail.com",      # secretária operacional
-    # "medico2@email.com",           # adicionar médicos alpha aqui
+    "francelinob571@gmail.com",      # secretária operacional (Bruna)
+    "neuroauthautorizacao@gmail.com", # gestora planos de saúde HSA (Karol)
 }
 
 
