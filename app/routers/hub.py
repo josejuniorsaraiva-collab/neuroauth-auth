@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.models.surgeon import CirurgiaoPayload
 from app.services.surgeon_validator import validate_cirurgiao
-from app.services.surgeon_producao import calcular_producao, gravar_producao
+from app.services.surgeon_producao import calcular_producao, gravar_producao, resolve_decision_run_id
 from repositories.sheets_client import (
     get_worksheet as sc_get_worksheet,
     read_all_records as sc_read_all_records,
@@ -569,6 +569,7 @@ async def atribuir_equipe(
         logger.warning("atribuir_equipe: falha ao atualizar 22_EPISODIOS: %s — continuando", exc)
 
     # 3. Calcular produção
+    dr_id = resolve_decision_run_id(caso_id, body.model_dump())
     linhas = calcular_producao(
         caso_id=caso_id,
         valor_base=body.valor_base,
@@ -577,6 +578,7 @@ async def atribuir_equipe(
         principal_id=equipe_dict["cirurgiao_principal"],
         auxiliares=equipe_dict["cirurgioes_auxiliares"],
         data_proc=body.data_procedimento,
+        decision_run_id=dr_id,
     )
 
     # 4. Gravar PRODUCAO

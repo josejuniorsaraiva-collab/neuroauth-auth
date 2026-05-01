@@ -113,11 +113,19 @@ SHEET_CONFIG = {
 
     "PRODUCAO": {
         "title":    "NEUROAUTH — Produção Paralela por Cirurgião",
-        "subtitle": "Registro de produção individual por papel (PRINCIPAL/AUXILIAR_1/AUXILIAR_2/AUXILIAR_3)",
+        "subtitle": "Registro de produção individual por papel (PRINCIPAL/AUXILIAR_1/AUXILIAR_2/AUXILIAR_3) | snapshot financeiro imutável",
         "header":   [
+            # identidade
             "caso_id", "cirurgiao_id", "papel", "ordem_auxiliar",
-            "valor_base", "percentual_aplicado", "valor_calculado",
+            # snapshot financeiro imutável
+            "valor_base", "valor_base_usado", "percentual_aplicado", "valor_calculado",
+            # auditoria da regra aplicada
+            "operadora_detectada", "porte_detectado", "fonte_regra",
+            # rastreabilidade temporal
+            "timestamp_calculo", "decision_run_id",
+            # contexto do procedimento
             "data_procedimento", "operadora",
+            # status
             "status_autorizacao", "status_pagamento",
         ],
         "seed": [],  # só header — dados gerados via calcular_producao()
