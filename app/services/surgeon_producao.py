@@ -322,6 +322,14 @@ def gravar_producao(linhas: list[dict]) -> bool:
         logger.warning("gravar_producao: lista vazia, nada a gravar.")
         return True
 
+    # ── Guard de período fechado ──────────────────────────────────────────────
+    periodo_comp = str(linhas[0].get("periodo_competencia", "")).strip()
+    if periodo_comp and _get_status_periodo_internal(periodo_comp) == "FECHADO":
+        raise PermissionError(
+            f"Período {periodo_comp} está FECHADO. "
+            f"Novas gravações bloqueadas. Use /retificar para ajustes."
+        )
+
     try:
         ws = get_worksheet(TAB_PRODUCAO)
     except Exception as exc:
@@ -378,3 +386,179 @@ def gravar_producao(linhas: list[dict]) -> bool:
         )
 
     return erros == 0
+
+
+# ============================================================
+# GOVERNANÇA FINANCEIRA — feat: controlled amendment + period closure
+# Commit: feat: financial governance — retificação + fechamento de competência
+# ============================================================
+
+import uuid as _uuid
+
+TAB_AUDIT    = "PRODUCAO_AUDIT"
+TAB_PERIODOS = "PERIODOS_COMPETENCIA"
+
+
+# ── Adapter: envolve API interna na interface compatível com MagicMock (testes) ──
+
+class _SheetsAdapter:
+    def get_all_records(self, worksheet: str) -> list:
+        return read_all_records(get_worksheet(worksheet), head=HEAD)
+
+    def append_row_by_header(self, worksheet: str, row_data: dict) -> None:
+        append_row_by_header(get_worksheet(worksheet), row_data, head=HEAD)
+
+def _make_client() -> "_SheetsAdapter":
+    return _SheetsAdapter()
+
+
+# ── Status de período ─────────────────────────────────────────────────────────
+
+def get_status_periodo(sheet_client, periodo: str) -> str:
+    """Retorna 'ABERTO' ou 'FECHADO'. Default 'ABERTO' se período não cadastrado."""
+    try:
+        rows = sheet_client.get_all_records(worksheet=TAB_PERIODOS)
+        for r in rows:
+            if str(r.get("periodo", "")).strip() == periodo.strip():
+                return str(r.get("status", "ABERTO")).strip().upper()
+    except Exception:
+        pass
+    return "ABERTO"
+
+
+def _get_status_periodo_internal(periodo: str) -> str:
+    """Wrapper interno sem injeção — usado por gravar_producao() na produção."""
+    return get_status_periodo(_make_client(), periodo)
+
+
+# ── Fechamento de competência ─────────────────────────────────────────────────
+
+def fechar_periodo(sheet_client, periodo: str, usuario: str) -> dict:
+    """
+    Fecha o período de competência YYYY-MM.
+    Após fechamento:
+      - gravar_producao() bloqueia novas gravações
+      - retificar_producao() exige forcar=True
+    """
+    status = get_status_periodo(sheet_client, periodo)
+    if status == "FECHADO":
+        raise ValueError(f"Período {periodo} já está FECHADO.")
+
+    rows = sheet_client.get_all_records(worksheet=TAB_PRODUCAO)
+    linhas_periodo = [
+        r for r in rows
+        if str(r.get("periodo_competencia", "")).strip() == periodo
+        and str(r.get("status_producao", "")).strip().upper() == "ABERTO"
+    ]
+    total_casos = len(set(str(r.get("caso_id", "")) for r in linhas_periodo))
+    valor_total = sum(float(r.get("valor_calculado", 0) or 0) for r in linhas_periodo)
+
+    sheet_client.append_row_by_header(
+        worksheet=TAB_PERIODOS,
+        row_data={
+            "periodo":     periodo,
+            "status":      "FECHADO",
+            "fechado_em":  datetime.utcnow().isoformat() + "Z",
+            "fechado_por": usuario,
+            "total_casos": str(total_casos),
+            "valor_total": str(round(valor_total, 2)),
+        }
+    )
+    return {
+        "periodo":     periodo,
+        "status":      "FECHADO",
+        "total_casos": total_casos,
+        "valor_total": round(valor_total, 2),
+    }
+
+
+# ── Retificação controlada ────────────────────────────────────────────────────
+
+def retificar_producao(
+    caso_id:     str,
+    sheet_client,
+    motivo:      str,
+    usuario:     str,
+    novos_dados: dict,
+    forcar:      bool = False,
+) -> dict:
+    """
+    Retificação controlada de produção.
+
+    Regras imutáveis:
+    - Nunca apaga linha existente
+    - Cria nova versão (v2, v3...) com os novos dados
+    - Marca versão anterior como SUBSTITUIDA
+    - Grava rastro completo em PRODUCAO_AUDIT
+    - Período FECHADO bloqueia; use forcar=True para override (registrado no audit)
+    """
+    rows = sheet_client.get_all_records(worksheet=TAB_PRODUCAO)
+    linhas_ativas = [
+        r for r in rows
+        if str(r.get("caso_id", "")).strip() == caso_id
+        and str(r.get("status_producao", "")).strip().upper() != "SUBSTITUIDA"
+    ]
+    if not linhas_ativas:
+        raise ValueError(f"Nenhuma linha ativa encontrada para caso_id={caso_id}")
+
+    def _vnum(r):
+        try:
+            return int(str(r.get("versao", "v1")).strip().lower().replace("v", ""))
+        except Exception:
+            return 1
+
+    linha_atual  = max(linhas_ativas, key=_vnum)
+    versao_atual = _vnum(linha_atual)
+    versao_nova  = versao_atual + 1
+
+    periodo = str(linha_atual.get("periodo_competencia", "")).strip()
+    periodo_fechado = False
+    if periodo:
+        if get_status_periodo(sheet_client, periodo) == "FECHADO":
+            periodo_fechado = True
+            if not forcar:
+                raise PermissionError(
+                    f"Período {periodo} está FECHADO. "
+                    f"Use forcar=True com motivo explícito para override."
+                )
+
+    # 1. Gravar snapshot SUBSTITUIDA
+    linha_sub = dict(linha_atual)
+    linha_sub["status_producao"] = "SUBSTITUIDA"
+    linha_sub["substituida_em"]  = datetime.utcnow().isoformat() + "Z"
+    linha_sub["substituida_por"] = f"v{versao_nova}"
+    sheet_client.append_row_by_header(worksheet=TAB_PRODUCAO, row_data=linha_sub)
+
+    # 2. Gravar nova versão
+    nova = dict(linha_atual)
+    nova.update(novos_dados)
+    nova["versao"]            = f"v{versao_nova}"
+    nova["status_producao"]   = "ABERTO"
+    nova["timestamp_calculo"] = datetime.utcnow().isoformat() + "Z"
+    nova["substituida_em"]    = ""
+    nova["substituida_por"]   = ""
+    sheet_client.append_row_by_header(worksheet=TAB_PRODUCAO, row_data=nova)
+
+    # 3. Audit log
+    audit_id = _uuid.uuid4().hex[:8].upper()
+    override = " [OVERRIDE_PERIODO_FECHADO]" if periodo_fechado else ""
+    sheet_client.append_row_by_header(
+        worksheet=TAB_AUDIT,
+        row_data={
+            "audit_id":         audit_id,
+            "caso_id":          caso_id,
+            "versao_anterior":  f"v{versao_atual}",
+            "versao_nova":      f"v{versao_nova}",
+            "usuario":          usuario,
+            "motivo":           motivo + override,
+            "timestamp_audit":  datetime.utcnow().isoformat() + "Z",
+            "action":           "RETIFICACAO_FORCADA" if forcar else "RETIFICACAO",
+            "campos_alterados": str(list(novos_dados.keys())),
+        }
+    )
+    return {
+        "audit_id":    audit_id,
+        "caso_id":     caso_id,
+        "versao_nova": f"v{versao_nova}",
+        "ok":          True,
+    }

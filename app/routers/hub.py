@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.models.surgeon import CirurgiaoPayload
 from app.services.surgeon_validator import validate_cirurgiao
-from app.services.surgeon_producao import calcular_producao, gravar_producao, resolve_decision_run_id
+from app.services.surgeon_producao import calcular_producao, gravar_producao, resolve_decision_run_id, retificar_producao, fechar_periodo, get_status_periodo, _make_client
 from repositories.sheets_client import (
     get_worksheet as sc_get_worksheet,
     read_all_records as sc_read_all_records,
@@ -600,3 +600,99 @@ async def atribuir_equipe(
         producao=linhas,
         gravado=gravado,
     )
+
+
+# ============================================================
+# GOVERNANÇA FINANCEIRA — endpoints de retificação e fechamento
+# ============================================================
+
+TAB_PERIODOS_HUB = "PERIODOS_COMPETENCIA"
+
+
+@router.post("/producao/{caso_id}/retificar")
+async def endpoint_retificar_producao(
+    caso_id:     str,
+    motivo:      str,
+    usuario:     str,
+    novos_dados: dict,
+    forcar:      bool = False,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Retificação controlada de produção financeira.
+
+    - Nunca apaga linha existente.
+    - Cria nova versão e marca a anterior como SUBSTITUIDA.
+    - Grava rastro em PRODUCAO_AUDIT (audit_id, usuario, motivo, timestamp).
+    - Período FECHADO rejeita a não ser que forcar=True.
+    """
+    if not motivo or not motivo.strip():
+        raise HTTPException(status_code=400, detail="Campo 'motivo' é obrigatório.")
+    if not usuario or not usuario.strip():
+        raise HTTPException(status_code=400, detail="Campo 'usuario' é obrigatório.")
+    if not novos_dados:
+        raise HTTPException(status_code=400, detail="novos_dados não pode ser vazio.")
+
+    client = _make_client()
+    try:
+        return retificar_producao(caso_id, client, motivo, usuario, novos_dados, forcar)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {e}")
+
+
+@router.post("/producao/fechar/{periodo}")
+async def endpoint_fechar_periodo(
+    periodo: str,
+    usuario: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Fecha o período de competência YYYY-MM.
+    Após fechamento: gravações bloqueadas, retificação exige forcar=True.
+    """
+    import re
+    if not re.match(r"^\d{4}-\d{2}$", periodo):
+        raise HTTPException(status_code=400, detail="Período deve ser YYYY-MM (ex: 2026-04).")
+    if not usuario or not usuario.strip():
+        raise HTTPException(status_code=400, detail="Campo 'usuario' é obrigatório.")
+
+    client = _make_client()
+    try:
+        return fechar_periodo(client, periodo, usuario)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {e}")
+
+
+@router.get("/producao/status/{periodo}")
+async def endpoint_status_periodo(
+    periodo: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Retorna status e totais do período de competência.
+    Response: periodo, status (ABERTO|FECHADO), total_casos, total_linhas_ativas, valor_total
+    """
+    client = _make_client()
+    try:
+        status = get_status_periodo(client, periodo)
+        rows   = client.get_all_records(worksheet=TAB_PRODUCAO)
+        linhas = [
+            r for r in rows
+            if str(r.get("periodo_competencia", "")).strip() == periodo
+            and str(r.get("status_producao", "")).strip().upper() == "ABERTO"
+        ]
+        return {
+            "periodo":             periodo,
+            "status":              status,
+            "total_casos":         len(set(str(r.get("caso_id", "")) for r in linhas)),
+            "total_linhas_ativas": len(linhas),
+            "valor_total":         round(sum(float(r.get("valor_calculado", 0) or 0) for r in linhas), 2),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {e}")
