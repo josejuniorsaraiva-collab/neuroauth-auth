@@ -34,6 +34,14 @@ if _missing:
         "Configure em Render > Environment.", ", ".join(_missing)
     )
 
+# Diagnóstico runtime do JWT_SECRET — se issuer e validator logarem fp= diferentes,
+# significa que processos/réplicas Render carregaram secrets divergentes do env.
+try:
+    from app.core.security import jwt_secret_fingerprint
+    logger.info("[NEUROAUTH_BOOT] jwt_secret_fp=%s algo=%s", jwt_secret_fingerprint(), settings.JWT_ALGORITHM)
+except Exception as _e:
+    logger.warning("[NEUROAUTH_BOOT] jwt_secret_fp falhou: %s", _e)
+
 # ── Rate Limiter (slowapi) ──────────────────────────────────
 def _get_real_ip(request: Request) -> str:
     """Extrai IP real do cliente atrás do proxy Render (X-Forwarded-For)."""
