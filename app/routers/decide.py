@@ -20,6 +20,7 @@ import uuid
 import hashlib
 import time
 from datetime import datetime, timezone
+from neuroauth_hook import emit_to_neuro_ingest
 
 router = APIRouter()
 logger = logging.getLogger("neuroauth.decide")
@@ -265,6 +266,12 @@ def _persist_and_verify(
                 error_message="persist_decision retornou False — ver logs neuroauth.sheets",
             )
             return
+
+        # Hook local para pipeline NotebookLM — pós-persistência, não bloqueante
+        try:
+            emit_to_neuro_ingest(req.model_dump())
+        except Exception as exc:
+            logger.warning("[neuro_ingest_hook] falha não bloqueante: %s", str(exc)[:200])
 
         # Evento 6 — persist_success
         log.emit("persist_success", status="ok", details={
