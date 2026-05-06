@@ -4,6 +4,15 @@ neuroauth_hook.py — emissor pós-persistência para neuro_ingest
 Plug-and-play. Sem dependências externas (apenas stdlib).
 Atômico. Idempotente. Nunca levanta exceção para o NEUROAUTH.
 
+CAMADAS DE SAÍDA:
+  output/review/    ← hook dropa aqui (aguarda validação humana)
+  output/validated/ ← após /validar CASE_ID (homologado, sincroniza NotebookLM)
+  output/rejected/  ← após /rejeitar CASE_ID (arquivado, não sincroniza)
+
+O NotebookLM NUNCA lê de review/ diretamente.
+Gatilho de sync correto: STATUS = VALIDATED, não "tem arquivo".
+Use scripts/validar.py para homologar um caso.
+
 USO em FastAPI:
 
     from fastapi import BackgroundTasks
@@ -27,11 +36,16 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-# Caminho default — sobrescritível por env var sem mexer no código
-INBOX = Path(os.environ.get(
-    "NEURO_INGEST_INBOX",
-    str(Path.home() / "neuro_ingest" / "neuroauth_inbox"),
+# Raiz do neuro_ingest — sobrescritível por env var sem mexer no código
+_NEURO_ROOT = Path(os.environ.get(
+    "NEURO_INGEST_ROOT",
+    str(Path.home() / "neuro_ingest"),
 ))
+
+# Hook dropa SEMPRE em output/review/ — aguarda validação humana explícita.
+# NotebookLM sincroniza SOMENTE output/validated/.
+# Use scripts/validar.py para promover review → validated.
+INBOX = _NEURO_ROOT / "output" / "review"
 
 log = logging.getLogger("neuroauth_hook")
 
