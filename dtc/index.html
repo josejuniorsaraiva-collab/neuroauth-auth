@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>DTC HSA — Laudo Estruturado (MVP) · NeuroAuth</title>
+<!-- MVP supervisionado. Pacote: DTC_INTERFACE_MVP v0.2 -->
+<!-- Rota esperada: /dtc — funciona em qualquer subpasta. Sem dependência de caminhos absolutos. -->
+<script>
+/* DEFESA: se um service worker do site pai estiver ativo, garantir que /dtc nunca sirva versão cacheada antiga */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs){
+    // Não desregistramos o SW do site pai (escopo /); apenas garantimos que /dtc sempre busca recursos frescos via meta no-cache acima.
+  }).catch(function(){});
+}
+</script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --border: #d4d8dd;
+    --text: #1a1d21;
+    --text-mute: #5a6068;
+    --accent: #2c5f8f;
+    --accent-soft: #e3edf6;
+    --warn-bg: #fef6e4;
+    --warn-border: #e8b14b;
+    --warn-text: #6e4a0a;
+    --crit-bg: #fdeaea;
+    --crit-border: #c54b4b;
+    --crit-text: #6b1a1a;
+    --ok-bg: #e8f5ea;
+    --ok-border: #4a8b5a;
+    --ok-text: #1f4a2a;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #15181c;
+    --surface: #1e2227;
+    --surface-2: #262b31;
+    --border: #383e46;
+    --text: #e6e8eb;
+    --text-mute: #98a0a8;
+    --accent: #6ba3d8;
+    --accent-soft: #1e3148;
+    --warn-bg: #3a2e10;
+    --warn-border: #b8860b;
+    --warn-text: #f2d57c;
+    --crit-bg: #3b1717;
+    --crit-border: #cd6464;
+    --crit-text: #f0b8b8;
+    --ok-bg: #1a3324;
+    --ok-border: #6db580;
+    --ok-text: #b8e0c5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.45;
+    padding-bottom: 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 18px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 16px;
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  header h1 .sub {
+    font-weight: 400;
+    color: var(--text-mute);
+    font-size: 12px;
+    margin-left: 8px;
+  }
+  .topbar-actions { display: flex; gap: 6px; align-items: center; }
+  .btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; }
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  section.card h2 {
+    font-size: 14px;
+    margin: 0 0 12px 0;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  section.card h2 .step {
+    background: var(--accent-soft);
+    color: var(--accent);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px 16px;
+  }
+  .grid.two { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .grid.three { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    font-size: 12px;
+    color: var(--text-mute);
+    font-weight: 500;
+  }
+  .field label .req { color: var(--crit-border); margin-left: 2px; }
+  .field input, .field select, .field textarea {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: var(--accent);
+  }
+  .field .help {
+    font-size: 11px;
+    color: var(--text-mute);
+    font-style: italic;
+  }
+  .field.compact input { padding: 4px 6px; font-size: 13px; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+    font-size: 13px;
+  }
+  .table th, .table td {
+    border-bottom: 1px solid var(--border);
+    padding: 6px 8px;
+    text-align: left;
+  }
+  .table th {
+    font-size: 11px;
+    color: var(--text-mute);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .table td input, .table td select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .table tr td:first-child {
+    font-weight: 600;
+    color: var(--text);
+    background: var(--surface-2);
+    font-size: 12px;
+  }
+  .alert {
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 13px;
+    border: 1px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .alert .icon { font-size: 14px; flex-shrink: 0; }
+  .alert.warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+  .alert.crit { background: var(--crit-bg); border-color: var(--crit-border); color: var(--crit-text); }
+  .alert.ok { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-text); }
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--surface-2);
+    color: var(--text-mute);
+    border: 1px solid var(--border);
+  }
+  .badge.info { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+  .badge.crit { background: var(--crit-bg); color: var(--crit-text); border-color: var(--crit-border); }
+  .badge.ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-border); }
+  .indices-bar {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .indices-bar > div { display: flex; flex-direction: column; gap: 2px; }
+  .indices-bar .ix-label { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.03em; }
+  .indices-bar .ix-val { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 16px; }
+  .state-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .state-card {
+    flex: 1 1 200px;
+    min-width: 200px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--surface);
+  }
+  .state-card .axis { font-size: 11px; color: var(--text-mute); text-transform: uppercase; }
+  .state-card .state { font-size: 14px; font-weight: 600; margin: 2px 0; }
+  .state-card .reason { font-size: 12px; color: var(--text-mute); margin-top: 4px; line-height: 1.35; }
+  textarea.laudo {
+    width: 100%;
+    min-height: 540px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 14px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    resize: vertical;
+  }
+  .actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 10px 16px;
+    font-size: 11px;
+    color: var(--text-mute);
+    text-align: center;
+    z-index: 10;
+    box-shadow: 0 -1px 3px rgba(0,0,0,0.04);
+  }
+  footer strong { color: var(--text); }
+  details summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-mute);
+    padding: 4px 0;
+  }
+  details summary:hover { color: var(--text); }
+  .small-note { font-size: 11px; color: var(--text-mute); margin-top: 4px; font-style: italic; }
+  .row-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--surface-2);
+    color: var(--text-mute);
+  }
+  .pill.draft { background: var(--warn-bg); color: var(--warn-text); }
+  .pill.saved { background: var(--ok-bg); color: var(--ok-text); }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid.two, .grid.three { grid-template-columns: 1fr; }
+    header h1 { font-size: 14px; }
+    main { padding: 10px; }
+    section.card { padding: 12px; }
+    body { font-size: 14px; }
+  }
+  @media print {
+    body { background: white; padding: 0; }
+    header, footer, .actions-row, .topbar-actions, section.card > h2 { display: none !important; }
+    section.card { border: none; box-shadow: none; padding: 0; margin: 0; page-break-inside: avoid; }
+    textarea.laudo { border: none; min-height: auto; }
+  }
+
+  /* ===== Modo rápido vs avançado ===== */
+  body[data-mode="fast"] .advanced-only { display: none !important; }
+  body[data-mode="fast"] details.advanced-only { display: none !important; }
+  .mode-toggle {
+    display: inline-flex;
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 2px;
+    border: 1px solid var(--border);
+  }
+  .mode-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text-mute);
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 4px;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  /* ===== Botão BASELINE preset ===== */
+  .preset-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 14px 0;
+    padding: 10px 14px;
+    background: linear-gradient(90deg, var(--accent-soft) 0%, var(--surface-2) 100%);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    flex-wrap: wrap;
+  }
+  .preset-bar .preset-label { font-size: 12px; color: var(--text-mute); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .preset-bar .btn { font-weight: 600; }
+
+  /* ===== Cards espectrais didáticos ===== */
+  .spectral-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .spectral-card {
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .spectral-card:hover {
+    border-color: var(--accent);
+    background: var(--surface-2);
+  }
+  .spectral-card.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .spectral-card .sc-label {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 3px;
+    color: var(--text);
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .spectral-card .sc-desc {
+    font-size: 11.5px;
+    color: var(--text-mute);
+    line-height: 1.35;
+  }
+  .spectral-card.severity-crit { border-left: 4px solid var(--crit-border); }
+  .spectral-card.severity-warn { border-left: 4px solid var(--warn-border); }
+  .spectral-card.severity-ok { border-left: 4px solid var(--ok-border); }
+  .spectral-card .sc-pill {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--surface-2);
+    color: var(--text-mute);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+
+  /* ===== Comparação serial minicards ===== */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .compare-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .compare-card .cc-label { font-size: 11px; color: var(--text-mute); font-weight: 600; text-transform: uppercase; }
+  .compare-card .cc-values { display: flex; gap: 8px; align-items: baseline; font-variant-numeric: tabular-nums; }
+  .compare-card .cc-prev { color: var(--text-mute); font-size: 13px; }
+  .compare-card .cc-arrow { color: var(--text-mute); font-size: 12px; }
+  .compare-card .cc-now { color: var(--text); font-size: 18px; font-weight: 700; }
+  .compare-card .cc-delta { font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 4px; align-self: flex-start; }
+  .compare-card .cc-delta.stable { background: var(--ok-bg); color: var(--ok-text); }
+  .compare-card .cc-delta.up-mild { background: var(--warn-bg); color: var(--warn-text); }
+  .compare-card .cc-delta.up-significant { background: var(--crit-bg); color: var(--crit-text); }
+  .compare-card .cc-delta.down { background: var(--ok-bg); color: var(--ok-text); }
+  .compare-card .cc-status { font-size: 11px; color: var(--text-mute); font-style: italic; }
+
+  /* ===== Step header didático ===== */
+  .step-intro {
+    font-size: 12.5px;
+    color: var(--text-mute);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  /* ===== Resumo executivo no laudo ===== */
+  .exec-summary {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .exec-summary strong { color: var(--accent); }
+  .exec-summary .es-label {
+    display: block;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body data-theme="light" data-mode="fast">
+
+<!-- ============ AVISO MVP (topo absoluto) ============ -->
+<div id="dtcMvpWarning" style="
+  background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+  border-bottom: 2px solid #b45309;
+  color: #6e4a0a;
+  text-align: center;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  position: relative;
+  z-index: 11;
+">
+  ⚠ <strong>MVP DTC HSA</strong> — uso supervisionado, <strong>não homologado institucionalmente</strong>. TCD informa; equipe assistencial decide.
+  <button onclick="document.getElementById('dtcMvpWarning').style.display='none'"
+          style="background:transparent;border:none;color:#6e4a0a;font-weight:700;cursor:pointer;float:right;padding:0 6px;font-size:14px"
+          title="Ocultar nesta sessão">×</button>
+</div>
+
+<header>
+  <h1>DTC HSA · Cockpit Neurovascular <span class="sub">MVP — uso supervisionado · não homologado</span></h1>
+  <div class="topbar-actions">
+    <div class="mode-toggle" role="group" aria-label="Modo de preenchimento">
+      <button id="modeFast" class="active" title="Modo Rápido — campos essenciais, meta 4 minutos">🚀 Rápido</button>
+      <button id="modeAdvanced" title="Modo Avançado — todos os campos, troubleshooting, ME, embólico, homologação">⚙️ Avançado</button>
+    </div>
+    <span id="saveStatus" class="pill">não salvo</span>
+    <button class="btn ghost" id="themeToggle" title="Alternar tema">◐</button>
+    <button class="btn ghost" id="clearAll" title="Limpar tudo">limpar</button>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ PRESET BAR ============ -->
+<div class="preset-bar">
+  <span class="preset-label">Atalhos:</span>
+  <button class="btn primary" id="presetNormalBtn" title="Preenche valores fisiológicos normais para baseline ambulatorial / admissão sem alterações">📋 NORMAL / BASELINE</button>
+  <span class="small-note" style="margin: 0; flex: 1;">Carrega valores fisiológicos típicos como ponto de partida — médico ajusta o que diverge. Não preenche diagnóstico nem alarme.</span>
+</div>
+
+<!-- ============ SEÇÃO 1: IDENTIFICAÇÃO + CONTEXTO ============ -->
+<section class="card">
+  <h2><span class="step">1</span>Contexto clínico</h2>
+  <p class="step-intro">Identifique paciente, operador e indicação do exame. Em modo rápido apenas os campos essenciais aparecem. <span class="advanced-only">Em modo avançado, dados HSA-específicos (Fisher, Hunt-Hess) também são solicitados.</span></p>
+  <div class="grid">
+    <div class="field">
+      <label>Código do paciente (anonimizado) <span class="req">*</span></label>
+      <input type="text" id="patient_code" placeholder="ex: P-2026-001">
+    </div>
+    <div class="field">
+      <label>Data/hora do exame <span class="req">*</span></label>
+      <input type="datetime-local" id="exam_datetime">
+    </div>
+    <div class="field">
+      <label>Operador <span class="req">*</span></label>
+      <input type="text" id="operator_id" placeholder="nome/iniciais">
+    </div>
+    <div class="field advanced-only">
+      <label>Método</label>
+      <select id="method">
+        <option value="duplex">TCD duplex (setorial 1,5–5 MHz)</option>
+        <option value="dedicado">TCD dedicado</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Contexto clínico <span class="req">*</span></label>
+      <select id="context">
+        <option value="">— selecionar —</option>
+        <option value="HSA">HSA aneurismática</option>
+        <option value="TCE">TCE / HIC suspeita</option>
+        <option value="AVC_suspeita_oclusao">AVC / suspeita de oclusão</option>
+        <option value="pos_op_neurovascular">Pós-op neurovascular</option>
+        <option value="protocolo_ME_ativo">Protocolo ME ativo (CFM 2.173/2017)</option>
+        <option value="monitorizacao_serial">Monitorização seriada</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div class="field advanced-only">
+      <label>Número do exame (1 = baseline)</label>
+      <input type="number" id="exam_sequence_number" min="1" placeholder="1">
+    </div>
+  </div>
+
+  <!-- HSA: campos chave visíveis em rápido também (Fisher / HH / dia) -->
+  <div class="grid three" style="margin-top:10px">
+    <div class="field"><label>Dia pós-sangramento (HSA)</label><input type="number" id="post_bleed_day" min="0" placeholder="se HSA"></div>
+    <div class="field"><label>Fisher</label>
+      <select id="fisher"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+    </div>
+    <div class="field"><label>Hunt-Hess</label>
+      <select id="hunt_hess"><option value="">—</option><option>I</option><option>II</option><option>III</option><option>IV</option><option>V</option></select>
+    </div>
+  </div>
+
+  <details class="advanced-only" style="margin-top:10px">
+    <summary>Tratamento do aneurisma (modalidade e data)</summary>
+    <div class="grid" style="margin-top:8px">
+      <div class="field"><label>Aneurisma tratado?</label>
+        <select id="aneurysm_treated"><option value="">—</option><option value="true">Sim</option><option value="false">Não</option></select>
+      </div>
+      <div class="field"><label>Modalidade</label>
+        <select id="treatment_modality"><option value="">—</option><option>clipagem</option><option>coil</option><option>stent</option><option>fluxo_diversor</option><option>não_tratado</option></select>
+      </div>
+      <div class="field"><label>Data do tratamento</label><input type="date" id="treatment_date_iso"></div>
+    </div>
+  </details>
+</section>
+
+<!-- ============ SEÇÃO 2: VARIÁVEIS SISTÊMICAS ============ -->
+<section class="card">
+  <h2><span class="step">2</span>Estado clínico e variáveis sistêmicas</h2>
+  <p class="step-intro">Em modo rápido, PaCO₂, sedação e status clínico bastam para a interpretação inicial. Variáveis adicionais (PA, FC, cabeceira, monitorização invasiva) aparecem em modo avançado.</p>
+  <div class="grid three">
+    <div class="field"><label>PaCO₂ (mmHg)</label><input type="number" step="0.1" id="PaCO2_mmHg" placeholder="35–45 normal"></div>
+    <div class="field"><label>Sedação</label><input type="text" id="sedation" placeholder="droga + dose ou 'ausente'"></div>
+    <div class="field"><label>Status clínico</label>
+      <select id="clinical_status"><option value="">—</option><option>estavel</option><option>piorando</option><option>deficit_novo</option><option>deteriorando_sem_definicao</option><option>melhorando</option></select>
+    </div>
+    <div class="field"><label>Lado do déficit (se houver)</label>
+      <select id="deficit_side"><option value="nenhum">nenhum</option><option value="esquerdo">esquerdo</option><option value="direito">direito</option><option value="bilateral">bilateral</option><option value="indefinido">indefinido</option></select>
+    </div>
+    <div class="field advanced-only"><label>Hematócrito (%)</label><input type="number" step="0.1" id="hematocrit_pct" placeholder="ex: 35"></div>
+    <div class="field advanced-only"><label>Cabeceira (°)</label><input type="number" id="head_elevation_degrees" placeholder="30"></div>
+    <div class="field advanced-only"><label>PA sistólica</label><input type="number" id="BP_systolic"></div>
+    <div class="field advanced-only"><label>PA diastólica</label><input type="number" id="BP_diastolic"></div>
+    <div class="field advanced-only"><label>FC (bpm)</label><input type="number" id="HR"></div>
+    <div class="field advanced-only"><label>Estado de vigilância</label>
+      <select id="vigilance_state"><option value="">—</option><option>acordado</option><option>sonolento</option><option>sedado</option><option>comatoso</option></select>
+    </div>
+  </div>
+
+  <details class="advanced-only" style="margin-top:10px">
+    <summary>Monitorização invasiva (se disponível) — BC-01</summary>
+    <div class="grid three" style="margin-top:8px">
+      <div class="field"><label>PIC invasiva (mmHg)</label><input type="number" step="0.1" id="ICP_mmHg"></div>
+      <div class="field"><label>MAP (mmHg)</label><input type="number" step="0.1" id="MAP_mmHg"></div>
+      <div class="field"><label>PPC (mmHg)</label><input type="number" step="0.1" id="CPP_mmHg"></div>
+      <div class="field"><label>Glasgow</label><input type="number" id="glasgow" min="3" max="15"></div>
+    </div>
+    <p class="small-note">BC-01: TCD não substitui PIC invasiva; informa tendência, não absoluto.</p>
+  </details>
+</section>
+
+<!-- ============ SEÇÃO 3: JANELAS ACÚSTICAS ============ -->
+<section class="card">
+  <h2><span class="step">3</span>Janelas acústicas</h2>
+  <p class="step-intro">Para o exame ser interpretável, ao menos uma janela transtemporal precisa estar patente. <strong>Janela submandibular</strong> é necessária para calcular Lindegaard (diferencial vasoespasmo × hiperemia).</p>
+  <div class="grid three">
+    <div class="field"><label>Transtemporal direita <span class="req">*</span></label>
+      <select id="transtemporal_right"><option value="patente">patente</option><option value="limitada">limitada</option><option value="ausente">ausente</option></select>
+    </div>
+    <div class="field"><label>Transtemporal esquerda <span class="req">*</span></label>
+      <select id="transtemporal_left"><option value="patente">patente</option><option value="limitada">limitada</option><option value="ausente">ausente</option></select>
+    </div>
+    <div class="field"><label>Suboccipital — circulação posterior</label>
+      <select id="suboccipital"><option value="acessível">acessível</option><option value="limitada">limitada</option><option value="ausente">ausente</option></select>
+      <span class="help">Para basilar e vertebrais</span>
+    </div>
+    <div class="field"><label>Submandibular D — ACI extracraniana</label>
+      <select id="submandibular_right"><option value="acessível">acessível</option><option value="limitada">limitada</option><option value="ausente">ausente</option></select>
+      <span class="help">Denominador do Lindegaard D</span>
+    </div>
+    <div class="field"><label>Submandibular E — ACI extracraniana</label>
+      <select id="submandibular_left"><option value="acessível">acessível</option><option value="limitada">limitada</option><option value="ausente">ausente</option></select>
+      <span class="help">Denominador do Lindegaard E</span>
+    </div>
+    <div class="field advanced-only"><label>Transorbital — oftálmica / sifão</label>
+      <select id="transorbital"><option value="não tentada">não tentada</option><option value="acessível">acessível</option><option value="limitada">limitada</option><option value="ausente">ausente</option></select>
+      <span class="help">IM &lt; 0,23 (biossegurança ocular)</span>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:10px">
+    <label class="checkbox-row">
+      <input type="checkbox" id="previously_demonstrated_patent">
+      Janela transtemporal <strong>previamente demonstrada como patente</strong> neste paciente
+      (BC-06 · obrigatório para interpretar PR-6 / ausência de sinal como achado hemodinâmico, não como limitação técnica)
+    </label>
+  </div>
+
+  <details class="advanced-only" style="margin-top:10px">
+    <summary>Troubleshooting realizado (em caso de janela limitada/ausente)</summary>
+    <div class="grid">
+      <label class="checkbox-row"><input type="checkbox" id="ts_power_doppler"> Power Doppler ativado</label>
+      <label class="checkbox-row"><input type="checkbox" id="ts_scale_reduced"> Escala/PRF reduzida</label>
+      <label class="checkbox-row"><input type="checkbox" id="ts_angle_optimized"> Ângulo otimizado (≤60°)</label>
+      <label class="checkbox-row"><input type="checkbox" id="ts_contralateral"> Contralateral demonstrado</label>
+      <label class="checkbox-row"><input type="checkbox" id="ts_coronal"> Plano coronal alternativo</label>
+    </div>
+  </details>
+
+  <div id="windowAlerts"></div>
+</section>
+
+<!-- ============ SEÇÃO 4: SEGMENTOS AVALIADOS ============ -->
+<section class="card">
+  <h2><span class="step">4</span>Segmentos avaliados (cm/s)</h2>
+  <table class="table">
+    <thead>
+      <tr><th>Segmento</th><th>VPS</th><th>VDF</th><th>Vm</th><th>TAMx</th><th>IP</th><th class="advanced-only">Prof. (mm)</th><th class="advanced-only">Âng. (°)</th></tr>
+    </thead>
+    <tbody id="vesselsTable">
+      <!-- preenchido via JS -->
+    </tbody>
+  </table>
+  <p class="small-note">Vm calculado como (VPS + 2·VDF)/3 se vazio. <strong>TAMx (Tmax)</strong> é opcional — máxima velocidade média no período (duplex); não substitui Vm. RA-02: ângulo idêntico bilateralmente.</p>
+
+  <div class="indices-bar">
+    <div><span class="ix-label">Lindegaard D</span><span class="ix-val" id="lindegaard_right_val">—</span></div>
+    <div><span class="ix-label">Lindegaard E</span><span class="ix-val" id="lindegaard_left_val">—</span></div>
+    <div><span class="ix-label">IP médio anterior</span><span class="ix-val" id="ip_mean_val">—</span></div>
+    <div><span class="ix-label">Δ Vm ACM D (24h)</span><span class="ix-val" id="delta_right_val">—</span></div>
+    <div><span class="ix-label">Δ Vm ACM E (24h)</span><span class="ix-val" id="delta_left_val">—</span></div>
+  </div>
+
+  <div style="margin-top:14px; border-top: 1px dashed var(--border); padding-top: 12px;">
+    <strong style="font-size: 12px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em;">Comparação serial (se houver exame anterior)</strong>
+    <div class="grid three" style="margin-top:8px">
+      <div class="field"><label>Data/hora exame anterior</label><input type="datetime-local" id="previous_exam_datetime_iso"></div>
+      <div class="field"><label>Vm ACM D anterior (cm/s)</label><input type="number" step="0.1" id="prev_vm_mca_right"></div>
+      <div class="field"><label>Vm ACM E anterior (cm/s)</label><input type="number" step="0.1" id="prev_vm_mca_left"></div>
+      <div class="field"><label class="checkbox-row"><input type="checkbox" id="technique_identical" checked> Técnica idêntica ao exame anterior (BC-08)</label></div>
+    </div>
+    <div id="compareCards" class="compare-grid"></div>
+  </div>
+</section>
+
+<!-- ============ SEÇÃO 5: PADRÃO ESPECTRAL ============ -->
+<section class="card">
+  <h2><span class="step">5</span>Padrão espectral (eixo de pressão)</h2>
+  <p class="step-intro">Escolha o padrão diastólico predominante. Em modo rápido, basta clicar no card que melhor representa o espectro observado.</p>
+
+  <!-- Cards didáticos clicáveis -->
+  <div class="spectral-grid" id="spectralGrid">
+    <div class="spectral-card severity-ok" data-spectral="preserved">
+      <span class="sc-pill">PR-0</span>
+      <div class="sc-label">preserved</div>
+      <div class="sc-desc">diástole contínua preservada — padrão fisiológico</div>
+    </div>
+    <div class="spectral-card severity-warn" data-spectral="reduced_but_present">
+      <span class="sc-pill">PR-1 sugestivo</span>
+      <div class="sc-label">reduced_but_present</div>
+      <div class="sc-desc">diástole reduzida; considerar aumento de resistência distal</div>
+    </div>
+    <div class="spectral-card severity-warn" data-spectral="absent">
+      <span class="sc-pill">PR-2</span>
+      <div class="sc-label">absent</div>
+      <div class="sc-desc">VDF=0; perfusão apenas sistólica; sinal sistólico ainda presente</div>
+    </div>
+    <div class="spectral-card severity-crit" data-spectral="reversed">
+      <span class="sc-pill">PR-3</span>
+      <div class="sc-label">reversed</div>
+      <div class="sc-desc">fluxo diastólico reverso — progressão de HIC refratária</div>
+    </div>
+    <div class="spectral-card severity-crit" data-spectral="oscillating_equal">
+      <span class="sc-pill">PR-4</span>
+      <div class="sc-label">oscillating_equal</div>
+      <div class="sc-desc">fluxo alternante; componente reverso ≈ sistólico (reverberante)</div>
+    </div>
+    <div class="spectral-card severity-crit" data-spectral="systolic_spikes_only">
+      <span class="sc-pill">PR-5</span>
+      <div class="sc-label">systolic_spikes_only</div>
+      <div class="sc-desc">espículas sistólicas isoladas; sem corpo da onda</div>
+    </div>
+    <div class="spectral-card severity-crit" data-spectral="absent_signal">
+      <span class="sc-pill">PR-6 condicional</span>
+      <div class="sc-label">absent_signal</div>
+      <div class="sc-desc">sem sinal detectável; só interpretar como PR-6 se janela <strong>previamente patente documentada</strong> (BC-06)</div>
+    </div>
+  </div>
+
+  <!-- Select oculto (mantém a lógica intacta) -->
+  <select id="diastolic_flow" style="display:none">
+    <option value="preserved">preserved</option>
+    <option value="reduced_but_present">reduced_but_present</option>
+    <option value="absent">absent</option>
+    <option value="reversed">reversed</option>
+    <option value="oscillating_equal">oscillating_equal</option>
+    <option value="systolic_spikes_only">systolic_spikes_only</option>
+    <option value="absent_signal">absent_signal</option>
+  </select>
+
+  <div class="field advanced-only" style="margin-top:10px">
+    <label>Janela sistólica</label>
+    <select id="systolic_window"><option value="preserved">preservada</option><option value="partial">parcial</option><option value="lost">perdida</option></select>
+  </div>
+
+  <div id="spectralAlerts"></div>
+</section>
+
+<!-- ============ SEÇÃO 6: PROTOCOLO ME (CONDICIONAL) ============ -->
+<section class="card" id="meSection" style="display:none">
+  <h2><span class="step">6</span>Protocolo ME (CFM 2.173/2017)</h2>
+  <div class="alert warn">
+    <span class="icon">⚠</span>
+    <div>BC-03 · O diagnóstico de morte encefálica é <strong>clínico-legal</strong>. TCD é exame ancilar dentro do protocolo CFM 2.173/2017, nunca isoladamente.</div>
+  </div>
+  <div class="grid">
+    <label class="checkbox-row"><input type="checkbox" id="CFM_2173_2017_activated"> Protocolo CFM 2.173/2017 ativado formalmente</label>
+    <label class="checkbox-row"><input type="checkbox" id="clinical_exam_concordant"> Exame clínico de ME concordante</label>
+    <label class="checkbox-row"><input type="checkbox" id="apnea_test_done"> Teste de apneia realizado</label>
+    <label class="checkbox-row"><input type="checkbox" id="bilateral_assessment_done"> Avaliação bilateral (ACM bilat + basilar)</label>
+    <label class="checkbox-row"><input type="checkbox" id="operator_certified_for_ME"> Operador certificado para TCD em ME</label>
+  </div>
+  <div id="meAlerts"></div>
+</section>
+
+<!-- ============ SEÇÃO 7: ESTADOS INFERIDOS ============ -->
+<section class="card">
+  <h2><span class="step">7</span>Estados inferidos nos 3 eixos <span class="badge info">proposta — médico decide</span></h2>
+  <p class="small-note">As classificações abaixo são <strong>sugestões algorítmicas qualificadas</strong> derivadas do kernel DTC_HSA_KERNEL_v1.
+  O médico revisor pode <strong>aceitar, modificar ou rejeitar</strong> cada estado antes da homologação. TCD informa, equipe decide.</p>
+
+  <div class="state-bar">
+    <div class="state-card" id="vsCard">
+      <div class="axis">Eixo Vasoespasmo</div>
+      <div class="state" id="vsState">—</div>
+      <div class="reason" id="vsReason">aguardando dados</div>
+    </div>
+    <div class="state-card" id="prCard">
+      <div class="axis">Eixo Pressão</div>
+      <div class="state" id="prState">—</div>
+      <div class="reason" id="prReason">aguardando dados</div>
+    </div>
+    <div class="state-card" id="emCard">
+      <div class="axis">Eixo Embólico</div>
+      <div class="state" id="emState">—</div>
+      <div class="reason" id="emReason">não aplicado</div>
+    </div>
+  </div>
+
+  <div id="alarmsBox" style="margin-top:12px"></div>
+</section>
+
+<!-- ============ SEÇÃO 8: OBSERVAÇÕES ============ -->
+<section class="card">
+  <h2><span class="step">8</span>Observações</h2>
+  <div class="grid two">
+    <div class="field">
+      <label>Observações clínicas (contexto, déficit, intercorrências)</label>
+      <textarea id="clinical_notes" rows="2"></textarea>
+    </div>
+    <div class="field advanced-only">
+      <label>Observações técnicas (limitações, qualidade do exame)</label>
+      <textarea id="technical_notes" rows="2"></textarea>
+    </div>
+    <div class="field advanced-only">
+      <label>Comunicações realizadas (intensivista, neurocirurgia, etc.)</label>
+      <textarea id="communications" rows="2" placeholder="data/hora — destinatário — síntese"></textarea>
+    </div>
+    <div class="field advanced-only">
+      <label>Plano de monitorização proposto</label>
+      <textarea id="followup_plan" rows="2" placeholder="próximo exame · cadência · justificativa"></textarea>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SEÇÃO 9b: INTERPRETAÇÃO NEUROVASCULAR ============ -->
+<section class="card">
+  <h2><span class="step">9</span>Interpretação hemodinâmica neurovascular <span class="badge info">camada narrativa — subordinada ao engine determinístico</span></h2>
+  <p class="small-note">Síntese narrativa contextual sobre os dados acima. <strong>Não modifica</strong> os estados VS/PR/EM nem os alarmes da seção 7 — apenas enriquece a leitura. Toda inferência é qualificada ("padrão compatível com", "favorece", "sugere") e termina com boundary obrigatório. Linguagem alinhada a centros neurovasculares terciários, sem diagnóstico definitivo.</p>
+  <div class="actions-row">
+    <button class="btn primary" id="interpretBtn">Gerar interpretação avançada</button>
+    <button class="btn" id="copyInterpretBtn">Copiar narrativa</button>
+    <button class="btn" id="exportInterpretTxtBtn">Exportar .txt</button>
+  </div>
+  <div id="interpretSummary" style="margin-top:10px"></div>
+  <textarea class="laudo" id="interpretOutput" placeholder="Clique em 'Gerar interpretação avançada' para uma síntese narrativa sobre os dados preenchidos." style="min-height:420px;"></textarea>
+</section>
+
+<!-- ============ SEÇÃO 10: LAUDO GERADO ============ -->
+<section class="card">
+  <h2><span class="step">10</span>Laudo estruturado (rascunho) <span class="badge warn">exige homologação médica</span></h2>
+  <div class="actions-row">
+    <button class="btn primary" id="generateBtn">Gerar laudo</button>
+    <button class="btn" id="copyBtn">Copiar</button>
+    <button class="btn" id="exportTxtBtn">Exportar .txt</button>
+    <button class="btn" id="exportMdBtn">Exportar .md</button>
+    <button class="btn" id="exportJsonBtn">Exportar .json</button>
+    <button class="btn ghost" id="printBtn">Imprimir / PDF</button>
+  </div>
+  <div id="execSummaryBox"></div>
+  <textarea class="laudo" id="laudoOutput" placeholder="Clique em 'Gerar laudo' para criar o rascunho a partir dos dados acima."></textarea>
+  <details class="advanced-only" style="margin-top:8px">
+    <summary>Bloco de homologação médica (preenchido pelo revisor)</summary>
+    <div class="grid">
+      <div class="field"><label>Revisado por (nome)</label><input type="text" id="reviewer_name"></div>
+      <div class="field"><label>CRM</label><input type="text" id="reviewer_crm"></div>
+      <div class="field"><label>Data/hora da revisão</label><input type="datetime-local" id="reviewer_datetime"></div>
+      <div class="field"><label>Status</label>
+        <select id="reviewer_status">
+          <option value="pendente">pendente</option>
+          <option value="de_acordo">de acordo (homologado)</option>
+          <option value="modificado_pelo_revisor">modificado pelo revisor</option>
+        </select>
+      </div>
+      <div class="field" style="grid-column: 1 / -1"><label>Modificações descritas (se aplicável)</label><textarea id="reviewer_modifications" rows="2"></textarea></div>
+    </div>
+    <p class="small-note">Enquanto o status estiver "pendente", este laudo é um <strong>rascunho técnico</strong> — não pode ser inserido em prontuário.</p>
+  </details>
+</section>
+
+</main>
+
+<footer>
+  <strong>Ferramenta de apoio hemodinâmico.</strong> Não substitui avaliação clínica, imagem estrutural (angio-TC/RM/angiografia) nem protocolos institucionais. <strong>TCD informa; equipe assistencial decide.</strong> &nbsp;·&nbsp; Kernel DTC_HSA_v1 (MVP supervisionado — sem homologação institucional).
+</footer>
+
+<script>
+// ============================================================
+// DTC HSA — MVP single-file
+// Lógica derivada de DTC_HSA_KERNEL_v1 (Pacote 1 + Pacote 2 frozen).
+// "TCD informa, equipe decide" — sem inferência automática categórica.
+// ============================================================
+
+const VESSELS = [
+  { id: 'MCA_right', label: 'ACM M1 direita' },
+  { id: 'MCA_left', label: 'ACM M1 esquerda' },
+  { id: 'ACA_right', label: 'ACA A1 direita' },
+  { id: 'ACA_left', label: 'ACA A1 esquerda' },
+  { id: 'PCA_right', label: 'ACP P1-P2 direita' },
+  { id: 'PCA_left', label: 'ACP P1-P2 esquerda' },
+  { id: 'basilar', label: 'Basilar' },
+  { id: 'vertebral_right', label: 'Vertebral direita' },
+  { id: 'vertebral_left', label: 'Vertebral esquerda' },
+  { id: 'ICA_extracranial_right', label: 'ACI extracraniana D (submandibular)' },
+  { id: 'ICA_extracranial_left', label: 'ACI extracraniana E (submandibular)' },
+];
+
+const FIELDS_TOP = [
+  'patient_code','exam_datetime','operator_id','method','context','exam_sequence_number',
+  'post_bleed_day','fisher','hunt_hess','aneurysm_treated','treatment_modality','treatment_date_iso',
+  'PaCO2_mmHg','hematocrit_pct','sedation','head_elevation_degrees','BP_systolic','BP_diastolic','HR','vigilance_state','clinical_status','deficit_side',
+  'ICP_mmHg','MAP_mmHg','CPP_mmHg','glasgow',
+  'transtemporal_right','transtemporal_left','suboccipital','submandibular_right','submandibular_left','transorbital','previously_demonstrated_patent',
+  'ts_power_doppler','ts_scale_reduced','ts_angle_optimized','ts_contralateral','ts_coronal',
+  'diastolic_flow','systolic_window',
+  'CFM_2173_2017_activated','clinical_exam_concordant','apnea_test_done','bilateral_assessment_done','operator_certified_for_ME',
+  'previous_exam_datetime_iso','prev_vm_mca_right','prev_vm_mca_left','technique_identical',
+  'technical_notes','clinical_notes','communications','followup_plan',
+  'reviewer_name','reviewer_crm','reviewer_datetime','reviewer_status','reviewer_modifications',
+];
+
+// -------- Build vessel table --------
+function buildVesselTable() {
+  const tbody = document.getElementById('vesselsTable');
+  tbody.innerHTML = VESSELS.map(v => `
+    <tr data-vessel="${v.id}">
+      <td>${v.label}</td>
+      <td><input type="number" step="0.1" data-field="VPS_cms"></td>
+      <td><input type="number" step="0.1" data-field="VDF_cms"></td>
+      <td><input type="number" step="0.1" data-field="Vm_cms" placeholder="(auto)"></td>
+      <td><input type="number" step="0.1" data-field="TAMx_cms" placeholder="opcional"></td>
+      <td><input type="number" step="0.01" data-field="IP" placeholder="(auto)"></td>
+      <td class="advanced-only"><input type="number" step="1" data-field="depth_mm"></td>
+      <td class="advanced-only"><input type="number" step="1" data-field="angle_corrected_degrees"></td>
+    </tr>
+  `).join('');
+}
+buildVesselTable();
+
+// -------- State & helpers --------
+function getVesselValues(vesselId) {
+  const row = document.querySelector(`tr[data-vessel="${vesselId}"]`);
+  if (!row) return {};
+  const out = {};
+  row.querySelectorAll('input[data-field]').forEach(i => {
+    out[i.dataset.field] = i.value === '' ? null : parseFloat(i.value);
+  });
+  return out;
+}
+
+function setVesselField(vesselId, field, value) {
+  const row = document.querySelector(`tr[data-vessel="${vesselId}"]`);
+  if (!row) return;
+  const inp = row.querySelector(`input[data-field="${field}"]`);
+  if (inp && (inp.value === '' || inp.dataset.computed === '1')) {
+    inp.value = (value === null || isNaN(value)) ? '' : Number(value.toFixed(2));
+    inp.dataset.computed = '1';
+  }
+}
+
+function v(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  if (el.type === 'checkbox') return el.checked;
+  if (el.value === '') return null;
+  if (el.type === 'number') return parseFloat(el.value);
+  return el.value;
+}
+
+// -------- Derived calcs --------
+function computeDerived() {
+  // Auto-compute Vm = (VPS + 2VDF)/3 if Vm empty
+  VESSELS.forEach(vs => {
+    const row = document.querySelector(`tr[data-vessel="${vs.id}"]`);
+    const vps = parseFloat(row.querySelector('[data-field="VPS_cms"]').value);
+    const vdf = parseFloat(row.querySelector('[data-field="VDF_cms"]').value);
+    const vmInput = row.querySelector('[data-field="Vm_cms"]');
+    const ipInput = row.querySelector('[data-field="IP"]');
+    if (!isNaN(vps) && !isNaN(vdf)) {
+      const vm = (vps + 2*vdf) / 3;
+      if (vmInput.value === '' || vmInput.dataset.computed === '1') {
+        vmInput.value = vm.toFixed(1);
+        vmInput.dataset.computed = '1';
+      }
+      const vmEff = parseFloat(vmInput.value);
+      if (!isNaN(vmEff) && vmEff > 0) {
+        const ip = (vps - vdf) / vmEff;
+        if (ipInput.value === '' || ipInput.dataset.computed === '1') {
+          ipInput.value = ip.toFixed(2);
+          ipInput.dataset.computed = '1';
+        }
+      }
+    }
+  });
+
+  // Lindegaard
+  const submR = v('submandibular_right');
+  const submL = v('submandibular_left');
+  const mcaR = getVesselValues('MCA_right');
+  const mcaL = getVesselValues('MCA_left');
+  const icaR = getVesselValues('ICA_extracranial_right');
+  const icaL = getVesselValues('ICA_extracranial_left');
+  const lrD = (submR === 'acessível' && mcaR.Vm_cms && icaR.Vm_cms && icaR.Vm_cms > 0)
+    ? (mcaR.Vm_cms / icaR.Vm_cms) : null;
+  const lrE = (submL === 'acessível' && mcaL.Vm_cms && icaL.Vm_cms && icaL.Vm_cms > 0)
+    ? (mcaL.Vm_cms / icaL.Vm_cms) : null;
+  document.getElementById('lindegaard_right_val').textContent = lrD !== null ? lrD.toFixed(2) : 'NÃO COMPUTÁVEL';
+  document.getElementById('lindegaard_left_val').textContent  = lrE !== null ? lrE.toFixed(2) : 'NÃO COMPUTÁVEL';
+
+  // IP médio anterior
+  const ips = [mcaR.IP, mcaL.IP].filter(x => x !== null && !isNaN(x));
+  const ipMean = ips.length ? (ips.reduce((a,b)=>a+b,0)/ips.length) : null;
+  document.getElementById('ip_mean_val').textContent = ipMean !== null ? ipMean.toFixed(2) : '—';
+
+  // Δ Vm 24h
+  const prevR = v('prev_vm_mca_right');
+  const prevL = v('prev_vm_mca_left');
+  const dR = (prevR !== null && mcaR.Vm_cms !== null) ? (mcaR.Vm_cms - prevR) : null;
+  const dL = (prevL !== null && mcaL.Vm_cms !== null) ? (mcaL.Vm_cms - prevL) : null;
+  document.getElementById('delta_right_val').textContent = dR !== null ? (dR>=0?'+':'') + dR.toFixed(1) : '—';
+  document.getElementById('delta_left_val').textContent  = dL !== null ? (dL>=0?'+':'') + dL.toFixed(1) : '—';
+
+  return { lrD, lrE, ipMean, dR, dL };
+}
+
+// -------- State classification (qualificada, não categórica) --------
+function classifyVS(side, vmACM, lr, vmVert, vmBas, windowOK) {
+  if (!windowOK) return { state: 'VS-INDETERMINATE', reason: 'janela inadequada — BC-06' };
+  if (vmACM === null || vmACM === undefined) return { state: 'VS-INDETERMINATE', reason: 'Vm ACM não disponível' };
+
+  let posteriorFlag = null;
+  if (vmVert !== null && vmVert >= 80) posteriorFlag = 'padrão posterior provável (Sloan)';
+  if (vmBas !== null && vmBas >= 95) posteriorFlag = 'padrão posterior provável (Sloan)';
+
+  let res;
+  if (vmACM >= 200 && lr !== null && lr > 6)
+    res = { state: 'VS-3', reason: `Vm ACM ${vmACM.toFixed(0)} cm/s + Lindegaard ${lr.toFixed(2)} — padrão compatível com vasoespasmo grave (BC-02)` };
+  else if (vmACM >= 200 && lr !== null && lr <= 6)
+    res = { state: 'VS-2_with_discordance', reason: `Vm ACM ${vmACM.toFixed(0)} (gravidade) mas Lindegaard ${lr.toFixed(2)} (não confirma) — DISCORDÂNCIA, considerar vasoespasmo distal ou erro técnico (BC-05)` };
+  else if (vmACM >= 200 && lr === null)
+    res = { state: 'VS-INDETERMINATE', reason: `Vm ACM ${vmACM.toFixed(0)} elevada sem Lindegaard computável — exige ACI submandibular (BC-05)` };
+  else if (vmACM >= 120 && lr !== null && lr >= 3 && lr <= 6)
+    res = { state: 'VS-2', reason: `Vm ACM ${vmACM.toFixed(0)} + Lindegaard ${lr.toFixed(2)} — padrão compatível com vasoespasmo leve a moderado (BC-02)` };
+  else if (vmACM >= 120 && lr !== null && lr < 3)
+    res = { state: 'VS-1', reason: `Vm ACM ${vmACM.toFixed(0)} elevada + Lindegaard ${lr.toFixed(2)} (<3) — padrão compatível com hiperemia (BC-02; correlacionar contexto sistêmico)` };
+  else if (vmACM >= 120 && lr === null)
+    res = { state: 'VS-1', reason: `Vm ACM ${vmACM.toFixed(0)} elevada — Lindegaard não computável (BC-05); diferencial hiperemia vs vasoespasmo INDETERMINADO sem ACI` };
+  else if (vmACM < 120)
+    res = { state: 'VS-0', reason: `Vm ACM ${vmACM.toFixed(0)} < 120 cm/s — sem padrão compatível com vasoespasmo proximal` };
+  else
+    res = { state: 'VS-1', reason: 'limites intermediários sem confirmação' };
+
+  if (posteriorFlag) res.posterior = posteriorFlag;
+  return res;
+}
+
+function classifyPR(diastolicFlow, ip, windowOK, prevPatent) {
+  if (diastolicFlow === 'absent_signal') {
+    if (!prevPatent) return { state: 'PR-INDETERMINATE', reason: 'absent_signal SEM janela previamente patente documentada — NÃO interpretar como achado hemodinâmico (BC-06)' };
+    return { state: 'PR-6', reason: 'ausência de sinal em janela previamente patente documentada (BC-03 + BC-06)' };
+  }
+  if (diastolicFlow === 'systolic_spikes_only') return { state: 'PR-5', reason: 'espículas sistólicas isoladas (BC-03)' };
+  if (diastolicFlow === 'oscillating_equal') return { state: 'PR-4', reason: 'padrão oscilante/reverberante (BC-03)' };
+  if (diastolicFlow === 'reversed') return { state: 'PR-3', reason: 'fluxo diastólico reverso (BC-03)' };
+  if (diastolicFlow === 'absent') return { state: 'PR-2', reason: 'VDF ausente — perfusão apenas sistólica (BC-01)' };
+  if (!windowOK) return { state: 'PR-INDETERMINATE', reason: 'janela inadequada — BC-06' };
+  if (ip === null || ip === undefined) return { state: 'PR-INDETERMINATE', reason: 'IP não disponível' };
+  if (ip > 1.2) return { state: 'PR-1', reason: `IP ${ip.toFixed(2)} > 1,2 — considerar HIC, edema ou vasoespasmo a jusante (correlacionar PaCO2, sedação — BC-01)` };
+  return { state: 'PR-0', reason: `IP ${ip.toFixed(2)} ≤ 1,2 — padrão preservado` };
+}
+
+function classifyEM() {
+  return { state: 'EM-not_applied', reason: 'monitorização embólica não aplicada neste exame' };
+}
+
+function alarmsFromStates(vsConsolidated, pr, em, delta) {
+  const alarms = [];
+  const ctx = v('context');
+  const clin = v('clinical_status');
+
+  if (vsConsolidated.state === 'VS-3' && (pr.state === 'PR-0' || pr.state === 'PR-INDETERMINATE'))
+    alarms.push({ id: 'SEVERE_VASOSPASM_ISOLATED', priority: 'high', action: 'comunicar imediatamente — discutir protocolo institucional de DCI; exige correlação clínica (BC-02)' });
+  if (vsConsolidated.state === 'VS-3' && pr.state === 'PR-1')
+    alarms.push({ id: 'SEVERE_VASOSPASM_WITH_HIC', priority: 'critical', action: 'comunicar imediatamente — revisar PPC alvo; correlacionar PIC (BC-01+BC-02)' });
+  if (vsConsolidated.state === 'VS-2')
+    alarms.push({ id: 'MODERATE_VASOSPASM', priority: 'medium', action: 'comunicar ao intensivista; reforçar monitorização; correlacionar clínica (BC-02)' });
+  if (vsConsolidated.state === 'VS-2_with_discordance')
+    alarms.push({ id: 'VS_DISCORDANCE_FLAG', priority: 'high', action: 'Vm extrema sem LR confirmatório — considerar vasoespasmo distal ou erro técnico; investigar (BC-05)' });
+  if (vsConsolidated.posterior)
+    alarms.push({ id: 'POSTERIOR_CIRCULATION_FLAG', priority: 'high', action: vsConsolidated.posterior + ' — alta especificidade, baixa sensibilidade; correlacionar clínica de tronco (BC-05)' });
+  if (pr.state === 'PR-1' && !alarms.find(a => a.id.startsWith('SEVERE_VASOSPASM')))
+    alarms.push({ id: 'ELEVATED_IP_SUSTAINED', priority: 'medium', action: 'considerar HIC/edema; correlacionar PaCO2, sedação, PIC se disponível (BC-01)' });
+  if (pr.state === 'PR-2')
+    alarms.push({ id: 'DIASTOLIC_FLOW_ABSENT', priority: 'high', action: 'comunicar imediatamente; sinal de PIC crítica — TCD NÃO substitui PIC invasiva (BC-01)' });
+  if (pr.state === 'PR-3')
+    alarms.push({ id: 'REVERSE_FLOW_PATTERN', priority: 'critical', action: 'comunicar imediatamente — padrão de progressão de HIC refratária (BC-03)' });
+  if (['PR-4','PR-5','PR-6'].includes(pr.state)) {
+    const cfm = v('CFM_2173_2017_activated');
+    const ctxNote = cfm
+      ? 'protocolo CFM 2.173/2017 ativado — conduzir como exame ancilar (BC-03)'
+      : '⚠ protocolo CFM 2.173/2017 NÃO ativado — achado registrado, NÃO autoriza diagnóstico de ME isoladamente (BC-03)';
+    alarms.push({ id: 'BRAIN_DEATH_COMPATIBLE_PATTERN', priority: 'critical', action: ctxNote });
+  }
+  if (delta.dR !== null && delta.dR > 50)
+    alarms.push({ id: 'SIGNIFICANT_VM_RISE_24H_RIGHT', priority: 'high', action: `subida ${delta.dR.toFixed(0)} cm/s/24h ACM D — valor prognóstico independente (BC-08)` });
+  if (delta.dL !== null && delta.dL > 50)
+    alarms.push({ id: 'SIGNIFICANT_VM_RISE_24H_LEFT', priority: 'high', action: `subida ${delta.dL.toFixed(0)} cm/s/24h ACM E — valor prognóstico independente (BC-08)` });
+  // Discordância TCD vs clínica
+  if ((clin === 'piorando' || clin === 'deficit_novo' || clin === 'deteriorando_sem_definicao') &&
+      (vsConsolidated.state === 'VS-0' || vsConsolidated.state === 'VS-1') &&
+      (pr.state === 'PR-0' || pr.state === 'PR-1'))
+    alarms.push({ id: 'CLINICAL_TCD_DISCORDANCE', priority: 'high', action: 'clínica piorando com TCD normal/leve — CLÍNICA PREVALECE (BC-07); investigar com imagem; considerar vasoespasmo distal (BC-05)' });
+  // INDETERMINATE bilateral
+  if (vsConsolidated.state === 'VS-INDETERMINATE' && pr.state === 'PR-INDETERMINATE')
+    alarms.push({ id: 'WINDOW_UNAVAILABLE_LIMITATION', priority: 'info_with_caveat', action: 'laudar limitação técnica; recomendar complementação por imagem; NÃO inferir ausência de fluxo (BC-06)' });
+
+  if (alarms.length === 0)
+    alarms.push({ id: 'NO_ACTIVE_ALARM', priority: 'info', action: 'manter cadência conforme protocolo institucional' });
+  return alarms;
+}
+
+function consolidateVS(sideR, sideL) {
+  const order = ['VS-INDETERMINATE','VS-0','VS-1','VS-2','VS-2_with_discordance','VS-3'];
+  const states = [sideR.state, sideL.state];
+  const valid = states.filter(s => s !== 'VS-INDETERMINATE');
+  const worst = valid.length
+    ? valid.sort((a,b) => order.indexOf(b) - order.indexOf(a))[0]
+    : 'VS-INDETERMINATE';
+  const winnerSide = sideR.state === worst ? sideR : sideL;
+  const out = { state: worst, reason: winnerSide.reason || sideR.reason };
+  if (sideR.posterior || sideL.posterior) out.posterior = sideR.posterior || sideL.posterior;
+  return out;
+}
+
+function updateStates() {
+  const wq = { right: v('transtemporal_right'), left: v('transtemporal_left') };
+  const mcaR = getVesselValues('MCA_right');
+  const mcaL = getVesselValues('MCA_left');
+  const bas = getVesselValues('basilar');
+  const vertR = getVesselValues('vertebral_right');
+  const vertL = getVesselValues('vertebral_left');
+
+  const derived = computeDerived();
+
+  const sideR = classifyVS('right', mcaR.Vm_cms, derived.lrD, vertR.Vm_cms, bas.Vm_cms, wq.right !== 'ausente');
+  const sideL = classifyVS('left',  mcaL.Vm_cms, derived.lrE, vertL.Vm_cms, bas.Vm_cms, wq.left  !== 'ausente');
+  const vsConsolidated = consolidateVS(sideR, sideL);
+
+  const ipMean = (mcaR.IP !== null && mcaL.IP !== null) ? (mcaR.IP + mcaL.IP) / 2 :
+                 (mcaR.IP !== null ? mcaR.IP : mcaL.IP);
+  const pr = classifyPR(v('diastolic_flow'), ipMean, wq.right !== 'ausente' || wq.left !== 'ausente', v('previously_demonstrated_patent'));
+  const em = classifyEM();
+
+  // Update UI
+  document.getElementById('vsState').textContent = vsConsolidated.state + (vsConsolidated.posterior ? ' + posterior' : '');
+  document.getElementById('vsReason').textContent = vsConsolidated.reason;
+  document.getElementById('prState').textContent = pr.state;
+  document.getElementById('prReason').textContent = pr.reason;
+  document.getElementById('emState').textContent = em.state;
+  document.getElementById('emReason').textContent = em.reason;
+
+  // Alarmes
+  const alarms = alarmsFromStates(vsConsolidated, pr, em, derived);
+  const box = document.getElementById('alarmsBox');
+  box.innerHTML = alarms.map(a => {
+    const cls = a.priority === 'critical' || a.priority === 'high' ? 'crit'
+              : (a.priority === 'medium' ? 'warn' : 'ok');
+    return `<div class="alert ${cls}"><span class="icon">⚠</span><div><strong>${a.id}</strong> <span class="badge ${cls}">${a.priority}</span><br>${a.action}</div></div>`;
+  }).join('');
+
+  // ME section visibility
+  document.getElementById('meSection').style.display =
+    (v('context') === 'protocolo_ME_ativo' || ['PR-4','PR-5','PR-6'].includes(pr.state)) ? 'block' : 'none';
+
+  // Window alerts
+  const windowAlerts = document.getElementById('windowAlerts');
+  let wa = '';
+  if (wq.right === 'ausente' && wq.left === 'ausente') {
+    const tsDone = ['ts_power_doppler','ts_scale_reduced','ts_angle_optimized','ts_contralateral','ts_coronal'].every(id => v(id));
+    if (!tsDone)
+      wa += '<div class="alert warn"><span class="icon">⚠</span><div>Janela transtemporal ausente bilateralmente — marque o troubleshooting realizado antes de laudar limitação (PT-04, BC-06).</div></div>';
+    else
+      wa += '<div class="alert warn"><span class="icon">⚠</span><div>Janela bilateral ausente após troubleshooting completo — em paciente HSA alto risco, considerar imagem complementar (angio-TC/RM); NÃO repetir TCD inutilmente.</div></div>';
+  }
+  windowAlerts.innerHTML = wa;
+
+  // Spectral alerts (inconsistência VDF qualitativo x numérico)
+  const df = v('diastolic_flow');
+  const vdfNums = VESSELS.filter(vs => vs.id.startsWith('MCA')).map(vs => getVesselValues(vs.id).VDF_cms);
+  const someVDFnonzero = vdfNums.some(x => x !== null && x > 0);
+  const sa = document.getElementById('spectralAlerts');
+  if (df === 'absent' && someVDFnonzero) {
+    sa.innerHTML = '<div class="alert crit"><span class="icon">⚠</span><div>Inconsistência detectada: campo qualitativo "absent" selecionado, mas VDF numérico > 0 em ao menos um segmento ACM. Reveja: marcar "reduced_but_present" se VDF apenas reduzida.</div></div>';
+  } else {
+    sa.innerHTML = '';
+  }
+
+  // Compare cards
+  renderCompareCards();
+
+  // ME alerts
+  if (v('context') === 'protocolo_ME_ativo') {
+    const cfm = v('CFM_2173_2017_activated');
+    const ce = v('clinical_exam_concordant');
+    const at = v('apnea_test_done');
+    const bi = v('bilateral_assessment_done');
+    const oc = v('operator_certified_for_ME');
+    const pp = v('previously_demonstrated_patent');
+    let html = '';
+    if (!cfm) html += '<div class="alert crit"><span class="icon">⚠</span><div>Contexto ME selecionado mas protocolo CFM 2.173/2017 NÃO ativado — TCD não conduz como exame de ME (BC-03).</div></div>';
+    if (!pp) html += '<div class="alert crit"><span class="icon">⚠</span><div>Janela previamente patente NÃO documentada — não inferir ausência de fluxo (BC-06).</div></div>';
+    if (cfm && (!ce || !at || !bi || !oc)) html += '<div class="alert warn"><span class="icon">⚠</span><div>Pré-requisitos do protocolo ME incompletos (exame clínico, apneia, bilateralidade ou certificação) — laudo só compõe avaliação ancilar quando todos os critérios estiverem presentes.</div></div>';
+    document.getElementById('meAlerts').innerHTML = html;
+  }
+}
+
+// -------- Snapshot --------
+function snapshot() {
+  const data = {};
+  FIELDS_TOP.forEach(f => { data[f] = v(f); });
+  data.vessels = {};
+  VESSELS.forEach(vs => { data.vessels[vs.id] = getVesselValues(vs.id); });
+  const derived = computeDerived();
+  data.derived = {
+    lindegaard_right: derived.lrD,
+    lindegaard_left: derived.lrE,
+    ip_mean_anterior: derived.ipMean,
+    delta_vm_mca_right_24h: derived.dR,
+    delta_vm_mca_left_24h: derived.dL,
+  };
+  // Re-classify with current data
+  const wq = { right: data.transtemporal_right, left: data.transtemporal_left };
+  const mcaR = data.vessels.MCA_right, mcaL = data.vessels.MCA_left;
+  const bas = data.vessels.basilar, vertR = data.vessels.vertebral_right, vertL = data.vessels.vertebral_left;
+  const sideR = classifyVS('right', mcaR.Vm_cms, derived.lrD, vertR.Vm_cms, bas.Vm_cms, wq.right !== 'ausente');
+  const sideL = classifyVS('left',  mcaL.Vm_cms, derived.lrE, vertL.Vm_cms, bas.Vm_cms, wq.left  !== 'ausente');
+  const vsCons = consolidateVS(sideR, sideL);
+  const ipMean = derived.ipMean;
+  const pr = classifyPR(data.diastolic_flow, ipMean, wq.right !== 'ausente' || wq.left !== 'ausente', data.previously_demonstrated_patent);
+  data.states = {
+    vasospasm_axis: { state: vsCons.state, reason: vsCons.reason, posterior: vsCons.posterior || null, right: sideR, left: sideL },
+    pressure_axis: pr,
+    embolic_axis: classifyEM(),
+  };
+  data.alarms = alarmsFromStates(vsCons, pr, classifyEM(), derived);
+  data.requires_human_homologation = true;
+  data.engine_version = 'DTC_HSA_MVP_v0.1 · derivado de DTC_HSA_KERNEL_v1';
+  data.exported_at = new Date().toISOString();
+  return data;
+}
+
+// -------- Report templates (RPT-01..07) --------
+function pickTemplate(ctx) {
+  if (ctx === 'protocolo_ME_ativo') return 'RPT-04';
+  if (ctx === 'AVC_suspeita_oclusao') return 'RPT-06';
+  if (ctx === 'TCE') return 'RPT-05';
+  if (ctx === 'HIC_suspeita') return 'RPT-05';
+  if (ctx === 'pos_op_neurovascular') return 'RPT-07';
+  if (ctx === 'monitorizacao_serial' || (v('exam_sequence_number') && v('exam_sequence_number') > 1)) return 'RPT-02';
+  if (ctx === 'HSA') return 'RPT-01';
+  return 'RPT-01';
+}
+
+function noteForTemplate(tmpl) {
+  if (tmpl === 'RPT-04') return 'O Doppler transcraniano é EXAME ANCILAR no protocolo de morte encefálica. NÃO substitui exame clínico nem teste de apneia. O diagnóstico de morte encefálica é clínico-legal e depende do cumprimento integral da Resolução CFM 2.173/2017. Janela transtemporal inadequada DE ORIGEM não autoriza inferência de ausência de fluxo.';
+  if (tmpl === 'RPT-05') return 'O TCD informa tendência hemodinâmica. NÃO substitui a monitorização invasiva de PIC quando indicada. A estimativa não invasiva de PIC pelo TCD reproduz tendências mas tem acurácia absoluta insuficiente (~±10–12 mmHg). Intervenções terapêuticas baseiam-se em PIC e PPC continuamente medidas e na decisão da equipe assistencial.';
+  if (tmpl === 'RPT-06') return 'O TCD oferece avaliação funcional hemodinâmica. NÃO substitui angio-TC, angio-RM ou angiografia para caracterização anatômica da oclusão. Decisão de trombólise/trombectomia segue protocolo institucional de AVC e equipe assistencial; o TCD informa.';
+  if (tmpl === 'RPT-07') return 'O TCD documenta resposta hemodinâmica à intervenção. A eficácia clínica exige correlação com exame neurológico e tendência seriada.';
+  // RPT-01/02/03 default
+  return 'Este exame compõe a avaliação multidisciplinar. O TCD informa hemodinâmica de grandes vasos; não substitui exame neurológico, monitorização invasiva de PIC, neuroimagem estrutural ou angiografia. Esta saída é gerada por motor local em modo MVP e EXIGE HOMOLOGAÇÃO MÉDICA antes de uso clínico.';
+}
+
+function titleForTemplate(tmpl, ctx) {
+  if (tmpl === 'RPT-04') return 'DOPPLER TRANSCRANIANO — EXAME ANCILAR · PROTOCOLO ME (CFM 2.173/2017)';
+  if (tmpl === 'RPT-05') return 'DOPPLER TRANSCRANIANO — TCE / HIC / NEUROCRÍTICO';
+  if (tmpl === 'RPT-06') return 'DOPPLER TRANSCRANIANO — SUSPEITA DE OCLUSÃO INTRACRANIANA';
+  if (tmpl === 'RPT-07') return 'DOPPLER TRANSCRANIANO — PÓS-INTERVENÇÃO';
+  if (tmpl === 'RPT-02') return 'DOPPLER TRANSCRANIANO — EXAME SERIADO HSA';
+  return 'DOPPLER TRANSCRANIANO — EXAME DE ADMISSÃO / BASELINE HSA';
+}
+
+function fmtNumber(x, digits=1) {
+  if (x === null || x === undefined || isNaN(x)) return '—';
+  return Number(x).toFixed(digits);
+}
+
+function fmtVessel(label, vesselData) {
+  const vm = fmtNumber(vesselData.Vm_cms);
+  const vps = fmtNumber(vesselData.VPS_cms);
+  const vdf = fmtNumber(vesselData.VDF_cms);
+  const ip = fmtNumber(vesselData.IP, 2);
+  const tamx = fmtNumber(vesselData.TAMx_cms);
+  if (vm === '—' && vps === '—' && vdf === '—' && ip === '—' && tamx === '—') return null;
+  const tamxPart = tamx !== '—' ? `  TAMx=${tamx}` : '';
+  return `  ${label.padEnd(34)} Vm=${vm}  VPS=${vps}  VDF=${vdf}${tamxPart}  IP=${ip}`;
+}
+
+function buildExecutiveSummary(data) {
+  const vs = (data.states && data.states.vasospasm_axis) || {};
+  const pr = (data.states && data.states.pressure_axis) || {};
+  const ctx = data.context || 'contexto não especificado';
+  const der = data.derived || {};
+  const lrD = der.lindegaard_right;
+  const lrE = der.lindegaard_left;
+  const lines = [];
+
+  // Linha 1: padrão principal
+  let mainPattern;
+  if (vs.state === 'VS-0' && pr.state === 'PR-0') {
+    mainPattern = 'Exame com velocidades preservadas em circulação anterior, sem padrão compatível com vasoespasmo proximal e pulsatilidade preservada.';
+  } else if (vs.state === 'VS-3') {
+    mainPattern = 'Padrão compatível com vasoespasmo grave em ACM (BC-02), exigindo correlação clínica.';
+  } else if (vs.state === 'VS-2_with_discordance') {
+    mainPattern = 'Velocidades em território de gravidade com discordância de Lindegaard — diferencial probabilístico (BC-05).';
+  } else if (vs.state === 'VS-2') {
+    mainPattern = 'Padrão compatível com vasoespasmo leve a moderado em ACM (BC-02).';
+  } else if (vs.state === 'VS-1') {
+    mainPattern = 'Velocidades elevadas em ACM com Lindegaard preservado — diferencial hiperemia × vasoespasmo incipiente.';
+  } else if (vs.state === 'VS-INDETERMINATE') {
+    mainPattern = 'Eixo vasoespástico não classificável por limitação técnica (BC-06).';
+  } else if (['PR-2','PR-3','PR-4','PR-5','PR-6'].includes(pr.state)) {
+    mainPattern = 'Padrão espectral de pressão crítico — eixo de pressão em ' + pr.state + ' (BC-01/BC-03).';
+  } else {
+    mainPattern = 'Achados hemodinâmicos em ' + (vs.state || '—') + ' / ' + (pr.state || '—') + '.';
+  }
+  lines.push(mainPattern);
+
+  // Linha 2: Lindegaard + pulsatilidade
+  if (present(lrD) || present(lrE)) {
+    const lrParts = [];
+    if (present(lrD)) lrParts.push('LR D=' + lrD.toFixed(2));
+    if (present(lrE)) lrParts.push('LR E=' + lrE.toFixed(2));
+    const lrClass = (Math.max(lrD || 0, lrE || 0) > 6) ? ' (grave)' : (Math.max(lrD || 0, lrE || 0) >= 3 ? ' (leve-moderado)' : ' (preservado bilateralmente)');
+    lines.push('Razão de Lindegaard ' + lrParts.join(', ') + lrClass + '. Pulsatilidade ' + (pr.state === 'PR-0' ? 'preservada' : (pr.state === 'PR-1' ? 'sustentadamente elevada' : 'em ' + pr.state)) + '.');
+  } else if (vs.state === 'VS-INDETERMINATE' || vs.state === 'VS-1') {
+    lines.push('Lindegaard NÃO COMPUTÁVEL — diferencial hiperemia × vasoespasmo prejudicado (BC-05).');
+  }
+
+  // Linha 3: comparação serial se houver
+  const dR = der.delta_vm_mca_right_24h;
+  const dL = der.delta_vm_mca_left_24h;
+  if (present(dR) || present(dL)) {
+    const deltaParts = [];
+    if (present(dR)) deltaParts.push('ACM D Δ' + (dR>=0?'+':'') + dR.toFixed(0) + ' cm/s/24h');
+    if (present(dL)) deltaParts.push('ACM E Δ' + (dL>=0?'+':'') + dL.toFixed(0) + ' cm/s/24h');
+    let trend = ': estável';
+    if ((present(dR) && Math.abs(dR) >= 50) || (present(dL) && Math.abs(dL) >= 50)) {
+      trend = ': aceleração significativa (BC-08)';
+    } else if ((present(dR) && dR >= 30) || (present(dL) && dL >= 30)) {
+      trend = ': tendência ascendente';
+    }
+    lines.push('Em comparação ao exame anterior — ' + deltaParts.join(', ') + trend + '.');
+  }
+
+  // Linha 4: alerta operacional
+  const highestAlarm = (data.alarms || []).find(a => a.priority === 'critical' || a.priority === 'high');
+  if (highestAlarm && highestAlarm.id !== 'NO_ACTIVE_ALARM') {
+    lines.push('Comunicação ' + highestAlarm.priority + ' indicada: ' + highestAlarm.id + '.');
+  } else if (ctx === 'HSA' && vs.state === 'VS-0' && (data.exam_sequence_number === 1 || !data.exam_sequence_number)) {
+    lines.push('Serve como baseline para seguimento seriado em janela de risco HSA.');
+  }
+
+  // Linha 5: boundary curto
+  lines.push('TCD informa; equipe assistencial decide.');
+
+  return lines.join(' ');
+}
+function present(x) { return x !== null && x !== undefined && !Number.isNaN(x); }
+
+function generateReport() {
+  const data = snapshot();
+  const tmpl = pickTemplate(data.context || '');
+  const title = titleForTemplate(tmpl, data.context);
+  const sep = '═══════════════════════════════════════════════════════════════════';
+  const lines = [];
+
+  lines.push(sep);
+  lines.push(title);
+  lines.push(`Template aplicado: ${tmpl} · Serviço de Neurocirurgia · Hospital Santo Antônio (HSA)`);
+  lines.push(sep);
+  lines.push('');
+  lines.push('▌ RESUMO EXECUTIVO');
+  buildExecutiveSummary(data).split('. ').forEach((sentence, idx, arr) => {
+    if (sentence.trim()) lines.push('  ' + sentence.trim() + (idx === arr.length - 1 ? '' : '.'));
+  });
+  lines.push('');
+  lines.push(sep);
+  lines.push('');
+  lines.push(`Paciente (anonimizado): ${data.patient_code || '—'}`);
+  lines.push(`Data/hora: ${data.exam_datetime || '—'}`);
+  lines.push(`Operador: ${data.operator_id || '—'}`);
+  lines.push(`Contexto: ${data.context || '—'}`);
+  if (data.context === 'HSA') {
+    lines.push(`HSA: dia ${data.post_bleed_day ?? '—'} pós-sangramento · Fisher ${data.fisher ?? '—'} · Hunt-Hess ${data.hunt_hess ?? '—'}`);
+  }
+  lines.push(`Método: TCD ${data.method === 'duplex' ? 'duplex' : 'dedicado'} · transdutor setorial 1,5–5 MHz · preset TCD`);
+  lines.push('');
+  lines.push('Variáveis sistêmicas:');
+  lines.push(`  PaCO2: ${fmtNumber(data.PaCO2_mmHg)} mmHg`);
+  lines.push(`  Hematócrito: ${fmtNumber(data.hematocrit_pct)} %`);
+  lines.push(`  Sedação: ${data.sedation || '—'}`);
+  lines.push(`  Cabeceira: ${fmtNumber(data.head_elevation_degrees, 0)}°`);
+  lines.push(`  PA/FC: ${fmtNumber(data.BP_systolic,0)}/${fmtNumber(data.BP_diastolic,0)} mmHg · ${fmtNumber(data.HR,0)} bpm`);
+  lines.push(`  Vigilância: ${data.vigilance_state || '—'}`);
+  if (data.glasgow) lines.push(`  Glasgow: ${data.glasgow}`);
+  if (data.ICP_mmHg !== null) lines.push(`  PIC invasiva: ${fmtNumber(data.ICP_mmHg)} mmHg (BC-01)`);
+  lines.push('');
+  lines.push('JANELAS:');
+  lines.push(`  Transtemporal direita: ${data.transtemporal_right || '—'}`);
+  lines.push(`  Transtemporal esquerda: ${data.transtemporal_left || '—'}`);
+  lines.push(`  Suboccipital: ${data.suboccipital || '—'}`);
+  lines.push(`  Submandibular D: ${data.submandibular_right || '—'}`);
+  lines.push(`  Submandibular E: ${data.submandibular_left || '—'}`);
+  if (data.previously_demonstrated_patent) lines.push('  Janela previamente demonstrada como patente: SIM (BC-06)');
+  lines.push('');
+  lines.push('SEGMENTOS AVALIADOS (cm/s):');
+  const vesselOutput = [];
+  vesselOutput.push(fmtVessel('ACM M1 direita', data.vessels.MCA_right));
+  vesselOutput.push(fmtVessel('ACM M1 esquerda', data.vessels.MCA_left));
+  vesselOutput.push(fmtVessel('ACA A1 direita', data.vessels.ACA_right));
+  vesselOutput.push(fmtVessel('ACA A1 esquerda', data.vessels.ACA_left));
+  vesselOutput.push(fmtVessel('ACP P1-P2 direita', data.vessels.PCA_right));
+  vesselOutput.push(fmtVessel('ACP P1-P2 esquerda', data.vessels.PCA_left));
+  vesselOutput.push(fmtVessel('Basilar', data.vessels.basilar));
+  vesselOutput.push(fmtVessel('Vertebral D', data.vessels.vertebral_right));
+  vesselOutput.push(fmtVessel('Vertebral E', data.vessels.vertebral_left));
+  vesselOutput.push(`  ACI extracraniana D (submandib.) Vm=${fmtNumber(data.vessels.ICA_extracranial_right.Vm_cms)}`);
+  vesselOutput.push(`  ACI extracraniana E (submandib.) Vm=${fmtNumber(data.vessels.ICA_extracranial_left.Vm_cms)}`);
+  vesselOutput.filter(x => x).forEach(l => lines.push(l));
+  lines.push('');
+  lines.push('ÍNDICES DERIVADOS:');
+  lines.push(`  Lindegaard direita: ${data.derived.lindegaard_right !== null ? data.derived.lindegaard_right.toFixed(2) : 'NÃO COMPUTÁVEL'}`);
+  lines.push(`  Lindegaard esquerda: ${data.derived.lindegaard_left !== null ? data.derived.lindegaard_left.toFixed(2) : 'NÃO COMPUTÁVEL'}`);
+  if (data.derived.delta_vm_mca_right_24h !== null) lines.push(`  Δ Vm ACM D em 24h: ${data.derived.delta_vm_mca_right_24h>0?'+':''}${data.derived.delta_vm_mca_right_24h.toFixed(1)} cm/s`);
+  if (data.derived.delta_vm_mca_left_24h !== null) lines.push(`  Δ Vm ACM E em 24h: ${data.derived.delta_vm_mca_left_24h>0?'+':''}${data.derived.delta_vm_mca_left_24h.toFixed(1)} cm/s`);
+  lines.push('');
+  lines.push('PADRÃO ESPECTRAL:');
+  lines.push(`  Fluxo diastólico: ${data.diastolic_flow || '—'}`);
+  lines.push(`  Janela sistólica: ${data.systolic_window || '—'}`);
+  lines.push('');
+  lines.push('ESTADO NOS EIXOS (proposta algorítmica — exige homologação):');
+  lines.push(`  vasospasm_axis: ${data.states.vasospasm_axis.state}${data.states.vasospasm_axis.posterior ? ' + posterior' : ''}`);
+  lines.push(`    → ${data.states.vasospasm_axis.reason}`);
+  if (data.states.vasospasm_axis.posterior) lines.push(`    → ${data.states.vasospasm_axis.posterior}`);
+  lines.push(`  pressure_axis:  ${data.states.pressure_axis.state}`);
+  lines.push(`    → ${data.states.pressure_axis.reason}`);
+  lines.push(`  embolic_axis:   ${data.states.embolic_axis.state}`);
+  lines.push('');
+  lines.push('ALARMES DERIVADOS:');
+  data.alarms.forEach(a => {
+    if (a.id === 'NO_ACTIVE_ALARM') {
+      lines.push('  · Nenhum alarme ativo — manter cadência');
+    } else {
+      lines.push(`  · ${a.id} [${a.priority}]`);
+      lines.push(`      → ${a.action}`);
+    }
+  });
+  lines.push('');
+  lines.push('OBSERVAÇÕES TÉCNICAS:');
+  lines.push('  ' + (data.technical_notes || '(sem observações)'));
+  lines.push('');
+  lines.push('OBSERVAÇÕES CLÍNICAS:');
+  lines.push('  ' + (data.clinical_notes || '(sem observações)'));
+  lines.push('');
+  lines.push('LIMITAÇÕES E BOUNDARIES:');
+  lines.push('  · Princípio runtime — TCD informa, equipe decide (BC-01..10 aplicáveis)');
+  if (data.context === 'HSA') {
+    lines.push('  · BC-02 — TCD não diagnostica DCI isoladamente; exige correlação clínica');
+    lines.push('  · BC-05 — TCD não exclui vasoespasmo distal; déficit novo com TCD normal exige investigação');
+  }
+  if (data.context === 'TCE' || data.context === 'HIC_suspeita' || ['PR-1','PR-2','PR-3'].includes(data.states.pressure_axis.state)) {
+    lines.push('  · BC-01 — TCD não substitui PIC invasiva; informa tendência, não absoluto');
+  }
+  if (data.context === 'protocolo_ME_ativo' || ['PR-4','PR-5','PR-6'].includes(data.states.pressure_axis.state)) {
+    lines.push('  · BC-03 — diagnóstico de ME exige CFM 2.173/2017 integral; TCD é exame ancilar');
+    lines.push('  · BC-06 — janela previamente patente é pré-requisito para inferir ausência de fluxo');
+  }
+  if (data.context === 'AVC_suspeita_oclusao') {
+    lines.push('  · BC-04 — TCD não substitui angio-TC/angio-RM/angiografia para caracterização anatômica');
+  }
+  if ((data.transtemporal_right === 'ausente') || (data.transtemporal_left === 'ausente')) {
+    lines.push('  · BC-06 — janela inadequada limita interpretação');
+  }
+  lines.push('');
+  lines.push('PLANO DE MONITORIZAÇÃO:');
+  lines.push('  ' + (data.followup_plan || '(definir conforme protocolo institucional / pactuação)'));
+  lines.push('');
+  lines.push('COMUNICAÇÕES REALIZADAS:');
+  lines.push('  ' + (data.communications || '(nenhuma registrada neste exame)'));
+  lines.push('');
+  lines.push('NOTA INSTITUCIONAL (OBRIGATÓRIA):');
+  noteForTemplate(tmpl).split('\n').forEach(l => lines.push('  ' + l));
+  lines.push('');
+  lines.push(sep);
+  lines.push('HOMOLOGAÇÃO MÉDICA');
+  const stat = data.reviewer_status || 'pendente';
+  lines.push(`  Status: ${stat.toUpperCase()}`);
+  if (data.reviewer_name) lines.push(`  Revisado por: ${data.reviewer_name}  CRM: ${data.reviewer_crm || '—'}`);
+  if (data.reviewer_datetime) lines.push(`  Data/hora da revisão: ${data.reviewer_datetime}`);
+  if (data.reviewer_modifications) {
+    lines.push('  Modificações pelo revisor:');
+    data.reviewer_modifications.split('\n').forEach(l => lines.push('    ' + l));
+  }
+  if (stat === 'pendente') {
+    lines.push('  ⚠ Laudo em status PENDENTE — rascunho técnico; não pode ser inserido em prontuário.');
+  }
+  lines.push(sep);
+  lines.push(`[Motor: ${data.engine_version} · gerado em ${data.exported_at}]`);
+  lines.push('[requires_human_homologation: True]');
+  lines.push(sep);
+
+  return { text: lines.join('\n'), template: tmpl, snapshot: data };
+}
+
+// -------- Actions --------
+document.getElementById('generateBtn').addEventListener('click', () => {
+  const r = generateReport();
+  document.getElementById('laudoOutput').value = r.text;
+  // Visual exec summary above the laudo
+  const exec = buildExecutiveSummary(r.snapshot);
+  document.getElementById('execSummaryBox').innerHTML = `
+    <div class="exec-summary">
+      <span class="es-label">▌ Resumo executivo</span>
+      ${exec}
+    </div>
+  `;
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  const txt = document.getElementById('laudoOutput').value;
+  if (!txt) { alert('Nada a copiar — gere o laudo primeiro.'); return; }
+  try { await navigator.clipboard.writeText(txt); flashSaveStatus('copiado', 'saved'); }
+  catch { alert('Falha ao copiar — selecione manualmente e Ctrl+C.'); }
+});
+
+function download(filename, content, mime='text/plain') {
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exportTxtBtn').addEventListener('click', () => {
+  const txt = document.getElementById('laudoOutput').value || generateReport().text;
+  const pc = v('patient_code') || 'sem_codigo';
+  const dt = (v('exam_datetime') || new Date().toISOString()).replace(/[:T]/g,'-').slice(0,16);
+  download(`laudo_${pc}_${dt}.txt`, txt);
+});
+document.getElementById('exportMdBtn').addEventListener('click', () => {
+  const txt = document.getElementById('laudoOutput').value || generateReport().text;
+  const pc = v('patient_code') || 'sem_codigo';
+  const dt = (v('exam_datetime') || new Date().toISOString()).replace(/[:T]/g,'-').slice(0,16);
+  download(`laudo_${pc}_${dt}.md`, '```\n' + txt + '\n```\n');
+});
+document.getElementById('exportJsonBtn').addEventListener('click', () => {
+  const data = snapshot();
+  const pc = v('patient_code') || 'sem_codigo';
+  const dt = (v('exam_datetime') || new Date().toISOString()).replace(/[:T]/g,'-').slice(0,16);
+  download(`laudo_${pc}_${dt}.json`, JSON.stringify(data, null, 2), 'application/json');
+});
+document.getElementById('printBtn').addEventListener('click', () => {
+  if (!document.getElementById('laudoOutput').value) {
+    const r = generateReport();
+    document.getElementById('laudoOutput').value = r.text;
+  }
+  setTimeout(()=>window.print(), 100);
+});
+
+// -------- Persistence (localStorage) --------
+const STORAGE_KEY = 'DTC_HSA_MVP_DRAFT_v1';
+function saveDraft() {
+  try {
+    const data = snapshot();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    flashSaveStatus('salvo localmente', 'saved');
+  } catch (e) {
+    flashSaveStatus('falha ao salvar', 'draft');
+  }
+}
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    FIELDS_TOP.forEach(f => {
+      const el = document.getElementById(f);
+      if (!el || data[f] === undefined || data[f] === null) return;
+      if (el.type === 'checkbox') el.checked = !!data[f];
+      else el.value = data[f];
+    });
+    if (data.vessels) {
+      Object.keys(data.vessels).forEach(vid => {
+        const row = document.querySelector(`tr[data-vessel="${vid}"]`);
+        if (!row) return;
+        Object.entries(data.vessels[vid]).forEach(([k,val]) => {
+          const inp = row.querySelector(`[data-field="${k}"]`);
+          if (inp && val !== null && val !== undefined) inp.value = val;
+        });
+      });
+    }
+    // Restaurar seleção visual do card espectral
+    if (data.diastolic_flow) selectSpectralCard(data.diastolic_flow);
+    updateStates();
+  } catch (e) { console.warn('loadDraft falhou', e); }
+}
+let saveStatusTimer;
+function flashSaveStatus(text, klass) {
+  const el = document.getElementById('saveStatus');
+  el.textContent = text;
+  el.className = 'pill ' + (klass || '');
+  clearTimeout(saveStatusTimer);
+  saveStatusTimer = setTimeout(() => { el.textContent = 'rascunho local'; el.className = 'pill draft'; }, 1800);
+}
+
+document.getElementById('clearAll').addEventListener('click', () => {
+  if (!confirm('Limpar todo o formulário e o rascunho local?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('input, select, textarea').forEach(el => {
+    if (el.type === 'checkbox') el.checked = false;
+    else el.value = '';
+  });
+  buildVesselTable();
+  updateStates();
+  flashSaveStatus('limpo', 'draft');
+});
+
+// Theme toggle
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const cur = document.body.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.body.setAttribute('data-theme', next);
+  try { localStorage.setItem('DTC_HSA_THEME', next); } catch {}
+});
+(function initTheme(){
+  try {
+    const t = localStorage.getItem('DTC_HSA_THEME');
+    if (t) document.body.setAttribute('data-theme', t);
+  } catch {}
+})();
+
+// ============================================================
+// MODO RÁPIDO / AVANÇADO
+// ============================================================
+function setMode(mode) {
+  document.body.setAttribute('data-mode', mode);
+  document.getElementById('modeFast').classList.toggle('active', mode === 'fast');
+  document.getElementById('modeAdvanced').classList.toggle('active', mode === 'advanced');
+  try { localStorage.setItem('DTC_HSA_MODE', mode); } catch {}
+}
+document.getElementById('modeFast').addEventListener('click', () => setMode('fast'));
+document.getElementById('modeAdvanced').addEventListener('click', () => setMode('advanced'));
+(function initMode(){
+  try {
+    const m = localStorage.getItem('DTC_HSA_MODE');
+    if (m === 'advanced' || m === 'fast') setMode(m);
+  } catch {}
+})();
+
+// ============================================================
+// BASELINE / NORMAL preset
+// ============================================================
+function applyBaseline() {
+  if (!confirm('Aplicar valores fisiológicos normais como ponto de partida?\n\nPreenche apenas campos vazios — não sobrescreve dados já digitados.\nVocê pode revisar e ajustar campo a campo depois.')) return;
+
+  const baseline = {
+    method: 'duplex',
+    context: 'HSA',
+    PaCO2_mmHg: 38,
+    hematocrit_pct: 35,
+    sedation: 'ausente',
+    head_elevation_degrees: 30,
+    BP_systolic: 130, BP_diastolic: 75, HR: 75,
+    vigilance_state: 'acordado',
+    clinical_status: 'estavel',
+    deficit_side: 'nenhum',
+    transtemporal_right: 'patente',
+    transtemporal_left: 'patente',
+    suboccipital: 'acessível',
+    submandibular_right: 'acessível',
+    submandibular_left: 'acessível',
+    diastolic_flow: 'preserved',
+    systolic_window: 'preserved',
+    technique_identical: true,
+    technical_notes: 'Exame realizado em condições técnicas adequadas. Janelas patentes bilateralmente. Sem limitações relevantes.',
+    clinical_notes: 'Paciente em condições clínicas estáveis no momento do exame.',
+    followup_plan: 'Manter cadência de monitorização conforme protocolo institucional e pactuação multidisciplinar.',
+  };
+
+  // Apenas preenche campos vazios
+  Object.entries(baseline).forEach(([k, val]) => {
+    const el = document.getElementById(k);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+      if (!el.checked) el.checked = val;
+    } else if (!el.value) {
+      el.value = val;
+    }
+  });
+
+  // Espectral card
+  if (!document.getElementById('diastolic_flow').value || document.getElementById('diastolic_flow').value === 'preserved') {
+    selectSpectralCard('preserved');
+  }
+
+  // Vasos: valores fisiológicos típicos por território (só preenche se vazio)
+  const baselineVessels = {
+    MCA_right:  { Vm_cms: 55, VPS_cms: 85, VDF_cms: 40, IP: 0.82 },
+    MCA_left:   { Vm_cms: 55, VPS_cms: 85, VDF_cms: 40, IP: 0.82 },
+    ACA_right:  { Vm_cms: 50 },
+    ACA_left:   { Vm_cms: 50 },
+    PCA_right:  { Vm_cms: 40 },
+    PCA_left:   { Vm_cms: 40 },
+    basilar:    { Vm_cms: 40 },
+    vertebral_right: { Vm_cms: 38 },
+    vertebral_left:  { Vm_cms: 38 },
+    ICA_extracranial_right: { Vm_cms: 32 },
+    ICA_extracranial_left:  { Vm_cms: 32 },
+  };
+  Object.entries(baselineVessels).forEach(([vid, vals]) => {
+    const row = document.querySelector(`tr[data-vessel="${vid}"]`);
+    if (!row) return;
+    Object.entries(vals).forEach(([field, value]) => {
+      const inp = row.querySelector(`[data-field="${field}"]`);
+      if (inp && !inp.value) {
+        inp.value = value;
+        inp.dataset.computed = '1';
+      }
+    });
+  });
+
+  updateStates();
+  saveDraft();
+  flashSaveStatus('baseline aplicado', 'saved');
+}
+document.getElementById('presetNormalBtn').addEventListener('click', applyBaseline);
+
+// ============================================================
+// ESPECTRAL CARDS (didáticos)
+// ============================================================
+function selectSpectralCard(value) {
+  document.querySelectorAll('.spectral-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.spectral === value);
+  });
+  const sel = document.getElementById('diastolic_flow');
+  sel.value = value;
+  sel.dispatchEvent(new Event('change'));
+}
+document.querySelectorAll('.spectral-card').forEach(card => {
+  card.addEventListener('click', () => selectSpectralCard(card.dataset.spectral));
+});
+
+// ============================================================
+// COMPARAÇÃO SERIAL — minicards visuais
+// ============================================================
+function renderCompareCards() {
+  const container = document.getElementById('compareCards');
+  const mcaR = getVesselValues('MCA_right').Vm_cms;
+  const mcaL = getVesselValues('MCA_left').Vm_cms;
+  const prevR = v('prev_vm_mca_right');
+  const prevL = v('prev_vm_mca_left');
+
+  function classify(delta) {
+    if (delta === null) return null;
+    const abs = Math.abs(delta);
+    if (abs < 15) return { cls: 'stable', label: 'estável' };
+    if (delta >= 50) return { cls: 'up-significant', label: 'elevação significativa (Δ ≥ 50 cm/s/24h — BC-08)' };
+    if (delta >= 15) return { cls: 'up-mild', label: 'tendência ascendente' };
+    if (delta <= -30) return { cls: 'down', label: 'queda relevante' };
+    return { cls: 'up-mild', label: 'variação discreta' };
+  }
+  function fmt(x, d) { return (x === null || x === undefined || isNaN(x)) ? '—' : Number(x).toFixed(d == null ? 1 : d); }
+  function delta(now, prev) {
+    if (!isFinite(now) || !isFinite(prev) || prev === null || now === null) return null;
+    return now - prev;
+  }
+  function buildCard(side, now, prev) {
+    if (prev === null && now === null) return '';
+    const d = delta(now, prev);
+    const c = classify(d);
+    const arrow = d === null ? '' : (d > 5 ? '↗' : (d < -5 ? '↘' : '→'));
+    return `
+      <div class="compare-card">
+        <span class="cc-label">ACM ${side}</span>
+        <div class="cc-values">
+          <span class="cc-prev">${fmt(prev)}</span>
+          <span class="cc-arrow">${arrow}</span>
+          <span class="cc-now">${fmt(now)}</span>
+        </div>
+        ${d !== null && c ? `<span class="cc-delta ${c.cls}">Δ ${d>=0?'+':''}${d.toFixed(1)} cm/s — ${c.label}</span>` : '<span class="cc-status">sem comparação possível</span>'}
+      </div>
+    `;
+  }
+
+  if (prevR === null && prevL === null) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = buildCard('direita', mcaR, prevR) + buildCard('esquerda', mcaL, prevL);
+
+  // Progressão assimétrica
+  const dR = delta(mcaR, prevR);
+  const dL = delta(mcaL, prevL);
+  if (dR !== null && dL !== null && Math.abs(dR - dL) > 30) {
+    container.insertAdjacentHTML('beforeend', `<div class="compare-card" style="background:var(--warn-bg);border-color:var(--warn-border);grid-column:1/-1">
+      <span class="cc-label">⚠ Progressão assimétrica</span>
+      <span class="cc-status">Diferença entre lados > 30 cm/s — favorece fenômeno focal em detrimento de modulação sistêmica difusa</span>
+    </div>`);
+  }
+}
+
+// Reactive update
+document.addEventListener('input', () => { updateStates(); saveDraft(); });
+document.addEventListener('change', () => { updateStates(); saveDraft(); });
+
+// Reset computed flag when user types manually
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && t.dataset && t.dataset.field) t.dataset.computed = '0';
+});
+
+// ============================================================
+// INTERPRETIVE ENGINE WIRING (camada narrativa)
+// ============================================================
+// Aciona a camada interpretativa SEM tocar nos estados, alarmes
+// ou laudo do engine determinístico. Tudo é aditivo.
+
+function renderInterpretiveSummary(result) {
+  if (!result) return '';
+  const conf = result.confidenceLevel || '—';
+  const cls = conf === 'ALTO' ? 'ok' : (conf === 'MODERADO' ? 'warn' : 'crit');
+  const alerts = (result.hemodynamicAlerts || []).length;
+  const sigCount = (result.clinicalSignificance || []).length;
+  return `
+    <div class="indices-bar" style="margin-top:0">
+      <div><span class="ix-label">Confiança</span><span class="ix-val"><span class="badge ${cls}">${conf}</span></span></div>
+      <div><span class="ix-label">Alertas hemodinâmicos</span><span class="ix-val">${alerts}</span></div>
+      <div><span class="ix-label">Linhas de significado clínico</span><span class="ix-val">${sigCount}</span></div>
+    </div>
+  `;
+}
+
+document.getElementById('interpretBtn').addEventListener('click', () => {
+  if (!window.DTCInterpretive || !window.DTCInterpretive.generate) {
+    alert('Módulo interpretive_engine.js não carregado. Verifique se o arquivo está na mesma pasta.');
+    return;
+  }
+  const snap = snapshot();
+  const result = window.DTCInterpretive.generate(snap);
+  document.getElementById('interpretOutput').value = result.fullNarrative || '(sem narrativa)';
+  document.getElementById('interpretSummary').innerHTML = renderInterpretiveSummary(result);
+});
+
+document.getElementById('copyInterpretBtn').addEventListener('click', async () => {
+  const txt = document.getElementById('interpretOutput').value;
+  if (!txt) { alert('Nada a copiar — gere a interpretação primeiro.'); return; }
+  try { await navigator.clipboard.writeText(txt); flashSaveStatus('copiado', 'saved'); }
+  catch { alert('Falha ao copiar — selecione manualmente.'); }
+});
+
+document.getElementById('exportInterpretTxtBtn').addEventListener('click', () => {
+  const txt = document.getElementById('interpretOutput').value;
+  if (!txt) { alert('Nada a exportar — gere a interpretação primeiro.'); return; }
+  const pc = v('patient_code') || 'sem_codigo';
+  const dt = (v('exam_datetime') || new Date().toISOString()).replace(/[:T]/g,'-').slice(0,16);
+  download(`interpretacao_${pc}_${dt}.txt`, txt);
+});
+
+// Initial
+selectSpectralCard('preserved'); // default
+loadDraft();
+updateStates();
+flashSaveStatus('rascunho local', 'draft');
+</script>
+<script src="interpretive_engine.js"></script>
+</body>
+</html>
