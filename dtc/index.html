@@ -469,27 +469,219 @@ if ('serviceWorker' in navigator) {
     line-height: 1.5;
   }
 
-  /* ===== Resumo executivo no laudo ===== */
+  /* ===== Resumo executivo no laudo (premium estilo hospital) ===== */
   .exec-summary {
-    background: var(--accent-soft);
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    font-size: 13.5px;
-    line-height: 1.55;
-    color: var(--text);
+    background: #fafbfc;
+    border-left: 3px solid #2c5f8f;
+    border-top: 1px solid #e6e8ec;
+    border-right: 1px solid #e6e8ec;
+    border-bottom: 1px solid #e6e8ec;
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1a1d21;
+    font-family: Georgia, "Times New Roman", "Times", serif;
   }
-  .exec-summary strong { color: var(--accent); }
+  [data-theme="dark"] .exec-summary {
+    background: #1c2026;
+    border-left: 3px solid #6ba3d8;
+    border-top-color: #2a2f36;
+    border-right-color: #2a2f36;
+    border-bottom-color: #2a2f36;
+    color: #e6e8eb;
+  }
   .exec-summary .es-label {
     display: block;
-    font-size: 11px;
-    color: var(--accent);
+    font-size: 10px;
+    color: #2c5f8f;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+    font-weight: 700;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  [data-theme="dark"] .exec-summary .es-label { color: #6ba3d8; }
+
+  /* ===== Toggle Modo Médico / Auditoria ===== */
+  .report-mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-left: 0;
+  }
+  .report-mode-toggle button {
+    background: var(--surface);
+    border: none;
+    color: var(--text-mute);
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .report-mode-toggle button:last-child { border-right: none; }
+  .report-mode-toggle button.active {
+    background: var(--accent);
+    color: white;
+  }
+  .report-mode-toggle button:hover:not(.active) { background: var(--surface-2); }
+
+  /* ===== Laudo médico premium (visual de documento) ===== */
+  textarea.laudo.medical-mode {
+    font-family: "Georgia", "Times New Roman", "Times", serif;
+    font-size: 14px;
+    line-height: 1.65;
+    background: #ffffff;
+    color: #1a1d21;
+    padding: 32px 40px;
+    border-radius: 4px;
+    border-color: #d4d8dd;
+    letter-spacing: 0.005em;
+  }
+  [data-theme="dark"] textarea.laudo.medical-mode {
+    background: #1c2026;
+    color: #e6e8eb;
+    border-color: #383e46;
+  }
+
+  /* ===== Preview HTML do modo médico (renderizado) ===== */
+  .medical-preview {
+    background: #ffffff;
+    color: #1a1d21;
+    border: 1px solid #d4d8dd;
+    border-radius: 4px;
+    padding: 36px 44px;
+    margin-top: 10px;
+    font-family: "Georgia", "Times New Roman", "Times", serif;
+    font-size: 14px;
+    line-height: 1.65;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  [data-theme="dark"] .medical-preview {
+    background: #1c2026; color: #e6e8eb; border-color: #383e46;
+  }
+  .medical-preview h1 {
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #2c5f8f;
+    border-bottom: 2px solid #2c5f8f;
+    padding-bottom: 10px;
+    margin: 0 0 4px 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-weight: 700;
   }
+  [data-theme="dark"] .medical-preview h1 { color: #6ba3d8; border-bottom-color: #6ba3d8; }
+  .medical-preview .subtitle {
+    font-size: 11.5px;
+    color: #5a6068;
+    margin-bottom: 24px;
+    font-style: italic;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  [data-theme="dark"] .medical-preview .subtitle { color: #98a0a8; }
+  .medical-preview h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #5a6068;
+    margin: 22px 0 8px 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 700;
+    border-bottom: 1px solid #e6e8ec;
+    padding-bottom: 4px;
+  }
+  [data-theme="dark"] .medical-preview h2 { color: #98a0a8; border-bottom-color: #2a2f36; }
+  .medical-preview p { margin: 6px 0 12px 0; text-align: justify; }
+  .medical-preview .patient-block {
+    background: #fafbfc;
+    border-radius: 4px;
+    padding: 10px 14px;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 18px;
+    font-size: 13px;
+    margin-bottom: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  [data-theme="dark"] .medical-preview .patient-block { background: #262b31; }
+  .medical-preview .patient-block dt { color: #5a6068; font-weight: 600; }
+  .medical-preview .patient-block dd { margin: 0; color: #1a1d21; }
+  [data-theme="dark"] .medical-preview .patient-block dt { color: #98a0a8; }
+  [data-theme="dark"] .medical-preview .patient-block dd { color: #e6e8eb; }
+  .medical-preview table.quant {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    margin: 8px 0 16px 0;
+  }
+  .medical-preview table.quant caption {
+    text-align: left;
+    color: #5a6068;
+    font-size: 11.5px;
+    font-style: italic;
+    margin-bottom: 4px;
+    caption-side: top;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  [data-theme="dark"] .medical-preview table.quant caption { color: #98a0a8; }
+  .medical-preview table.quant th, .medical-preview table.quant td {
+    text-align: left;
+    padding: 5px 12px 5px 0;
+    border-bottom: 1px solid #f0f1f3;
+  }
+  .medical-preview table.quant th {
+    font-weight: 600;
+    color: #5a6068;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #d4d8dd;
+  }
+  [data-theme="dark"] .medical-preview table.quant th { color: #98a0a8; border-bottom-color: #383e46; }
+  [data-theme="dark"] .medical-preview table.quant td { border-bottom-color: #2a2f36; }
+  .medical-preview table.quant td.num { font-variant-numeric: tabular-nums; }
+  .medical-preview .indices-line {
+    font-size: 13px;
+    color: #1a1d21;
+    margin: 4px 0 14px 0;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] .medical-preview .indices-line { color: #e6e8eb; }
+  .medical-preview .signature {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid #e6e8ec;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  [data-theme="dark"] .medical-preview .signature { border-top-color: #2a2f36; }
+  .medical-preview .signature .name { font-weight: 600; font-size: 14px; color: #1a1d21; margin-bottom: 2px; }
+  [data-theme="dark"] .medical-preview .signature .name { color: #e6e8eb; }
+  .medical-preview .signature .role { font-size: 12px; color: #5a6068; }
+  [data-theme="dark"] .medical-preview .signature .role { color: #98a0a8; }
+  .medical-preview .limitations {
+    font-style: italic;
+    color: #5a6068;
+    font-size: 12.5px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  [data-theme="dark"] .medical-preview .limitations { color: #98a0a8; }
+  .medical-preview .conclusion {
+    background: #fafbfc;
+    border-left: 3px solid #2c5f8f;
+    padding: 12px 16px;
+    border-radius: 0 4px 4px 0;
+    margin: 8px 0 14px 0;
+    font-size: 13.5px;
+  }
+  [data-theme="dark"] .medical-preview .conclusion { background: #1f2329; border-left-color: #6ba3d8; }
 </style>
 </head>
 <body data-theme="light" data-mode="fast">
@@ -868,7 +1060,12 @@ if ('serviceWorker' in navigator) {
 <!-- ============ SEÇÃO 10: LAUDO GERADO ============ -->
 <section class="card">
   <h2><span class="step">10</span>Laudo estruturado (rascunho) <span class="badge warn">exige homologação médica</span></h2>
-  <div class="actions-row">
+
+  <div class="actions-row" style="align-items:center">
+    <div class="report-mode-toggle" role="group" aria-label="Modo do laudo">
+      <button id="reportModeMedical" class="active" title="Laudo médico — narrativa elegante, sem nomenclatura técnica interna">Modo Médico</button>
+      <button id="reportModeAudit" title="Laudo de auditoria — exibe estados, alarmes, boundaries explícitos">Modo Auditoria</button>
+    </div>
     <button class="btn primary" id="generateBtn">Gerar laudo</button>
     <button class="btn" id="copyBtn">Copiar</button>
     <button class="btn" id="exportTxtBtn">Exportar .txt</button>
@@ -876,6 +1073,7 @@ if ('serviceWorker' in navigator) {
     <button class="btn" id="exportJsonBtn">Exportar .json</button>
     <button class="btn ghost" id="printBtn">Imprimir / PDF</button>
   </div>
+  <div id="medicalPreview" style="display:none"></div>
   <div id="execSummaryBox"></div>
   <textarea class="laudo" id="laudoOutput" placeholder="Clique em 'Gerar laudo' para criar o rascunho a partir dos dados acima."></textarea>
   <details class="advanced-only" style="margin-top:8px">
@@ -1532,17 +1730,609 @@ function generateReport() {
 }
 
 // -------- Actions --------
+// ============================================================
+// MODO MÉDICO PREMIUM (laudo humanizado, sem nomenclatura técnica)
+// ============================================================
+function formatDateTime(iso) {
+  if (!iso) return '—';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+}
+
+function describeContextMedical(data) {
+  const ctx = data.context;
+  if (ctx === 'HSA') {
+    let s = 'Hemorragia subaracnóidea';
+    const bits = [];
+    if (data.post_bleed_day !== null && data.post_bleed_day !== undefined && data.post_bleed_day !== '') bits.push('dia ' + data.post_bleed_day + ' pós-sangramento');
+    if (data.fisher) bits.push('Fisher ' + data.fisher);
+    if (data.hunt_hess) bits.push('Hunt-Hess ' + data.hunt_hess);
+    if (bits.length) s += ' (' + bits.join(' · ') + ')';
+    return s;
+  }
+  if (ctx === 'TCE') return 'Traumatismo cranioencefálico';
+  if (ctx === 'HIC_suspeita') return 'Suspeita de hipertensão intracraniana';
+  if (ctx === 'AVC_suspeita_oclusao') return 'Suspeita de oclusão arterial aguda';
+  if (ctx === 'pos_op_neurovascular') return 'Pós-operatório neurovascular';
+  if (ctx === 'protocolo_ME_ativo') return 'Avaliação ancilar — protocolo CFM 2.173/2017';
+  if (ctx === 'monitorizacao_serial') return 'Monitorização seriada';
+  return ctx || '—';
+}
+
+function vsToHumanPhrase(vs, h, ctx) {
+  const side = h && h.dominantSide;
+  if (vs === 'VS-0') return 'Não há, nesta sessão, evidência hemodinâmica de vasoespasmo proximal significativo nos segmentos avaliados';
+  if (vs === 'VS-1') {
+    if (h && h.hyperemiaContext && h.hyperemiaContext.length)
+      return 'Há elevação velocimétrica em circulação anterior com razão de Lindegaard preservada, em contexto sistêmico de ' + h.hyperemiaContext.join(' e ') + ', favorecendo padrão hiperêmico';
+    return 'Há elevação velocimétrica inicial em circulação anterior, com diferencial entre hiperemia e vasoespasmo incipiente';
+  }
+  if (vs === 'VS-2') return 'Achados configuram padrão compatível com vasoespasmo proximal leve a moderado em circulação anterior' + (side ? ', com predomínio à ' + side : '');
+  if (vs === 'VS-2_with_discordance') return 'Há aceleração velocimétrica em território de gravidade com razão de Lindegaard não-concordante, situação que requer diferencial entre vasoespasmo proximal coexistente com vasoconstrição do sifão, hiperemia regional e variável técnica';
+  if (vs === 'VS-3') return 'Achados configuram padrão compatível com vasoespasmo proximal grave em circulação anterior' + (side ? ', com predomínio à ' + side : '');
+  if (vs === 'VS-INDETERMINATE') return 'A caracterização do eixo vasoespástico não foi factível nesta avaliação por limitação técnica de janela ou de cálculo de razão de Lindegaard';
+  return null;
+}
+
+function prToHumanPhrase(pr, h) {
+  if (pr === 'PR-0') return 'Pulsatilidade preservada, sem sinais relevantes de aumento de resistência distal';
+  if (pr === 'PR-1') {
+    if (h && h.ipContext && h.ipContext.length)
+      return 'Pulsatilidade sustentadamente elevada, contextualizada por ' + h.ipContext.join(' e ') + ', recomendando cautela antes de inferir aumento de resistência distal isolado';
+    return 'Pulsatilidade sustentadamente elevada, favorecendo aumento de resistência distal — diferenciais incluem edema, hipertensão intracraniana, vasoconstrição farmacológica e vasoespasmo a jusante';
+  }
+  if (pr === 'PR-2') return 'Velocidade diastólica final ausente, configurando padrão de perfusão apenas sistólica';
+  if (pr === 'PR-3') return 'Inversão diastólica, padrão sugestivo de progressão hemodinâmica em direção a falência de perfusão';
+  if (pr === 'PR-4') return 'Padrão espectral oscilante/reverberante, com componente reverso de magnitude próxima à sistólica';
+  if (pr === 'PR-5') return 'Espículas sistólicas isoladas, sem corpo da onda';
+  if (pr === 'PR-6') return 'Ausência de sinal observada em janela previamente patente documentada';
+  if (pr === 'PR-INDETERMINATE') return 'O eixo de pressão não foi classificável nesta avaliação por limitação técnica';
+  return null;
+}
+
+function buildMedicalExecutiveSummary(data, internal) {
+  const vs = data.states && data.states.vasospasm_axis && data.states.vasospasm_axis.state;
+  const pr = data.states && data.states.pressure_axis && data.states.pressure_axis.state;
+  const ctx = data.context;
+  const h = (internal && internal.h) || {};
+
+  const phrases = [];
+
+  // Frase principal
+  if (vs === 'VS-0' && pr === 'PR-0') {
+    phrases.push('Exame sem evidência hemodinâmica atual de vasoespasmo proximal significativo, com velocidades e índices preservados bilateralmente nesta sessão.');
+  } else if (vs === 'VS-3') {
+    phrases.push('Achados compatíveis com vasoespasmo proximal grave em circulação anterior' + (h.dominantSide ? ', com predomínio à ' + h.dominantSide : '') + '.');
+  } else if (vs === 'VS-2') {
+    phrases.push('Achados compatíveis com vasoespasmo proximal leve a moderado em circulação anterior.');
+  } else if (vs === 'VS-2_with_discordance') {
+    phrases.push('Há dissociação entre velocidades em território de gravidade e razão de Lindegaard, situação que merece diferencial cuidadoso entre fenômenos vasoespástico e hiperêmico.');
+  } else if (vs === 'VS-1') {
+    phrases.push(h.hyperemiaContext && h.hyperemiaContext.length
+      ? 'Elevação velocimétrica anterior com Lindegaard preservado em contexto sistêmico favorável a hiperemia.'
+      : 'Elevação velocimétrica inicial em circulação anterior, com diferencial entre hiperemia e vasoespasmo incipiente.');
+  } else if (vs === 'VS-INDETERMINATE') {
+    phrases.push('Avaliação com limitação técnica que não permitiu caracterização hemodinâmica completa do eixo vasoespástico.');
+  } else if (['PR-2','PR-3','PR-4','PR-5','PR-6'].includes(pr)) {
+    phrases.push('Padrão espectral compatível com alteração avançada do eixo de pressão.');
+  } else {
+    phrases.push('Exame realizado em condições técnicas adequadas; achados descritos no corpo do laudo.');
+  }
+
+  // Comparação serial (se houver)
+  if (present(data.derived && data.derived.delta_vm_mca_right_24h) && Math.abs(data.derived.delta_vm_mca_right_24h) >= 50) {
+    phrases.push('Em comparação ao exame anterior, observa-se aceleração significativa em artéria cerebral média direita.');
+  } else if (present(data.derived && data.derived.delta_vm_mca_left_24h) && Math.abs(data.derived.delta_vm_mca_left_24h) >= 50) {
+    phrases.push('Em comparação ao exame anterior, observa-se aceleração significativa em artéria cerebral média esquerda.');
+  } else if (present(data.derived && (data.derived.delta_vm_mca_right_24h || data.derived.delta_vm_mca_left_24h))) {
+    phrases.push('Variação serial discreta em relação ao exame anterior.');
+  }
+
+  // Plano resumido
+  if (ctx === 'HSA' && (vs === 'VS-2' || vs === 'VS-3' || vs === 'VS-2_with_discordance')) {
+    phrases.push('Recomenda-se correlação clínica e cadência intensificada de monitorização.');
+  } else if (ctx === 'HSA') {
+    phrases.push('Mantém-se vigilância seriada no contexto de hemorragia subaracnóidea.');
+  }
+
+  return phrases.join(' ');
+}
+
+function buildMedicalInterpretation(data, internal) {
+  const vs = data.states && data.states.vasospasm_axis && data.states.vasospasm_axis.state;
+  const pr = data.states && data.states.pressure_axis && data.states.pressure_axis.state;
+  const h = (internal && internal.h) || {};
+  const parts = [];
+
+  const vsPhrase = vsToHumanPhrase(vs, h, data.context);
+  const prPhrase = prToHumanPhrase(pr, h);
+
+  if (vsPhrase) parts.push(vsPhrase + '.');
+  if (prPhrase) parts.push(prPhrase + '.');
+
+  // Lindegaard contextualizado
+  const lrD = data.derived && data.derived.lindegaard_right;
+  const lrE = data.derived && data.derived.lindegaard_left;
+  if (present(lrD) && present(lrE)) {
+    if (lrD < 3 && lrE < 3) parts.push('Razão de Lindegaard preservada bilateralmente.');
+    else if (lrD > 6 || lrE > 6) parts.push('Razão de Lindegaard elevada' + (lrD > 6 && lrE > 6 ? ' bilateralmente' : (lrD > 6 ? ' à direita' : ' à esquerda')) + ', corroborando vasoconstrição proximal.');
+    else if (lrD >= 3 || lrE >= 3) parts.push('Razão de Lindegaard em faixa intermediária' + (lrD >= 3 && lrE >= 3 ? ' bilateralmente' : (lrD >= 3 ? ' à direita' : ' à esquerda')) + '.');
+  } else if (h.mcaElev) {
+    parts.push('A razão de Lindegaard não foi computável nesta avaliação, limitando o diferencial entre hiperemia e vasoespasmo.');
+  }
+
+  // Assimetria
+  if (h.asymmetryPct !== null && h.asymmetryPct > 30 && h.dominantSide) {
+    parts.push('Assimetria hemisférica de aproximadamente ' + Math.round(h.asymmetryPct) + '%, com predomínio à ' + h.dominantSide + '.');
+  }
+
+  // Circulação posterior
+  if (h.posteriorSloanFlag) {
+    parts.push('Em circulação posterior, identificam-se velocidades sugestivas de comprometimento posterior, achado de alta especificidade mas sensibilidade limitada.');
+  } else if (present(h.bas) || present(h.vertR) || present(h.vertL)) {
+    parts.push('Circulação posterior sem alterações relevantes nesta avaliação.');
+  }
+
+  // Discordância clínica
+  if (['piorando','deficit_novo','deteriorando_sem_definicao'].includes(data.clinical_status) &&
+      ['VS-0','VS-1'].includes(vs) && ['PR-0','PR-1'].includes(pr)) {
+    parts.push('Importa observar que a clínica em piora não encontra correlato hemodinâmico macrovascular nesta sessão; o método não exclui fenômenos vasculares distais ou microcirculatórios.');
+  }
+
+  // Topografia
+  const def = data.deficit_side;
+  if (def && def !== 'nenhum' && def !== 'indefinido' && h.dominantSide) {
+    const expected = def === 'esquerdo' ? 'direita' : (def === 'direito' ? 'esquerda' : null);
+    if (expected === h.dominantSide) {
+      parts.push('O território hemodinâmico predominante é topograficamente concordante com o déficit clínico referido.');
+    }
+  }
+
+  // ME — salvaguarda obrigatória
+  if (data.context === 'protocolo_ME_ativo' && ['PR-4','PR-5','PR-6'].includes(pr)) {
+    if (!data.CFM_2173_2017_activated) {
+      parts.push('O padrão espectral observado é compatível com parada circulatória cerebral em evolução; entretanto, o protocolo CFM 2.173/2017 não está formalmente ativado nesta sessão, e portanto o achado é registrado como observação ancilar — não autoriza, isoladamente, qualquer inferência diagnóstica de morte encefálica.');
+    } else if (pr === 'PR-6' && !data.previously_demonstrated_patent) {
+      parts.push('Observa-se ausência de sinal, porém sem documentação prévia de janela patente neste paciente; o achado não é interpretável como ausência hemodinâmica de fluxo e pode representar limitação técnica anatômica primária.');
+    }
+  }
+
+  return parts.join(' ');
+}
+
+function buildMedicalTemporalComparison(data) {
+  const der = data.derived || {};
+  const dR = der.delta_vm_mca_right_24h;
+  const dL = der.delta_vm_mca_left_24h;
+  const hasPrev = !!(data.previous_exam_datetime_iso || present(data.prev_vm_mca_right) || present(data.prev_vm_mca_left));
+
+  if (!hasPrev) return 'Não há exame prévio registrado nesta sessão. A presente avaliação pode servir como referência basal individual para comparações seriadas subsequentes.';
+
+  const parts = [];
+  const items = [];
+  if (present(dR)) {
+    const sign = dR > 0 ? '+' : '';
+    if (Math.abs(dR) < 15) items.push('artéria cerebral média direita estável (Δ ' + sign + dR.toFixed(1) + ' cm/s)');
+    else if (dR >= 50) items.push('aceleração significativa em artéria cerebral média direita (Δ +' + dR.toFixed(0) + ' cm/s nas últimas 24 horas)');
+    else if (dR >= 30) items.push('tendência ascendente em artéria cerebral média direita (Δ +' + dR.toFixed(0) + ' cm/s/24h)');
+    else if (dR <= -30) items.push('desaceleração relevante em artéria cerebral média direita (Δ ' + dR.toFixed(0) + ' cm/s/24h)');
+    else items.push('variação discreta em artéria cerebral média direita (Δ ' + sign + dR.toFixed(1) + ' cm/s)');
+  }
+  if (present(dL)) {
+    const sign = dL > 0 ? '+' : '';
+    if (Math.abs(dL) < 15) items.push('artéria cerebral média esquerda estável (Δ ' + sign + dL.toFixed(1) + ' cm/s)');
+    else if (dL >= 50) items.push('aceleração significativa em artéria cerebral média esquerda (Δ +' + dL.toFixed(0) + ' cm/s/24h)');
+    else if (dL >= 30) items.push('tendência ascendente em artéria cerebral média esquerda (Δ +' + dL.toFixed(0) + ' cm/s/24h)');
+    else if (dL <= -30) items.push('desaceleração relevante em artéria cerebral média esquerda (Δ ' + dL.toFixed(0) + ' cm/s/24h)');
+    else items.push('variação discreta em artéria cerebral média esquerda (Δ ' + sign + dL.toFixed(1) + ' cm/s)');
+  }
+
+  if (items.length) parts.push('Em comparação ao exame anterior, observa-se ' + items.join('; ') + '.');
+
+  if (present(dR) && present(dL) && Math.abs(dR - dL) > 30) {
+    parts.push('A progressão é assimétrica entre os hemisférios, padrão que favorece fenômeno hemodinâmico focal em detrimento de modulação sistêmica difusa.');
+  }
+
+  if (data.technique_identical === false) {
+    parts.push('A técnica de aquisição não foi declarada como idêntica à do exame anterior, o que limita a magnitude da comparação serial.');
+  }
+
+  return parts.join(' ');
+}
+
+function buildMedicalConclusion(data, internal) {
+  const vs = data.states && data.states.vasospasm_axis && data.states.vasospasm_axis.state;
+  const pr = data.states && data.states.pressure_axis && data.states.pressure_axis.state;
+  const ctx = data.context;
+  const h = (internal && internal.h) || {};
+  const conclusions = [];
+
+  if (vs === 'VS-0' && pr === 'PR-0') {
+    conclusions.push('Exame sem evidência hemodinâmica atual de vasoespasmo proximal significativo nos segmentos avaliados.');
+    conclusions.push('Velocidades e índices preservados bilateralmente nesta sessão.');
+    if (ctx === 'HSA') conclusions.push('Mantém-se recomendação de monitorização seriada no contexto de hemorragia subaracnóidea, durante a janela vasoespástica.');
+  } else if (vs === 'VS-3') {
+    conclusions.push('Padrão hemodinâmico compatível com vasoespasmo proximal grave em circulação anterior' + (h.dominantSide ? ' (predomínio à ' + h.dominantSide + ')' : '') + '.');
+    if (ctx === 'HSA') conclusions.push('Em contexto de hemorragia subaracnóidea, eleva-se a probabilidade pré-teste de evolução clinicamente significativa.');
+    conclusions.push('Recomenda-se correlação clínica integrada e neuroimagem vascular complementar antes de qualquer decisão terapêutica.');
+  } else if (vs === 'VS-2_with_discordance') {
+    conclusions.push('Achados configuram dissociação entre velocidades e razão de Lindegaard, sugerindo necessidade de diferencial entre vasoespasmo proximal com vasoconstrição do sifão, hiperemia regional e variável técnica.');
+    conclusions.push('Investigação direcionada e correlação seriada são apropriadas.');
+  } else if (vs === 'VS-2') {
+    conclusions.push('Padrão hemodinâmico compatível com vasoespasmo proximal leve a moderado.');
+    conclusions.push('Recomenda-se cadência intensificada de monitorização com correlação clínica seriada.');
+  } else if (vs === 'VS-1') {
+    if (h.hyperemiaContext && h.hyperemiaContext.length) {
+      conclusions.push('Padrão hemodinâmico compatível com hiperemia em contexto sistêmico favorável.');
+      conclusions.push('Recomenda-se normalização das variáveis sistêmicas e reavaliação seriada antes de inferência vasoespástica primária.');
+    } else {
+      conclusions.push('Elevação velocimétrica inicial em circulação anterior, com diferencial pendente entre hiperemia e vasoespasmo incipiente.');
+      conclusions.push('Sugere-se reavaliação seriada com contextualização sistêmica.');
+    }
+  } else if (vs === 'VS-INDETERMINATE') {
+    conclusions.push('Avaliação com limitação técnica que não permitiu caracterização hemodinâmica completa.');
+    conclusions.push('Em contexto de vulnerabilidade clínica, recomenda-se complementação por neuroimagem vascular.');
+  }
+
+  if (['PR-2','PR-3','PR-4','PR-5','PR-6'].includes(pr) && ctx !== 'protocolo_ME_ativo') {
+    conclusions.push('Eixo de pressão em padrão avançado, momento de elevada vulnerabilidade clínica — correlação multimodal apropriada.');
+  }
+
+  if (ctx === 'protocolo_ME_ativo' && ['PR-4','PR-5','PR-6'].includes(pr)) {
+    if (!data.CFM_2173_2017_activated) {
+      conclusions.push('Achado registrado como observação ancilar; não autoriza inferência diagnóstica de morte encefálica isoladamente.');
+    } else {
+      conclusions.push('Achado compõe avaliação ancilar dentro do protocolo CFM 2.173/2017 ativo; diagnóstico permanece clínico-legal e exige integração completa do protocolo.');
+    }
+  }
+
+  if (conclusions.length === 0) {
+    conclusions.push('Avaliação hemodinâmica realizada em condições técnicas adequadas; manutenção de vigilância conforme contexto clínico.');
+  }
+
+  return conclusions.join(' ');
+}
+
+function buildMedicalLimitations(data) {
+  const parts = [];
+  parts.push('O Doppler transcraniano compõe avaliação hemodinâmica multimodal e deve ser interpretado em conjunto com exame neurológico, neuroimagem vascular/estrutural e contexto clínico.');
+
+  const ctx = data.context;
+  if (ctx === 'HSA') {
+    parts.push('A avaliação atual não exclui fenômenos vasculares distais ou microcirculatórios não acessíveis ao método.');
+  }
+  if (ctx === 'TCE' || ctx === 'HIC_suspeita' || ['PR-1','PR-2','PR-3'].includes(data.states && data.states.pressure_axis && data.states.pressure_axis.state)) {
+    parts.push('O método informa tendência hemodinâmica e não substitui monitorização invasiva de pressão intracraniana.');
+  }
+  if (ctx === 'AVC_suspeita_oclusao') {
+    parts.push('A caracterização anatômica definitiva depende de angio-TC, angio-RM ou angiografia.');
+  }
+  if (ctx === 'protocolo_ME_ativo') {
+    parts.push('O diagnóstico de morte encefálica é clínico-legal e exige cumprimento integral da Resolução CFM 2.173/2017.');
+  }
+  parts.push('A interpretação aqui apresentada é probabilística e exige homologação médica antes de inserção em prontuário oficial.');
+
+  return parts.join(' ');
+}
+
+function fmtNum(x, d) {
+  if (x === null || x === undefined || isNaN(x)) return '—';
+  return Number(x).toFixed(d == null ? 0 : d);
+}
+
+function buildQuantitativeTablesText(data) {
+  const v = data.vessels || {};
+  const lines = [];
+
+  // Anterior
+  const anteriorRows = [
+    ['ACM direita',   v.MCA_right],
+    ['ACM esquerda',  v.MCA_left],
+    ['ACA direita',   v.ACA_right],
+    ['ACA esquerda',  v.ACA_left],
+    ['ACP direita',   v.PCA_right],
+    ['ACP esquerda',  v.PCA_left],
+  ].filter(r => r[1] && (present(r[1].Vm_cms) || present(r[1].VPS_cms) || present(r[1].VDF_cms)));
+
+  if (anteriorRows.length) {
+    lines.push('Circulação anterior');
+    lines.push('  ' + padR('Segmento', 18) + padR('Vm', 8) + padR('VPS', 8) + padR('VDF', 8) + padR('IP', 8) + (hasAnyTMAX(anteriorRows) ? padR('TAMx', 8) : ''));
+    anteriorRows.forEach(([label, vd]) => {
+      let row = '  ' + padR(label, 18) + padR(fmtNum(vd.Vm_cms), 8) + padR(fmtNum(vd.VPS_cms), 8) + padR(fmtNum(vd.VDF_cms), 8) + padR(fmtNum(vd.IP, 2), 8);
+      if (hasAnyTMAX(anteriorRows)) row += padR(fmtNum(vd.TAMx_cms), 8);
+      lines.push(row);
+    });
+    lines.push('');
+  }
+
+  // Posterior
+  const posteriorRows = [
+    ['Basilar',          v.basilar],
+    ['Vertebral direita', v.vertebral_right],
+    ['Vertebral esquerda', v.vertebral_left],
+  ].filter(r => r[1] && present(r[1].Vm_cms));
+
+  if (posteriorRows.length) {
+    lines.push('Circulação posterior');
+    lines.push('  ' + padR('Segmento', 22) + padR('Vm', 8) + padR('IP', 8));
+    posteriorRows.forEach(([label, vd]) => {
+      lines.push('  ' + padR(label, 22) + padR(fmtNum(vd.Vm_cms), 8) + padR(fmtNum(vd.IP, 2), 8));
+    });
+    lines.push('');
+  }
+
+  // ICA extracraniana
+  const icaR = v.ICA_extracranial_right;
+  const icaL = v.ICA_extracranial_left;
+  if ((icaR && present(icaR.Vm_cms)) || (icaL && present(icaL.Vm_cms))) {
+    lines.push('Artéria carótida interna extracraniana (janela submandibular)');
+    if (icaR && present(icaR.Vm_cms)) lines.push('  Direita:   Vm ' + fmtNum(icaR.Vm_cms) + ' cm/s');
+    if (icaL && present(icaL.Vm_cms)) lines.push('  Esquerda:  Vm ' + fmtNum(icaL.Vm_cms) + ' cm/s');
+    lines.push('');
+  }
+
+  // Índices derivados
+  const lrD = data.derived && data.derived.lindegaard_right;
+  const lrE = data.derived && data.derived.lindegaard_left;
+  if (present(lrD) || present(lrE)) {
+    const parts = [];
+    if (present(lrD)) parts.push('LR direita ' + lrD.toFixed(2));
+    if (present(lrE)) parts.push('LR esquerda ' + lrE.toFixed(2));
+    lines.push('Razão de Lindegaard: ' + parts.join(' · '));
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+function hasAnyTMAX(rows) {
+  return rows.some(r => r[1] && present(r[1].TAMx_cms));
+}
+
+function padR(s, n) { s = String(s); return s.length >= n ? s.slice(0, n) : s + ' '.repeat(n - s.length); }
+
+function buildQuantitativeTablesHTML(data) {
+  const v = data.vessels || {};
+  let html = '';
+
+  const anteriorRows = [
+    ['ACM direita',   v.MCA_right],
+    ['ACM esquerda',  v.MCA_left],
+    ['ACA direita',   v.ACA_right],
+    ['ACA esquerda',  v.ACA_left],
+    ['ACP direita',   v.PCA_right],
+    ['ACP esquerda',  v.PCA_left],
+  ].filter(r => r[1] && (present(r[1].Vm_cms) || present(r[1].VPS_cms) || present(r[1].VDF_cms)));
+
+  if (anteriorRows.length) {
+    const showTAMx = hasAnyTMAX(anteriorRows);
+    html += '<table class="quant"><caption>Circulação anterior</caption><thead><tr><th>Segmento</th><th>Vm</th><th>VPS</th><th>VDF</th><th>IP</th>' + (showTAMx ? '<th>TAMx</th>' : '') + '</tr></thead><tbody>';
+    anteriorRows.forEach(([label, vd]) => {
+      html += '<tr><td>' + escapeHtml(label) + '</td>'
+        + '<td class="num">' + fmtNum(vd.Vm_cms) + '</td>'
+        + '<td class="num">' + fmtNum(vd.VPS_cms) + '</td>'
+        + '<td class="num">' + fmtNum(vd.VDF_cms) + '</td>'
+        + '<td class="num">' + fmtNum(vd.IP, 2) + '</td>'
+        + (showTAMx ? '<td class="num">' + fmtNum(vd.TAMx_cms) + '</td>' : '')
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  const posteriorRows = [
+    ['Basilar',          v.basilar],
+    ['Vertebral direita', v.vertebral_right],
+    ['Vertebral esquerda', v.vertebral_left],
+  ].filter(r => r[1] && present(r[1].Vm_cms));
+
+  if (posteriorRows.length) {
+    html += '<table class="quant"><caption>Circulação posterior</caption><thead><tr><th>Segmento</th><th>Vm</th><th>IP</th></tr></thead><tbody>';
+    posteriorRows.forEach(([label, vd]) => {
+      html += '<tr><td>' + escapeHtml(label) + '</td><td class="num">' + fmtNum(vd.Vm_cms) + '</td><td class="num">' + fmtNum(vd.IP, 2) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  const icaR = v.ICA_extracranial_right;
+  const icaL = v.ICA_extracranial_left;
+  if ((icaR && present(icaR.Vm_cms)) || (icaL && present(icaL.Vm_cms))) {
+    html += '<p style="font-size:13px;margin:8px 0 4px 0;">Artéria carótida interna extracraniana (janela submandibular): '
+      + (icaR && present(icaR.Vm_cms) ? 'direita Vm ' + fmtNum(icaR.Vm_cms) + ' cm/s' : '')
+      + (icaR && present(icaR.Vm_cms) && icaL && present(icaL.Vm_cms) ? ' · ' : '')
+      + (icaL && present(icaL.Vm_cms) ? 'esquerda Vm ' + fmtNum(icaL.Vm_cms) + ' cm/s' : '')
+      + '.</p>';
+  }
+
+  const lrD = data.derived && data.derived.lindegaard_right;
+  const lrE = data.derived && data.derived.lindegaard_left;
+  if (present(lrD) || present(lrE)) {
+    const parts = [];
+    if (present(lrD)) parts.push('LR direita <strong>' + lrD.toFixed(2) + '</strong>');
+    if (present(lrE)) parts.push('LR esquerda <strong>' + lrE.toFixed(2) + '</strong>');
+    html += '<p class="indices-line">Razão de Lindegaard: ' + parts.join(' · ') + '</p>';
+  }
+
+  return html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function generateMedicalReport() {
+  const data = snapshot();
+  const internal = (window.__lastInterpretive && window.__lastInterpretive._internal) || {};
+  const dt = formatDateTime(data.exam_datetime);
+  const ctx = describeContextMedical(data);
+  const operador = data.operator_id || '—';
+  const codigo = data.patient_code || '—';
+
+  const execSummary = buildMedicalExecutiveSummary(data, internal);
+  const interpretation = buildMedicalInterpretation(data, internal);
+  const temporalComparison = buildMedicalTemporalComparison(data);
+  const conclusion = buildMedicalConclusion(data, internal);
+  const limitations = buildMedicalLimitations(data);
+  const quantText = buildQuantitativeTablesText(data);
+  const quantHTML = buildQuantitativeTablesHTML(data);
+
+  // ---- Versão TEXTO (para .txt, .md, copiar) ----
+  const lines = [];
+  lines.push('DOPPLER TRANSCRANIANO — MONITORIZAÇÃO NEUROVASCULAR');
+  lines.push('Hospital Santo Antônio — Serviço de Neurocirurgia');
+  lines.push('');
+  lines.push('PACIENTE');
+  lines.push('  Código:    ' + codigo);
+  lines.push('  Data/hora: ' + dt);
+  lines.push('  Contexto:  ' + ctx);
+  lines.push('  Operador:  ' + operador);
+  lines.push('');
+  lines.push('RESUMO EXECUTIVO');
+  lines.push('');
+  wrapText(execSummary, 78, '  ').forEach(l => lines.push(l));
+  lines.push('');
+  lines.push('INTERPRETAÇÃO HEMODINÂMICA');
+  lines.push('');
+  wrapText(interpretation, 78, '  ').forEach(l => lines.push(l));
+  lines.push('');
+  lines.push('COMPARAÇÃO TEMPORAL');
+  lines.push('');
+  wrapText(temporalComparison, 78, '  ').forEach(l => lines.push(l));
+  lines.push('');
+  lines.push('DADOS QUANTITATIVOS');
+  lines.push('');
+  lines.push(quantText);
+  lines.push('CONCLUSÃO');
+  lines.push('');
+  wrapText(conclusion, 78, '  ').forEach(l => lines.push(l));
+  lines.push('');
+  lines.push('LIMITAÇÕES');
+  lines.push('');
+  wrapText(limitations, 78, '  ').forEach(l => lines.push(l));
+  lines.push('');
+  lines.push('—');
+  lines.push('');
+  const revName = data.reviewer_name || 'Dr. José Correia Jr.';
+  const revRole = 'Neurocirurgia';
+  const revCRM = data.reviewer_crm ? 'CRM ' + data.reviewer_crm : 'CRM ____';
+  const revDate = data.reviewer_datetime ? formatDateTime(data.reviewer_datetime) : '__/__/____  __:__';
+  lines.push(revName);
+  lines.push(revRole + ' · ' + revCRM);
+  lines.push('Data/hora da homologação: ' + revDate);
+
+  const textOutput = lines.join('\n');
+
+  // ---- Versão HTML (preview no UI) ----
+  let html = '';
+  html += '<div class="medical-preview">';
+  html += '<h1>Doppler Transcraniano — Monitorização Neurovascular</h1>';
+  html += '<div class="subtitle">Hospital Santo Antônio — Serviço de Neurocirurgia</div>';
+  html += '<dl class="patient-block">';
+  html += '<dt>Código</dt><dd>' + escapeHtml(codigo) + '</dd>';
+  html += '<dt>Data/hora</dt><dd>' + escapeHtml(dt) + '</dd>';
+  html += '<dt>Contexto</dt><dd>' + escapeHtml(ctx) + '</dd>';
+  html += '<dt>Operador</dt><dd>' + escapeHtml(operador) + '</dd>';
+  html += '</dl>';
+  html += '<h2>Resumo executivo</h2>';
+  html += '<div class="conclusion">' + escapeHtml(execSummary) + '</div>';
+  html += '<h2>Interpretação hemodinâmica</h2>';
+  html += '<p>' + escapeHtml(interpretation) + '</p>';
+  html += '<h2>Comparação temporal</h2>';
+  html += '<p>' + escapeHtml(temporalComparison) + '</p>';
+  html += '<h2>Dados quantitativos</h2>';
+  html += quantHTML;
+  html += '<h2>Conclusão</h2>';
+  html += '<div class="conclusion">' + escapeHtml(conclusion) + '</div>';
+  html += '<h2>Limitações</h2>';
+  html += '<p class="limitations">' + escapeHtml(limitations) + '</p>';
+  html += '<div class="signature">';
+  html += '<div class="name">' + escapeHtml(revName) + '</div>';
+  html += '<div class="role">' + escapeHtml(revRole) + ' · ' + escapeHtml(revCRM) + '</div>';
+  html += '<div class="role">Data/hora da homologação: ' + escapeHtml(revDate) + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  return { text: textOutput, html: html, snapshot: data };
+}
+
+function wrapText(text, width, indent) {
+  if (!text) return [];
+  const words = String(text).split(' ');
+  const lines = [];
+  let cur = indent || '';
+  const indentLen = (indent || '').length;
+  words.forEach(w => {
+    if (cur.length + w.length + 1 > width && cur.length > indentLen) {
+      lines.push(cur);
+      cur = (indent || '') + w;
+    } else {
+      cur += (cur.length > indentLen ? ' ' : '') + w;
+    }
+  });
+  if (cur.length > indentLen) lines.push(cur);
+  return lines;
+}
+
+// ============================================================
+// REPORT MODE TOGGLE
+// ============================================================
+let reportMode = 'medical'; // default
+document.getElementById('reportModeMedical').addEventListener('click', () => {
+  reportMode = 'medical';
+  document.getElementById('reportModeMedical').classList.add('active');
+  document.getElementById('reportModeAudit').classList.remove('active');
+  try { localStorage.setItem('DTC_HSA_REPORT_MODE', 'medical'); } catch {}
+});
+document.getElementById('reportModeAudit').addEventListener('click', () => {
+  reportMode = 'audit';
+  document.getElementById('reportModeAudit').classList.add('active');
+  document.getElementById('reportModeMedical').classList.remove('active');
+  try { localStorage.setItem('DTC_HSA_REPORT_MODE', 'audit'); } catch {}
+});
+(function initReportMode(){
+  try {
+    const m = localStorage.getItem('DTC_HSA_REPORT_MODE');
+    if (m === 'audit') {
+      reportMode = 'audit';
+      document.getElementById('reportModeAudit').classList.add('active');
+      document.getElementById('reportModeMedical').classList.remove('active');
+    }
+  } catch {}
+})();
+
+// Helper: keep last interpretive result for medical mode
+window.__lastInterpretive = null;
+
 document.getElementById('generateBtn').addEventListener('click', () => {
-  const r = generateReport();
-  document.getElementById('laudoOutput').value = r.text;
-  // Visual exec summary above the laudo
-  const exec = buildExecutiveSummary(r.snapshot);
-  document.getElementById('execSummaryBox').innerHTML = `
-    <div class="exec-summary">
-      <span class="es-label">▌ Resumo executivo</span>
-      ${exec}
-    </div>
-  `;
+  // Always run interpretive to capture _internal (for asymmetry/dominance/hyperemia context)
+  try {
+    if (window.DTCInterpretive && window.DTCInterpretive.generate) {
+      window.__lastInterpretive = window.DTCInterpretive.generate(snapshot());
+    }
+  } catch (e) { /* silent */ }
+
+  if (reportMode === 'medical') {
+    const r = generateMedicalReport();
+    document.getElementById('laudoOutput').value = r.text;
+    document.getElementById('laudoOutput').classList.add('medical-mode');
+    document.getElementById('medicalPreview').innerHTML = r.html;
+    document.getElementById('medicalPreview').style.display = 'block';
+    document.getElementById('execSummaryBox').innerHTML = '';
+  } else {
+    // Modo auditoria — comportamento antigo, com states/alarmes/BCs explícitos
+    const r = generateReport();
+    document.getElementById('laudoOutput').value = r.text;
+    document.getElementById('laudoOutput').classList.remove('medical-mode');
+    document.getElementById('medicalPreview').style.display = 'none';
+    document.getElementById('medicalPreview').innerHTML = '';
+    const exec = buildExecutiveSummary(r.snapshot);
+    document.getElementById('execSummaryBox').innerHTML = `
+      <div class="exec-summary">
+        <span class="es-label">RESUMO EXECUTIVO (modo auditoria)</span>
+        ${exec}
+      </div>
+    `;
+  }
 });
 
 document.getElementById('copyBtn').addEventListener('click', async () => {
