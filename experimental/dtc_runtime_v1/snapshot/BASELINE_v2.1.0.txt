@@ -1,0 +1,43 @@
+NEUROAUTH DECISION XP — BASELINE OPERACIONAL
+Versão: 2.1.0-stable
+Data: 2026-03-29T23:11:30.118326+00:00
+
+Componentes confirmados por teste automatizado (13/13 checks):
+  - POST /decision/submit — cria episódio + motor + persiste
+  - C1 = GO            (ACDF_1_NIVEL, todos os campos + OPME real)
+  - C2 = GO_COM_RESSALVAS  (RGL022 ativo via niveis > max_niveis)
+  - C3 = NO_GO         (RGL005 BLOQUEIO — COD_TUSS ausente)
+  - 21_DECISION_RUNS +3 confirmado
+  - 22_EPISODIOS +3 confirmado
+  - CORS habilitado
+  - Frontend conectado diretamente ao backend (Make.com removido do caminho principal)
+
+Ajustes aplicados nesta versão:
+  - sheets_client.py v1.2: workbook cache 120s + retry backoff em 8 pontos
+  - routes/decision_routes.py: raw_case normaliza opme_context_json
+  - try/except em decision_submit: nunca 500 HTML bruto
+  - OPME real do catálogo SURGICAL_PROFILES no payload
+
+Regras ativas (validator_rules.py — NÃO MODIFICADO):
+  RGL001 BLOQUEIO  — PROFILE_ID ausente
+  RGL003 BLOQUEIO  — CONVENIO_ID ausente
+  RGL005 BLOQUEIO  — COD_TUSS ausente
+  RGL020 BLOQUEIO  — multinivel sem niveis
+  RGL021 BLOQUEIO  — niveis < min
+  RGL004 PENDENCIA — CID ausente
+  RGL030 PENDENCIA — lateralidade ausente (quando exigida)
+  RGL040 PENDENCIA — OPME ausente (quando exigida)
+  RGL060 PENDENCIA — carater ausente (quando exigido)
+  RGL011 ALERTA    — COD_CBHPM diverge do esperado (requer cod_cbhpm_esperado na planilha)
+  RGL022 ALERTA    — niveis > max_niveis
+  RGL050 ALERTA    — CID fora do conjunto preferencial (requer cids_preferenciais na planilha)
+  RGL061 ALERTA    — urgência em procedimento que não aceita
+
+Limitações conhecidas desta versão:
+  - cod_cbhpm_esperado ausente em 20_PROC_MESTRE (RGL011 não dispara)
+  - cod_tuss_esperado ausente em 20_PROC_MESTRE (RGL010 não dispara)
+  - cids_preferenciais vazio (RGL050 não dispara)
+  - Motor nunca alterado; todas as regras de negócio preservadas intactas
+
+Próximo passo: 5 casos reais → registrar glosas/ressalvas/pendências → enriquecer planilha
+

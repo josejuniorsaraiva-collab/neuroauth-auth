@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEUROAUTH — Painel Operacional</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f7f7f5; --surface: #fff; --border: rgba(0,0,0,0.10);
+  --text: #1a1a1a; --muted: #6b6b6b; --faint: #999;
+  --green: #3a7d1e; --green-bg: #eaf3de; --green-mid: #639922;
+  --amber: #7a4b00; --amber-bg: #faeeda; --amber-mid: #BA7517;
+  --red: #7a1a1a; --red-bg: #fcebeb; --red-mid: #E24B4A;
+  --blue: #0c447c; --blue-bg: #e6f1fb;
+  --radius: 10px; --radius-sm: 6px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       font-size: 13px; background: var(--bg); color: var(--text);
+       min-height: 100vh; }
+.shell { max-width: 960px; margin: 0 auto; padding: 24px 20px; }
+
+/* HEADER */
+.top-bar { display: flex; align-items: center; justify-content: space-between;
+           margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+.brand { font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
+.brand span { font-weight: 400; color: var(--muted); }
+.status-row { display: flex; align-items: center; gap: 10px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; }
+.dot.ok   { background: var(--green-mid); }
+.dot.err  { background: var(--red-mid); }
+.dot.spin { animation: pulse 1.2s ease-in-out infinite; background: var(--amber-mid); }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+.ts-label { font-size: 11px; color: var(--muted); }
+.btn-sm { font-size: 11px; padding: 4px 12px; border-radius: 20px;
+          border: 1px solid var(--border); background: var(--surface);
+          color: var(--muted); cursor: pointer; }
+.btn-sm:hover { background: var(--bg); }
+
+/* METRICS */
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.metric { background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius); padding: 14px 16px; }
+.metric-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase;
+              letter-spacing: 0.06em; margin-bottom: 6px; }
+.metric-val { font-size: 26px; font-weight: 600; line-height: 1; }
+.metric-sub { font-size: 11px; color: var(--faint); margin-top: 4px; }
+.val-green { color: var(--green); }
+.val-amber { color: var(--amber-mid); }
+.val-red   { color: var(--red-mid); }
+
+/* HEALTH SIGNALS */
+.health-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.health-card { background: var(--surface); border: 1px solid var(--border);
+               border-radius: var(--radius); padding: 12px 14px; }
+.health-title { font-size: 10px; color: var(--muted); text-transform: uppercase;
+                letter-spacing: 0.06em; margin-bottom: 8px; }
+.health-val { font-size: 20px; font-weight: 600; }
+.health-detail { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.health-ok   { color: var(--green); }
+.health-warn { color: var(--amber-mid); }
+.health-err  { color: var(--red-mid); }
+
+/* CHARTS */
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.chart-card { background: var(--surface); border: 1px solid var(--border);
+              border-radius: var(--radius); padding: 14px; }
+.chart-title { font-size: 10px; color: var(--muted); text-transform: uppercase;
+               letter-spacing: 0.06em; margin-bottom: 10px; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.legend-sq { width: 8px; height: 8px; border-radius: 2px; }
+
+/* TABLE */
+.table-header { display: flex; align-items: center; justify-content: space-between;
+                margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-btn { font-size: 11px; padding: 3px 10px; border-radius: 20px;
+              border: 1px solid var(--border); background: var(--surface);
+              color: var(--muted); cursor: pointer; }
+.filter-btn.active { background: var(--text); color: #fff; border-color: var(--text); }
+.table-wrap { background: var(--surface); border: 1px solid var(--border);
+              border-radius: var(--radius); overflow: hidden; }
+.t-head { display: grid; grid-template-columns: 2.2fr 1fr 80px 65px 90px;
+          gap: 8px; padding: 8px 14px; background: var(--bg);
+          border-bottom: 1px solid var(--border);
+          font-size: 10px; color: var(--muted); text-transform: uppercase;
+          letter-spacing: 0.05em; }
+.t-row  { display: grid; grid-template-columns: 2.2fr 1fr 80px 65px 90px;
+          gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--border);
+          align-items: center; }
+.t-row:last-child { border-bottom: none; }
+.t-row:hover { background: var(--bg); }
+.ep-id-main { font-size: 11px; color: var(--text); }
+.ep-run-id  { font-size: 10px; color: var(--faint); font-family: monospace; }
+.badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 500;
+         display: inline-block; }
+.badge-go  { background: var(--green-bg);  color: var(--green); }
+.badge-res { background: var(--amber-bg);  color: var(--amber); }
+.badge-no  { background: var(--red-bg);    color: var(--red); }
+.score-cell { display: flex; align-items: center; gap: 5px; }
+.score-num  { font-size: 11px; font-weight: 600; min-width: 24px; }
+.score-track { flex: 1; height: 3px; background: var(--bg); border-radius: 2px; }
+.score-fill  { height: 100%; border-radius: 2px; }
+.risco-low  { font-size: 11px; color: var(--green); font-weight: 500; }
+.risco-mod  { font-size: 11px; color: var(--amber-mid); font-weight: 500; }
+.risco-high { font-size: 11px; color: var(--red-mid); font-weight: 500; }
+.ts-cell { font-size: 10px; color: var(--faint); }
+.empty-msg { padding: 20px; text-align: center; color: var(--faint); font-size: 12px; }
+
+/* AUTH OVERLAY */
+.auth-overlay { background: var(--surface); border: 1px solid var(--border);
+                border-radius: var(--radius); padding: 32px; text-align: center;
+                max-width: 440px; margin: 60px auto; }
+.auth-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.auth-desc  { font-size: 12px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+.auth-hint  { font-size: 11px; color: var(--faint); margin-top: 12px; }
+
+/* ERROR BANNER */
+.err-banner { background: var(--red-bg); border: 1px solid rgba(226,75,74,0.2);
+              border-radius: var(--radius-sm); padding: 8px 14px;
+              font-size: 12px; color: var(--red); margin-bottom: 12px; }
+
+/* RESPONSIVE */
+@media (max-width: 640px) {
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .health-row { grid-template-columns: 1fr 1fr; }
+  .charts { grid-template-columns: 1fr; }
+  .t-head, .t-row { grid-template-columns: 2fr 1fr 70px; }
+  .t-head span:nth-child(4), .t-head span:nth-child(5),
+  .t-row  div:nth-child(4),  .t-row  div:nth-child(5) { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="top-bar">
+    <div class="brand">NEUROAUTH <span>/ Painel Operacional</span></div>
+    <div class="status-row">
+      <span class="dot" id="sdot"></span>
+      <span class="ts-label" id="ts-label">conectando...</span>
+      <button class="btn-sm" onclick="loadMetrics()">↻ atualizar</button>
+    </div>
+  </div>
+
+  <div id="err-area"></div>
+  <div id="auth-area" style="display:none">
+    <div class="auth-overlay">
+      <div class="auth-title">Sessão necessária</div>
+      <div class="auth-desc">O painel precisa de um JWT válido do NEUROAUTH.<br>
+        Obtenha via <code>naGetJwt()</code> no console do site.</div>
+      <input id="jwt-input" type="password" placeholder="eyJhbGciOi..."
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);
+               border-radius:var(--radius-sm);font-size:12px;margin-bottom:8px;
+               background:var(--bg);color:var(--text);" />
+      <button onclick="setJwt()" class="btn-sm"
+        style="padding:7px 24px;font-size:13px;">Conectar</button>
+      <div class="auth-hint">Token não é armazenado. Válido apenas para esta sessão.</div>
+    </div>
+  </div>
+
+  <div id="dashboard" style="display:none">
+    <div class="metrics" id="metrics-grid"></div>
+    <div class="health-row" id="health-grid"></div>
+    <div class="charts">
+      <div class="chart-card">
+        <div class="chart-title">distribuição — classificação</div>
+        <div class="legend" id="cls-legend"></div>
+        <div style="position:relative;height:130px"><canvas id="chart-cls"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">série de scores — últimos casos</div>
+        <div style="position:relative;height:150px"><canvas id="chart-score"></canvas></div>
+      </div>
+    </div>
+    <div class="table-header">
+      <div class="filter-row" id="filter-row">
+        <button class="filter-btn active" onclick="setFilter('all',this)">todos</button>
+        <button class="filter-btn" onclick="setFilter('GO',this)">GO</button>
+        <button class="filter-btn" onclick="setFilter('GO_COM_RESSALVAS',this)">ressalvas</button>
+        <button class="filter-btn" onclick="setFilter('NO_GO',this)">no-go</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="t-head">
+        <span>episódio</span><span>classificação</span>
+        <span>score</span><span>risco</span><span>data/hora</span>
+      </div>
+      <div id="ep-list"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const API = 'https://neuroauth-auth.onrender.com/metrics';
+var _jwt = null;
+var _clsChart = null;
+var _scoreChart = null;
+var _allCases = [];
+var _filter = 'all';
+var _timer = null;
+var _suspended = false;   // para quando der 401 — stop polling
+
+/* ── JWT RESOLUTION (BLINDADO) ───────────────────────────── */
+function resolveJwt() {
+  try {
+    var raw = sessionStorage.getItem('na_jwt_tmp');
+    if (raw) {
+      var p = JSON.parse(raw);
+      if (p && p.exp > Date.now() && p.jwt) return p.jwt;
+    }
+  } catch (_) {}
+
+  try {
+    var oj = window.opener && window.opener.__NA_SECURE && window.opener.__NA_SECURE.jwt;
+    if (oj) return oj;
+  } catch (_) {}
+
+  try {
+    var os = window.opener && window.opener.sessionStorage &&
+             window.opener.sessionStorage.getItem('na_jwt_tmp');
+    if (os) {
+      var q = JSON.parse(os);
+      if (q && q.exp > Date.now() && q.jwt) return q.jwt;
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+function setJwt() {
+  var v = (document.getElementById('jwt-input').value || '').trim();
+  if (!v || v.split('.').length < 3) { showErr('JWT inválido — cole o token completo.'); return; }
+  _jwt = v;
+  _suspended = false;
+  document.getElementById('auth-area').style.display = 'none';
+  clearErr();
+  loadMetrics();
+}
+
+/* ── STATUS VISUAL ───────────────────────────────────────── */
+function setStatus(state, label) {
+  var d = document.getElementById('sdot');
+  d.className = 'dot ' + (state === 'ok' ? 'ok' : state === 'err' ? 'err' : 'spin');
+  document.getElementById('ts-label').textContent = label;
+}
+
+function showErr(msg) {
+  document.getElementById('err-area').innerHTML =
+    '<div class="err-banner">' + msg + '</div>';
+}
+function clearErr() {
+  document.getElementById('err-area').innerHTML = '';
+}
+
+/* ── FETCH /metrics ──────────────────────────────────────── */
+async function loadMetrics() {
+  if (!_jwt) { _jwt = resolveJwt(); }
+  if (!_jwt) {
+    document.getElementById('auth-area').style.display = '';
+    document.getElementById('dashboard').style.display = 'none';
+    setStatus('err', 'aguardando sessão');
+    return;
+  }
+  setStatus('spin', 'carregando...');
+
+  try {
+    var res = await fetch(API + '?limit=20', {
+      headers: { 'Authorization': 'Bearer ' + _jwt }
+    });
+
+    /* ── STATUS HTTP EXPLÍCITO ─────────────────────────── */
+    if (res.status === 401) {
+      _jwt = null; _suspended = true; stopRefresh();
+      document.getElementById('dashboard').style.display = 'none';
+      document.getElementById('auth-area').style.display = '';
+      setStatus('err', 'sessão expirada');
+      showErr('Sessão expirada — cole um novo JWT para continuar.');
+      return;
+    }
+    if (res.status === 403) {
+      _suspended = true; stopRefresh();
+      showErr('Acesso não autorizado para este email.');
+      setStatus('err', 'sem permissão');
+      return;
+    }
+    if (res.status >= 500) {
+      showErr('Backend indisponível (HTTP ' + res.status + '). Tentando novamente em 60s.');
+      setStatus('err', 'backend erro ' + res.status);
+      return;
+    }
+
+    var data = await res.json();
+    clearErr();
+    renderDashboard(data);
+    document.getElementById('dashboard').style.display = '';
+    document.getElementById('auth-area').style.display = 'none';
+    setStatus('ok', 'atualizado ' + fmtTs(data.generated_at));
+
+  } catch (e) {
+    /* ── ERRO DE REDE ──────────────────────────────────── */
+    showErr('Falha de rede — verifique a conexão. (' + (e.message || 'fetch error') + ')');
+    setStatus('err', 'sem conexão');
+  }
+}
+
+/* ── RENDER ──────────────────────────────────────────────── */
+function renderDashboard(data) {
+  var s = data.summary || {};
+  var cases = data.recent_cases || [];
+  var scores = data.recent_scores || [];
+  var errors = data.recent_errors || [];
+
+  _allCases = cases;
+
+  /* métricas */
+  var total = s.total || 0;
+  var go    = s.go || 0;
+  var res_  = s.go_com_ressalvas || 0;
+  var nogo  = s.no_go || 0;
+  var pctGo = total > 0 ? Math.round((go + res_) / total * 100) : 0;
+  document.getElementById('metrics-grid').innerHTML = `
+    <div class="metric"><div class="metric-lbl">Total</div>
+      <div class="metric-val">${total}</div><div class="metric-sub">episódios processados</div></div>
+    <div class="metric"><div class="metric-lbl">Taxa GO</div>
+      <div class="metric-val val-green">${pctGo}%</div>
+      <div class="metric-sub">${go} direto · ${res_} ressalvas</div></div>
+    <div class="metric"><div class="metric-lbl">No-go</div>
+      <div class="metric-val ${nogo > 0 ? 'val-amber' : ''}">${nogo}</div>
+      <div class="metric-sub">casos bloqueados</div></div>
+    <div class="metric"><div class="metric-lbl">Risco alto</div>
+      <div class="metric-val ${(s.risco_alto||0)+(s.risco_critico||0) > 0 ? 'val-red' : ''}">${(s.risco_alto||0)+(s.risco_critico||0)}</div>
+      <div class="metric-sub">alto + crítico</div></div>
+  `;
+
+  /* sinais de saúde */
+  var pendentes  = cases.filter(c => c.decision_status === 'PENDENTE').length;
+  var ultimoErro = errors.length > 0 ? errors[0] : null;
+  var scoresNums = scores.filter(s_ => s_.score != null).map(s_ => s_.score);
+  var mediaScore = scoresNums.length > 0
+    ? Math.round(scoresNums.reduce((a,b)=>a+b,0)/scoresNums.length) : null;
+
+  document.getElementById('health-grid').innerHTML = `
+    <div class="health-card">
+      <div class="health-title">Episódios presos</div>
+      <div class="health-val ${pendentes > 0 ? 'health-warn' : 'health-ok'}">${pendentes}</div>
+      <div class="health-detail">${pendentes === 0 ? 'nenhum em PENDENTE' : 'em estado não terminal'}</div>
+    </div>
+    <div class="health-card">
+      <div class="health-title">Último erro operacional</div>
+      <div class="health-val ${ultimoErro ? 'health-err' : 'health-ok'}">${ultimoErro ? '1' : '0'}</div>
+      <div class="health-detail">${ultimoErro ? (ultimoErro.error||'').substring(0,40)+'...' : 'nenhum erro registrado'}</div>
+    </div>
+    <div class="health-card">
+      <div class="health-title">Score médio</div>
+      <div class="health-val ${mediaScore>=75?'health-ok':mediaScore>=50?'health-warn':'health-err'}">${mediaScore != null ? mediaScore : '—'}</div>
+      <div class="health-detail">últimos ${scoresNums.length} casos</div>
+    </div>
+  `;
+
+  renderCases(_allCases);
+  buildCharts(s, scores);
+}
+
+/* ── TABELA ──────────────────────────────────────────────── */
+function setFilter(f, btn) {
+  _filter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCases(_allCases);
+}
+
+function renderCases(cases) {
+  var list = _filter === 'all' ? cases : cases.filter(c => c.classification === _filter);
+  if (!list.length) {
+    document.getElementById('ep-list').innerHTML = '<div class="empty-msg">nenhum episódio</div>';
+    return;
+  }
+  document.getElementById('ep-list').innerHTML = list.map(c => {
+    var sc = c.score != null ? c.score : 0;
+    var scColor = sc >= 75 ? '#3a7d1e' : sc >= 50 ? '#BA7517' : '#E24B4A';
+    var badge = c.classification === 'GO' ? 'badge-go' :
+                c.classification === 'GO_COM_RESSALVAS' ? 'badge-res' : 'badge-no';
+    var label = c.classification === 'GO' ? 'GO' :
+                c.classification === 'GO_COM_RESSALVAS' ? 'ressalva' : 'no-go';
+    var rClass = c.risk_level === 'baixo' ? 'risco-low' :
+                 c.risk_level === 'moderado' ? 'risco-mod' : 'risco-high';
+    return `<div class="t-row">
+      <div><div class="ep-id-main">${c.episode_id}</div>
+           <div class="ep-run-id">${c.decision_run_id}</div></div>
+      <div><span class="badge ${badge}">${label}</span></div>
+      <div class="score-cell">
+        <span class="score-num" style="color:${scColor}">${c.score!=null?c.score:'—'}</span>
+        <div class="score-track"><div class="score-fill" style="width:${sc}%;background:${scColor}"></div></div>
+      </div>
+      <div class="${rClass}">${c.risk_level||'—'}</div>
+      <div class="ts-cell">${fmtTs(c.updated_at)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── CHARTS ──────────────────────────────────────────────── */
+function buildCharts(s, scores) {
+  if (_clsChart)   { _clsChart.destroy();   _clsChart = null; }
+  if (_scoreChart) { _scoreChart.destroy(); _scoreChart = null; }
+
+  var go = s.go || 0, res_ = s.go_com_ressalvas || 0, no = s.no_go || 0;
+  document.getElementById('cls-legend').innerHTML = `
+    <span class="legend-item"><span class="legend-sq" style="background:#3a7d1e"></span>GO (${go})</span>
+    <span class="legend-item"><span class="legend-sq" style="background:#BA7517"></span>Ressalva (${res_})</span>
+    <span class="legend-item"><span class="legend-sq" style="background:#E24B4A"></span>No-go (${no})</span>
+  `;
+
+  var cls = document.getElementById('chart-cls');
+  if (cls) _clsChart = new Chart(cls, {
+    type: 'doughnut',
+    data: { labels:['GO','Ressalva','No-Go'], datasets:[{
+      data:[go,res_,no], backgroundColor:['#3a7d1e','#BA7517','#E24B4A'], borderWidth:0
+    }]},
+    options: { responsive:true, maintainAspectRatio:false, cutout:'65%',
+               plugins:{ legend:{display:false} } }
+  });
+
+  var sc = document.getElementById('chart-score');
+  var pts = (scores||[]).filter(s_=>s_.score!=null).slice(0,15).reverse();
+  if (sc && pts.length) _scoreChart = new Chart(sc, {
+    type: 'bar',
+    data: {
+      labels: pts.map((_,i)=>i+1),
+      datasets:[{ data: pts.map(p=>p.score),
+        backgroundColor: pts.map(p => p.score>=75?'#3a7d1e':p.score>=50?'#BA7517':'#E24B4A'),
+        borderRadius:3, borderWidth:0 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        y:{ min:0, max:100, ticks:{font:{size:10},color:'#999'},
+            grid:{color:'rgba(0,0,0,0.05)'} },
+        x:{ grid:{display:false}, ticks:{font:{size:10},color:'#999'} }
+      }
+    }
+  });
+}
+
+/* ── HELPERS ─────────────────────────────────────────────── */
+function fmtTs(ts) {
+  if (!ts) return '—';
+  try {
+    var d = new Date(ts);
+    return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' +
+           d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  } catch (_) { return (ts||'').substring(0,16); }
+}
+
+/* ── REFRESH ──────────────────────────────────────────────
+   401 → _suspended = true → stopRefresh → não tenta mais
+   Usuário precisa colar novo JWT para reativar.            */
+function startRefresh() {
+  stopRefresh();
+  _timer = setInterval(function() {
+    if (!_suspended && _jwt) loadMetrics();
+  }, 60000);
+}
+function stopRefresh() {
+  if (_timer) { clearInterval(_timer); _timer = null; }
+}
+
+/* ── BOOT ────────────────────────────────────────────────── */
+loadMetrics();
+startRefresh();
+</script>
+</body>
+</html>
