@@ -1,5 +1,8 @@
 # FROZEN — Arquivos sob contrato de congelamento
 
+**Snapshot:** NEUROAUTH Engine v1 (motor de autorização cirúrgica, engine v2.2).
+**Diretório:** `experimental/neuroauth_engine_snapshot_v1/snapshot/`.
+
 Os arquivos abaixo estão **CONGELADOS** dentro de `snapshot/`. Qualquer alteração
 exige revisão explícita conforme `snapshot/docs/RUNNER_CONTRACT.md` (Versão 1.0,
 status: CONGELADO — não alterar sem revisão explícita).

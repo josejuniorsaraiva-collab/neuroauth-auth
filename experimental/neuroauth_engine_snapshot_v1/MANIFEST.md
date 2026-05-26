@@ -1,10 +1,15 @@
-# MANIFEST — DTC Runtime v1
+# MANIFEST — NEUROAUTH Engine Snapshot v1
 
 Inventário dos 55 arquivos copiados para `snapshot/`, agrupados por categoria,
 com proveniência (caminho na raiz do repositório `neuroauth-auth`).
 
 Método de cópia: `cp -a` (preserva timestamps + permissões). Origens permanecem
 intactas no repositório-raiz para não impactar produção.
+
+> **Histórico de nomenclatura:** este snapshot foi criado em `experimental/dtc_runtime_v1/`
+> (commit `4ed36ef`) e renomeado para `experimental/neuroauth_engine_snapshot_v1/` após
+> a auditoria `SCOPE_AUDIT_EXPERIMENTAL_DTC.md` (commit `7de7c0d`) confirmar que o
+> conteúdo é integralmente NEUROAUTH, não DTC.
 
 ## 1. Baseline & relatórios de hardening
 
