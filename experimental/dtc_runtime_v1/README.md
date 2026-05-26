@@ -1,73 +1,32 @@
-# DTC Runtime v1 — Snapshot Congelado
+# dtc_runtime_v1 — Reservado
 
-**Status:** FROZEN — preservado para fins de versionamento e auditoria.
-**Localização:** `experimental/dtc_runtime_v1/` dentro do repositório `neuroauth-auth`.
-**Acoplamento operacional:** ZERO. Nada aqui é importado pelo entrypoint de produção
-(`app.main:app` — Procfile / render.yaml). Mover, modificar ou remover esta pasta
-não tem efeito sobre auth, deploy, APIs públicas ou serviços em produção.
+Diretório reservado para o futuro DTC Runtime clínico. Ainda não contém
+implementação DTC. Não confundir com o snapshot do motor NEUROAUTH.
 
-## Princípio
+---
 
-`neuroauth-auth/` é utilizado **apenas como pasta-mãe organizacional**. O DTC
-Runtime v1 vive isolado em `experimental/dtc_runtime_v1/` para:
+## Status
 
-- preservar o runtime DTC dentro do ecossistema NEUROAUTH (mesmo repo);
-- manter desacoplamento operacional total do sistema principal;
-- garantir reproducibilidade futura via snapshot versionado.
+- **Conteúdo atual:** apenas este README.
+- **Conteúdo futuro:** implementação do DTC Runtime clínico, quando for desenvolvida.
+- **Acoplamento com produção:** zero (e deve permanecer zero até decisão arquitetural explícita).
 
-## Estrutura
+## NÃO confundir com
 
-```
-experimental/dtc_runtime_v1/
-├── README.md          (este arquivo)
-├── VERSION            (versão + metadados de freeze)
-├── MANIFEST.md        (inventário de arquivos + proveniência)
-├── FROZEN.md          (arquivos sob contrato de congelamento)
-├── SHA256SUMS.txt     (checksums para integridade)
-└── snapshot/          (cópia idêntica do material DTC Runtime)
-    ├── BASELINE_v2.1.0.txt
-    ├── hardening_report.json
-    ├── runner_local.py
-    ├── flask_app.py
-    ├── neuroauth_hook.py
-    ├── test_integration.py
-    ├── decision_classifier.py          (root, versão legacy)
-    ├── decision_repository.py          (root, versão legacy)
-    ├── decision_routes.py              (root, versão legacy)
-    ├── schema_mapper.py                (root, versão legacy)
-    ├── validator_engine.py             (root)
-    ├── validator_rules.py              (root)
-    ├── motor_routes.py                 (root)
-    ├── convenio_repository.py          (root, versão legacy)
-    ├── proc_master_repository.py       (root, versão legacy)
-    ├── motor/                          (engine v2.2 — decision classifier + validators)
-    ├── routes/                         (Flask blueprints — não usados por FastAPI)
-    ├── repositories/                   (clinical/calendar/feedback/insights/sheets)
-    ├── scripts/                        (validar.py, migrate_legacy_cases.py, ...)
-    ├── tests/                          (suite de regressão v2 + noites 6/7/8)
-    ├── docs/                           (RUNNER_CONTRACT, MACHINE_STATE, STATUS_AUTORIZACAO)
-    └── frontend/
-        └── neuroauth_painel_operacional_v2.html
-```
+`experimental/neuroauth_engine_snapshot_v1/` — esse diretório, vizinho a este, contém
+o snapshot congelado do motor de autorização cirúrgica NEUROAUTH (Flask legacy +
+engine v2.2 + runner local + suite de regressão). Foi inicialmente nomeado
+`dtc_runtime_v1/` por engano e renomeado após auditoria de escopo (ver
+`SCOPE_AUDIT_EXPERIMENTAL_DTC.md` na raiz do repositório).
 
-## Regras (NÃO VIOLAR)
+## Histórico
 
-1. **Não importar** nada deste snapshot a partir de `app/`. Produção deve permanecer
-   independente.
-2. **Não alterar** os arquivos listados em `FROZEN.md` sem revisão explícita
-   conforme `snapshot/docs/RUNNER_CONTRACT.md`.
-3. **Não mover** os módulos que produção ainda referencia no diretório-raiz
-   (`repositories/sheets_client.py`, `neuroauth_hook.py`, `frontend/neuroauth_form_v2.html`).
-   Eles foram **copiados** para o snapshot — os originais permanecem na raiz para servir produção.
+- 2026-05-26: criado vazio como reserva de nome após Opção B do
+  `SCOPE_AUDIT_EXPERIMENTAL_DTC.md`. Aguarda definição de escopo e
+  implementação DTC antes de receber qualquer código.
 
-## Validação de integridade
+## Regras
 
-```bash
-cd experimental/dtc_runtime_v1
-(cd snapshot && sha256sum -c ../SHA256SUMS.txt)
-```
-
-## Origem
-
-Snapshot extraído do branch `claude/charming-lovelace-OK1O6` em 2026-05-26 via
-cópia (não move) dos artefatos DTC presentes na raiz do repositório.
+1. Não copiar conteúdo NEUROAUTH para cá.
+2. Não adicionar código DTC sem decisão arquitetural explícita.
+3. Não importar nada deste diretório a partir de `app/` (produção FastAPI).
