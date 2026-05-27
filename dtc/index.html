@@ -7,14 +7,47 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>DTC HSA — Laudo Estruturado (MVP) · NeuroAuth</title>
-<!-- MVP supervisionado. Pacote: DTC_INTERFACE_MVP v0.2 -->
+<title>Doppler Transcraniano · Laudo Estruturado · NeuroAuth</title>
+<meta name="dtc-build-version" content="v0.5-print-fix-2026-05-27-A">
+<!-- Uso supervisionado. Build interno. -->
 <!-- Rota esperada: /dtc — funciona em qualquer subpasta. Sem dependência de caminhos absolutos. -->
 <script>
-/* DEFESA: se um service worker do site pai estiver ativo, garantir que /dtc nunca sirva versão cacheada antiga */
+/* =========================================================
+ * DTC BUILD VERSION + diagnóstico de cache/SW
+ * ========================================================= */
+window.DTC_BUILD_VERSION = 'v0.5-print-fix-2026-05-27-A';
+try {
+  // Log visível no DevTools — confirma que a versão correta carregou
+  console.log('%c[DTC]%c Build: ' + window.DTC_BUILD_VERSION,
+    'background:#2c5f8f;color:#fff;padding:2px 6px;border-radius:3px;font-weight:700', '');
+  console.log('[DTC] Hotfix de impressão ativo. typeof printMedicalReportOnly deve ser "function" após o carregamento da página.');
+} catch(e) {}
+
+/* DEFESA: limpar caches relacionados a /dtc se houver SW intervindo.
+ * Não toca em caches do site pai (escopo /). */
+if ('caches' in window) {
+  caches.keys().then(function(keys){
+    keys.forEach(function(key){
+      // Só remove caches que parecem ser nossos
+      if (/dtc|doppler/i.test(key)) {
+        caches.delete(key).then(function(){ console.log('[DTC] cache removido:', key); }).catch(function(){});
+      }
+    });
+  }).catch(function(){});
+}
+
+/* DEFESA: se houver SW antigo registrado no escopo de /dtc, desregistrar SOMENTE ele.
+ * NÃO desregistra SW de escopo / (raiz do NeuroAuth). */
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(function(regs){
-    // Não desregistramos o SW do site pai (escopo /); apenas garantimos que /dtc sempre busca recursos frescos via meta no-cache acima.
+    regs.forEach(function(r){
+      try {
+        var scope = (r.scope || '').toLowerCase();
+        if (scope.endsWith('/dtc/') || scope.endsWith('/dtc')) {
+          r.unregister().then(function(){ console.log('[DTC] SW antigo desregistrado:', r.scope); }).catch(function(){});
+        }
+      } catch(e) {}
+    });
   }).catch(function(){});
 }
 </script>
@@ -333,10 +366,42 @@ if ('serviceWorker' in navigator) {
     body { font-size: 14px; }
   }
   @media print {
-    body { background: white; padding: 0; }
-    header, footer, .actions-row, .topbar-actions, section.card > h2 { display: none !important; }
-    section.card { border: none; box-shadow: none; padding: 0; margin: 0; page-break-inside: avoid; }
-    textarea.laudo { border: none; min-height: auto; }
+    /* ===== Isolamento absoluto: imprime APENAS o laudo médico ===== */
+    @page {
+      size: 210mm 297mm;   /* A4 explícito */
+      margin: 18mm 16mm 18mm 16mm;
+    }
+    html, body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    /* Esconde absolutamente tudo da página */
+    body * { visibility: hidden !important; }
+    /* Mostra APENAS o preview médico e seus filhos */
+    #medicalPreview, #medicalPreview * { visibility: visible !important; }
+    /* Posiciona o laudo no topo da página, ocupando largura útil */
+    #medicalPreview {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
+    /* Evita quebras feias dentro de blocos do laudo */
+    #medicalPreview .patient-block,
+    #medicalPreview .conclusion,
+    #medicalPreview .signature,
+    #medicalPreview table.quant { page-break-inside: avoid !important; break-inside: avoid !important; }
+    #medicalPreview h1, #medicalPreview h2 { page-break-after: avoid !important; break-after: avoid !important; }
+    #medicalPreview p { orphans: 3; widows: 3; }
   }
 
   /* ===== Modo rápido vs avançado ===== */
@@ -699,14 +764,14 @@ if ('serviceWorker' in navigator) {
   position: relative;
   z-index: 11;
 ">
-  ⚠ <strong>MVP DTC HSA</strong> — uso supervisionado, <strong>não homologado institucionalmente</strong>. TCD informa; equipe assistencial decide.
+  Uso supervisionado — <strong>não substitui homologação médica institucional</strong>. Doppler transcraniano informa; equipe assistencial decide.
   <button onclick="document.getElementById('dtcMvpWarning').style.display='none'"
           style="background:transparent;border:none;color:#6e4a0a;font-weight:700;cursor:pointer;float:right;padding:0 6px;font-size:14px"
           title="Ocultar nesta sessão">×</button>
 </div>
 
 <header>
-  <h1>DTC HSA · Cockpit Neurovascular <span class="sub">MVP — uso supervisionado · não homologado</span></h1>
+  <h1>Doppler Transcraniano · Cockpit Neurovascular <span class="sub">uso supervisionado · não homologado institucionalmente</span></h1>
   <div class="topbar-actions">
     <div class="mode-toggle" role="group" aria-label="Modo de preenchimento">
       <button id="modeFast" class="active" title="Modo Rápido — campos essenciais, meta 4 minutos">🚀 Rápido</button>
@@ -997,8 +1062,8 @@ if ('serviceWorker' in navigator) {
 <!-- ============ SEÇÃO 7: ESTADOS INFERIDOS ============ -->
 <section class="card">
   <h2><span class="step">7</span>Estados inferidos nos 3 eixos <span class="badge info">proposta — médico decide</span></h2>
-  <p class="small-note">As classificações abaixo são <strong>sugestões algorítmicas qualificadas</strong> derivadas do kernel DTC_HSA_KERNEL_v1.
-  O médico revisor pode <strong>aceitar, modificar ou rejeitar</strong> cada estado antes da homologação. TCD informa, equipe decide.</p>
+  <p class="small-note">As classificações abaixo são <strong>sugestões qualificadas</strong> derivadas dos dados quantitativos preenchidos.
+  O médico revisor pode <strong>aceitar, modificar ou rejeitar</strong> cada estado antes da homologação. Doppler transcraniano informa, equipe decide.</p>
 
   <div class="state-bar">
     <div class="state-card" id="vsCard">
@@ -1046,8 +1111,8 @@ if ('serviceWorker' in navigator) {
 
 <!-- ============ SEÇÃO 9b: INTERPRETAÇÃO NEUROVASCULAR ============ -->
 <section class="card">
-  <h2><span class="step">9</span>Interpretação hemodinâmica neurovascular <span class="badge info">camada narrativa — subordinada ao engine determinístico</span></h2>
-  <p class="small-note">Síntese narrativa contextual sobre os dados acima. <strong>Não modifica</strong> os estados VS/PR/EM nem os alarmes da seção 7 — apenas enriquece a leitura. Toda inferência é qualificada ("padrão compatível com", "favorece", "sugere") e termina com boundary obrigatório. Linguagem alinhada a centros neurovasculares terciários, sem diagnóstico definitivo.</p>
+  <h2><span class="step">9</span>Interpretação hemodinâmica neurovascular <span class="badge info">síntese narrativa contextual</span></h2>
+  <p class="small-note">Síntese narrativa contextual sobre os dados acima. <strong>Não modifica</strong> os estados nem os alarmes da seção 7 — apenas enriquece a leitura. Toda inferência é qualificada ("padrão compatível com", "favorece", "sugere") e termina com declaração de limitação. Linguagem alinhada a centros neurovasculares terciários, sem diagnóstico definitivo.</p>
   <div class="actions-row">
     <button class="btn primary" id="interpretBtn">Gerar interpretação avançada</button>
     <button class="btn" id="copyInterpretBtn">Copiar narrativa</button>
@@ -1098,7 +1163,7 @@ if ('serviceWorker' in navigator) {
 </main>
 
 <footer>
-  <strong>Ferramenta de apoio hemodinâmico.</strong> Não substitui avaliação clínica, imagem estrutural (angio-TC/RM/angiografia) nem protocolos institucionais. <strong>TCD informa; equipe assistencial decide.</strong> &nbsp;·&nbsp; Kernel DTC_HSA_v1 (MVP supervisionado — sem homologação institucional).
+  <strong>Ferramenta de apoio hemodinâmico.</strong> Não substitui avaliação clínica, imagem estrutural (angio-TC/RM/angiografia) nem protocolos institucionais. <strong>Doppler transcraniano informa; equipe assistencial decide.</strong> &nbsp;·&nbsp; Uso supervisionado — sem homologação institucional.
 </footer>
 
 <script>
@@ -2372,12 +2437,204 @@ document.getElementById('exportJsonBtn').addEventListener('click', () => {
   const dt = (v('exam_datetime') || new Date().toISOString()).replace(/[:T]/g,'-').slice(0,16);
   download(`laudo_${pc}_${dt}.json`, JSON.stringify(data, null, 2), 'application/json');
 });
-document.getElementById('printBtn').addEventListener('click', () => {
-  if (!document.getElementById('laudoOutput').value) {
-    const r = generateReport();
-    document.getElementById('laudoOutput').value = r.text;
+// ============================================================
+// IMPRESSÃO LIMPA — apenas laudo médico em nova janela (popup)
+// Não imprime formulário, banner, footer, cards ou estados internos.
+// ============================================================
+function printMedicalReportOnly() {
+  // Se modo auditoria, avisar e parar — não devemos imprimir output técnico em prontuário
+  if (typeof reportMode !== 'undefined' && reportMode !== 'medical') {
+    alert('Troque para Modo Médico antes de imprimir.\n\nO Modo Auditoria contém estados internos que não devem aparecer em prontuário.');
+    return;
   }
-  setTimeout(()=>window.print(), 100);
+
+  // Garantir que o laudo médico foi gerado
+  let reportEl = document.querySelector('#medicalPreview');
+  if (reportEl && !reportEl.innerHTML.trim()) {
+    try {
+      if (window.DTCInterpretive && window.DTCInterpretive.generate) {
+        window.__lastInterpretive = window.DTCInterpretive.generate(snapshot());
+      }
+    } catch (e) { /* silent */ }
+    if (typeof generateMedicalReport === 'function') {
+      const r = generateMedicalReport();
+      document.getElementById('laudoOutput').value = r.text;
+      document.getElementById('laudoOutput').classList.add('medical-mode');
+      reportEl.innerHTML = r.html;
+      reportEl.style.display = 'block';
+    }
+  }
+
+  reportEl =
+    document.querySelector('#medicalPreview') ||
+    document.querySelector('.medical-report') ||
+    document.querySelector('#reportOutput');
+
+  if (!reportEl || !reportEl.innerHTML.trim()) {
+    alert('Gere o laudo médico antes de imprimir.');
+    return;
+  }
+
+  const reportHtml = reportEl.innerHTML;
+  const printWindow = window.open('', '_blank', 'width=900,height=1200');
+  if (!printWindow) {
+    alert('Pop-up bloqueado. Libere pop-ups para imprimir o laudo.');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Doppler Transcraniano — Laudo Médico</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+  }
+  html, body {
+    background: #fff;
+    color: #111;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 11pt;
+    line-height: 1.45;
+    margin: 0;
+    padding: 0;
+  }
+  body { width: 100%; }
+  h1 {
+    font-family: Arial, sans-serif;
+    font-size: 16pt;
+    letter-spacing: .03em;
+    text-align: center;
+    margin: 0 0 2mm 0;
+    color: #111;
+  }
+  h2 {
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin: 7mm 0 3mm 0;
+    border-bottom: 1px solid #bbb;
+    padding-bottom: 1mm;
+    color: #333;
+  }
+  .subtitle {
+    text-align: center;
+    font-style: italic;
+    color: #666;
+    font-size: 10pt;
+    margin: 0 0 6mm 0;
+    font-family: Arial, sans-serif;
+  }
+  p {
+    margin: 0 0 3.5mm 0;
+    orphans: 3;
+    widows: 3;
+    text-align: justify;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2mm 0 5mm 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  th, td {
+    border-bottom: 1px solid #ddd;
+    padding: 1.8mm 1.5mm;
+    text-align: left;
+    font-size: 10pt;
+  }
+  th {
+    font-family: Arial, sans-serif;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #333;
+  }
+  caption {
+    text-align: left;
+    font-style: italic;
+    font-size: 9pt;
+    color: #666;
+    padding: 0 0 1mm 0;
+    font-family: Arial, sans-serif;
+    caption-side: top;
+  }
+  .summary, .conclusion, .exec-summary {
+    border-left: 3px solid #2c5f8f;
+    background: #f7f9fb;
+    padding: 4mm 5mm;
+    margin: 4mm 0 6mm 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .patient-block {
+    background: #f7f9fb;
+    padding: 3mm 5mm;
+    margin: 0 0 4mm 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2mm 8mm;
+    font-family: Arial, sans-serif;
+    font-size: 10pt;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .patient-block dt { color: #555; font-weight: 600; margin: 0; }
+  .patient-block dd { margin: 0; color: #111; }
+  .indices-line {
+    font-family: ui-monospace, "Courier New", monospace;
+    font-size: 10pt;
+    margin: 0 0 5mm 0;
+  }
+  .signature {
+    margin-top: 12mm;
+    border-top: 1px solid #999;
+    padding-top: 4mm;
+    font-family: Arial, sans-serif;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .signature .name { font-weight: 600; font-size: 11pt; color: #111; }
+  .signature .role { font-size: 10pt; color: #555; margin-top: 1mm; }
+  .limitations {
+    font-style: italic;
+    color: #555;
+    font-size: 10pt;
+    font-family: Arial, sans-serif;
+    text-align: justify;
+  }
+  td.num { font-variant-numeric: tabular-nums; }
+  .no-print, button, .actions, .toolbar, .badge {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+${reportHtml}
+</body>
+</html>`);
+  printWindow.document.close();
+  printWindow.onload = function () {
+    try {
+      printWindow.focus();
+      printWindow.print();
+      setTimeout(function () { try { printWindow.close(); } catch (e) {} }, 800);
+    } catch (e) { console.warn('Erro ao imprimir:', e); }
+  };
+}
+
+// Botão "Imprimir / PDF" chama EXATAMENTE printMedicalReportOnly()
+// — sem condicional, sem fallback para window.print() da página
+document.getElementById('printBtn').addEventListener('click', function () {
+  printMedicalReportOnly();
 });
 
 // -------- Persistence (localStorage) --------
