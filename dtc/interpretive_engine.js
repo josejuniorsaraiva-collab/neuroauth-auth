@@ -1,6 +1,6 @@
 /* ============================================================
  * Interpretação Hemodinâmica Neurovascular — DTC HSA
- * Camada narrativa avançada (v0.4 — humanização narrativa P2)
+ * Camada narrativa avançada (v0.5 — coerência fisiopatológica P5)
  * ============================================================
  * Produz raciocínio hemodinâmico integrado, contextual e
  * temporalmente sofisticado, no estilo de laudos neurointensivos
@@ -128,14 +128,14 @@
   }
 
   // ============================================================
-  // CAMADA 1 — Assinatura hemodinâmica global
+  // CAMADA 1 — Assinatura hemodinâmica global (P5: coerência cruzada Vm/IP/LR)
   // ============================================================
   function buildHemodynamicSignature(s, h) {
     const tokens = [];
     const vs = (s.states && s.states.vasospasm_axis) || {};
     const pr = (s.states && s.states.pressure_axis) || {};
 
-    // Estabilidade geral
+    // Estabilidade geral — coerência horizontal preservada
     if (vs.state === 'VS-0' && pr.state === 'PR-0') {
       tokens.push('padrão hemodinâmico estável');
     }
@@ -153,7 +153,7 @@
     else if (vs.state === 'VS-2') tokens.push('padrão compatível com vasoespasmo proximal leve a moderado');
     else if (vs.state === 'VS-1' && h.hyperemiaContext.length) tokens.push('perfil sugestivo de hiperemia em contexto sistêmico favorável');
 
-    // Pressão
+    // Pressão / resistência distal
     if (pr.state === 'PR-1' && h.ipContext.length === 0) tokens.push('padrão compatível com aumento de resistência distal');
     else if (pr.state === 'PR-1' && h.ipContext.length) tokens.push('elevação de pulsatilidade em contexto fisiológico potencialmente contributivo');
     else if (pr.state === 'PR-2') tokens.push('padrão de perfusão apenas sistólica');
@@ -164,6 +164,14 @@
     if (h.posteriorSloanFlag) tokens.push('predomínio em circulação posterior por critérios de Sloan');
     else if (h.basilarIsolated) tokens.push('elevação basilar isolada (sem correlato em circulação anterior)');
 
+    // Coerência IP/Vm — P5: leitura cruzada pulsatilidade × velocidade
+    // (apenas observação descritiva, sem novo threshold ou inferência)
+    if (h.mcaElev && pr.state === 'PR-0' && present(h.ipMean) && h.ipMean <= 1.2) {
+      tokens.push('coerência IP/Vm preservada — velocidades elevadas com pulsatilidade não-elevada favorecem estreitamento luminal sobre aumento de resistência distal');
+    } else if (h.mcaSevere && pr.state === 'PR-1') {
+      tokens.push('coexistência de velocidades em território de gravidade e pulsatilidade elevada — situação que tende a indicar componente distal somado ao proximal');
+    }
+
     // Tendência
     if (present(h.dR) && Math.abs(h.dR) >= 50) {
       tokens.push('progressão hemodinâmica dinâmica nas últimas 24 horas');
@@ -173,8 +181,8 @@
       tokens.push('estabilidade macrovascular nesta avaliação isolada');
     }
 
-    // Pulsatilidade global
-    if (pr.state === 'PR-0' && vs.state !== 'VS-0' && vs.state !== 'VS-INDETERMINATE') {
+    // Pulsatilidade preservada apesar de alteração velocimétrica (já implícito acima, mantido para outros estados VS)
+    if (pr.state === 'PR-0' && vs.state !== 'VS-0' && vs.state !== 'VS-INDETERMINATE' && !(h.mcaElev && present(h.ipMean) && h.ipMean <= 1.2)) {
       tokens.push('pulsatilidade preservada apesar das alterações de velocidade');
     }
 
@@ -254,7 +262,12 @@
         out.push('Em contexto neurocrítico (TCE/HIC suspeita), eixo de pressão preservado nesta janela documenta complacência hemodinâmica macrovascular, sem assinatura de aumento de resistência distal significativo — observação que compõe avaliação multimodal e não substitui monitorização invasiva de PIC (BC-01).');
       } else if (pr.state === 'PR-1') {
         const modContext = h.ipContext.length ? ' Importante notar que ' + h.ipContext.join(' e ') + ' podem contribuir parcialmente ao padrão, recomendando cautela antes de inferir aumento de resistência distal puro.' : '';
-        out.push('Em contexto neurocrítico, pulsatilidade sustentadamente elevada favorece aumento de resistência distal — diferenciais incluem edema, hipertensão intracraniana, vasoconstrição farmacológica e vasoespasmo a jusante.' + modContext + ' TCD reproduz tendência hemodinâmica; estimativa absoluta de PIC permanece domínio da monitorização invasiva (BC-01).');
+        // P5: leitura coerente entre PaCO2 e IP — vasoconstrição farmacológica × HIC
+        let paco2Note = '';
+        if (present(s.PaCO2_mmHg) && s.PaCO2_mmHg < 32) {
+          paco2Note = ' Na presença de hipocapnia ativa (PaCO₂ ' + s.PaCO2_mmHg + ' mmHg), a vasoconstrição farmacológica passa a ser componente possível e o IP isolado perde poder discriminatório para HIC; a tendência seriada — sob PaCO₂ estável — preserva maior valor interpretativo.';
+        }
+        out.push('Em contexto neurocrítico, pulsatilidade sustentadamente elevada favorece aumento de resistência distal — diferenciais incluem edema, hipertensão intracraniana, vasoconstrição farmacológica e vasoespasmo a jusante.' + modContext + paco2Note + ' TCD reproduz tendência hemodinâmica; estimativa absoluta de PIC permanece domínio da monitorização invasiva (BC-01).');
       } else if (pr.state === 'PR-2') {
         out.push('Padrão de perfusão apenas sistólica em contexto neurocrítico configura assinatura de elevação crítica de resistência distal — situação que demanda reavaliação imediata de PaCO₂, PPC e estratégias de neuroproteção pela equipe assistencial, sem que o método substitua a monitorização invasiva de PIC (BC-01).');
       } else if (pr.state === 'PR-3') {
@@ -472,6 +485,37 @@
       });
     }
 
+    // P5 — Coerência sistêmica: PaCO2 baixa + IP elevado em contexto neurocrítico
+    // (atenua inferência de HIC pura; sugere vasoconstrição farmacológica primária)
+    if (present(h.ipMean) && h.ipMean > 1.2 && present(s.PaCO2_mmHg) && s.PaCO2_mmHg < 32 &&
+        (s.context === 'TCE' || s.context === 'HIC_suspeita')) {
+      out.push({
+        type: 'ip-paco2',
+        text: 'A coexistência de pulsatilidade elevada e hipocapnia (PaCO₂ ' + s.PaCO2_mmHg + ' mmHg) atenua a inferência de hipertensão intracraniana pura — a vasoconstrição farmacológica responde por componente plausível do padrão; a tendência seriada sob PaCO₂ estabilizada oferece maior poder discriminatório (BC-01).',
+      });
+    }
+
+    // P5 — Coerência fluxo global: Vm baixa bilateral em paciente com clínica grave
+    // sem assinatura de pressão crítica (PR-0/PR-1) — pode representar baixo débito
+    // sistêmico ou estado hipodinâmico, não fenômeno cerebral primário.
+    if (present(h.mcaR) && present(h.mcaL) && h.mcaR < 35 && h.mcaL < 35 &&
+        ['VS-0','VS-INDETERMINATE'].includes(vs.state) && ['PR-0','PR-1'].includes(pr.state) &&
+        (s.clinical_status === 'piorando' || s.clinical_status === 'deteriorando_sem_definicao')) {
+      out.push({
+        type: 'fluxo-global-baixo',
+        text: 'Velocidades médias bilateralmente baixas em paciente com clínica em piora — leitura que precede investigação de baixo débito sistêmico, hipotensão ou variável sistêmica modulatória antes de inferência primariamente cerebral. A correlação com PAM, FC e estado hemodinâmico sistêmico é apropriada.',
+      });
+    }
+
+    // P5 — Coerência Vm/IP: velocidade crítica com IP preservado favorece estreitamento
+    // luminal sobre disfunção microcirculatória difusa.
+    if (h.mcaSevere && present(h.ipMean) && h.ipMean <= 1.0) {
+      out.push({
+        type: 'vm-ip-coerencia',
+        text: 'A coexistência de velocidades em território de gravidade com pulsatilidade preservada favorece padrão de estreitamento luminal proximal sobre disfunção microcirculatória distal difusa — leitura compatível com vasoespasmo proximal isolado, especialmente quando a Lindegaard é concordante.',
+      });
+    }
+
     return out;
   }
 
@@ -545,6 +589,29 @@
       }
     }
 
+    // P5 — Estabilização dentro da janela vasoespástica em paciente alto risco
+    // sustenta manutenção de vigilância sem urgência adicional de imagem.
+    if (ctx === 'HSA' && traj.trajectory === 'estabilizacao' &&
+        present(s.post_bleed_day) && s.post_bleed_day >= 3 && s.post_bleed_day <= 14 &&
+        ['VS-0','VS-1','VS-2'].includes(vs.state)) {
+      const fisher = s.fisher;
+      const hh = s.hunt_hess;
+      const highRisk = (fisher == 3 || fisher == 4 || fisher === '3' || fisher === '4' ||
+                        ['III','IV','V'].includes(hh));
+      if (highRisk) {
+        items.push('Trajetória estabilizada dentro da janela vasoespástica em paciente de alto risco favorece manutenção da vigilância serial regular, sem que o achado isolado adicione, neste momento, urgência incremental de complementação por imagem.');
+      }
+    }
+
+    // P5 — Coerência: aceleração focal concordante com déficit clínico amplifica
+    // a relevância prognóstica, mesmo abaixo do limiar absoluto de Δ24h.
+    if (traj.trajectory === 'tendencia_ascendente' && h.dominantSide && s.deficit_side) {
+      const expectedSide = s.deficit_side === 'esquerdo' ? 'direita' : (s.deficit_side === 'direito' ? 'esquerda' : null);
+      if (expectedSide === h.dominantSide && ctx === 'HSA') {
+        items.push('Aceleração focal concordante com o território do déficit clínico amplifica a relevância prognóstica em contexto de HSA, mesmo quando os valores absolutos de Δ24h não atingem o patamar de aceleração sustentada — a coerência topográfica adiciona valor pré-teste à vigilância seriada.');
+      }
+    }
+
     if (items.length === 0) {
       items.push('Sem fatores prognósticos hemodinâmicos destacáveis nesta avaliação. Manutenção de vigilância conforme contexto clínico.');
     }
@@ -614,6 +681,25 @@
     }
     if (s.deficit_side && s.deficit_side !== 'nenhum' && s.deficit_side !== 'indefinido') {
       phys += 1; physFactors.push('lateralidade do déficit informada — permite análise topográfica');
+    }
+
+    // P5 — Coerência cruzada Vm/IP/LR: ajustes finos (sem alterar limites de level())
+    // Bônus: assinatura interna coerente (Vm severa + LR concordante + IP coerente)
+    if (h.mcaSevere && h.lrConcordance && /^concord/i.test(h.lrConcordance) &&
+        present(h.ipMean) && h.ipMean <= 1.2) {
+      phys += 1;
+      physFactors.push('coerência interna Vm/LR/IP — assinatura proximal consistente');
+    }
+    // Penalização: dissociações conhecidas (Vm severa mas LR discordante)
+    if (h.mcaSevere && h.lrConcordance && /discord/i.test(h.lrConcordance)) {
+      phys -= 1;
+      physFactors.push('dissociação Vm/LR observada — interpretação probabilística com diferencial pendente');
+    }
+    // Penalização: hiperemia sistêmica simultânea a IP modulado em paciente sem contexto crítico
+    if (h.hyperemiaContext.length >= 2 && h.ipContext.length >= 1 &&
+        (!s.clinical_status || s.clinical_status === 'estavel')) {
+      phys -= 1;
+      physFactors.push('múltiplos moduladores sistêmicos concomitantes — diferencial vasoespasmo × hiperemia limitado por ruído sistêmico');
     }
 
     return {
@@ -930,7 +1016,7 @@
   // Expose
   global.DTCInterpretive = {
     generate: generate,
-    version: '0.4-humanized-narrative',
+    version: '0.5-physiologic-coherence',
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);
