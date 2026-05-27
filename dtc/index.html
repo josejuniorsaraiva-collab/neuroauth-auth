@@ -15,7 +15,7 @@
 /* =========================================================
  * DTC BUILD VERSION + diagnóstico de cache/SW
  * ========================================================= */
-window.DTC_BUILD_VERSION = 'v1.0-physiologic-coherence-2026-05-27-A';
+window.DTC_BUILD_VERSION = 'v1.1-trajectory-multiexame-2026-05-27-A';
 try {
   // Log visível no DevTools — confirma que a versão correta carregou
   console.log('%c[DTC]%c Build: ' + window.DTC_BUILD_VERSION,
@@ -1137,6 +1137,9 @@ if ('serviceWorker' in navigator) {
     <button class="btn" id="exportMdBtn">Exportar .md</button>
     <button class="btn" id="exportJsonBtn">Exportar .json</button>
     <button class="btn ghost" id="printBtn">Imprimir / PDF</button>
+    <button class="btn ghost" id="saveHistoryBtn" title="Salva este exame no histórico longitudinal local deste paciente (apenas neste navegador)">↺ Adicionar ao histórico</button>
+    <button class="btn ghost" id="clearHistoryBtn" title="Apaga o histórico longitudinal local do navegador">Limpar histórico</button>
+    <span id="historyStatus" class="pill" style="margin-left:6px"></span>
   </div>
   <div id="medicalPreview" style="display:none"></div>
   <div id="execSummaryBox"></div>
@@ -2428,12 +2431,44 @@ function generateMedicalReport() {
   html += '</div>';
   html += '</section>';
 
+  // P3 — Trajetória multiexame (injeção opcional · falha silenciosa)
+  try {
+    const history = (typeof dtcHistoryForPatient === 'function') ? dtcHistoryForPatient(codigo) : [];
+    if (history && history.length >= 2) {
+      const trajHTML = renderTrajectoryHTML(history);
+      if (trajHTML) {
+        const trajSection = '<section class="doc-section trajectory-section">' +
+          '<h2>Trajetória multiexame</h2>' +
+          trajHTML +
+          '</section>';
+        // Injeta antes do footer (que será adicionado a seguir)
+        html += trajSection;
+      }
+    }
+  } catch (e) { console.warn('[DTC P3] trajectory render skipped:', e); }
+
   // Rodapé institucional discreto
   html += '<footer class="doc-footer">';
   html += 'Documento de apoio interpretativo hemodinâmico — não substitui avaliação clínica.';
   html += '</footer>';
 
   html += '</article>';
+
+  // P3 — também injetar no texto (após CONCLUSÃO / LIMITAÇÕES, antes da homologação)
+  try {
+    const history = (typeof dtcHistoryForPatient === 'function') ? dtcHistoryForPatient(codigo) : [];
+    if (history && history.length >= 2) {
+      const trajText = renderTrajectoryText(history);
+      if (trajText) {
+        const homologIdx = textOutput.indexOf('HOMOLOGAÇÃO MÉDICA');
+        if (homologIdx > 0) {
+          // já estamos retornando textOutput pronto; refazer com inserção
+          const newText = textOutput.slice(0, homologIdx) + trajText + '\n\n' + textOutput.slice(homologIdx);
+          return { text: newText, html: html, snapshot: data };
+        }
+      }
+    }
+  } catch (e) { console.warn('[DTC P3] trajectory text injection skipped:', e); }
 
   return { text: textOutput, html: html, snapshot: data };
 }
@@ -2454,6 +2489,224 @@ function wrapText(text, width, indent) {
   });
   if (cur.length > indentLen) lines.push(cur);
   return lines;
+}
+
+// ============================================================
+// P3 — TRAJETÓRIA MULTIEXAME · camada aditiva
+// Persistência de snapshots seriais (localStorage), renderização
+// longitudinal. Falha silenciosa: se algo quebrar, o laudo principal
+// não é afetado.
+// ============================================================
+const DTC_HISTORY_KEY = 'DTC_HSA_HISTORY_v1';
+const DTC_HISTORY_MAX = 12; // mantém últimos 12 exames por paciente
+
+function dtcHistoryRead() {
+  try {
+    const raw = localStorage.getItem(DTC_HISTORY_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    console.warn('[DTC P3] history read failed:', e);
+    return [];
+  }
+}
+
+function dtcHistoryWrite(arr) {
+  try {
+    localStorage.setItem(DTC_HISTORY_KEY, JSON.stringify(arr.slice(-DTC_HISTORY_MAX)));
+    return true;
+  } catch (e) {
+    console.warn('[DTC P3] history write failed:', e);
+    return false;
+  }
+}
+
+function dtcHistoryAddCurrent() {
+  try {
+    const data = snapshot();
+    const code = data.patient_code || 'sem_codigo';
+    const dt = data.exam_datetime || new Date().toISOString();
+    const vm_r = (data.vessels && data.vessels.MCA_right && data.vessels.MCA_right.Vm_cms) || null;
+    const vm_l = (data.vessels && data.vessels.MCA_left  && data.vessels.MCA_left.Vm_cms)  || null;
+    const ip_r = (data.vessels && data.vessels.MCA_right && data.vessels.MCA_right.IP)     || null;
+    const ip_l = (data.vessels && data.vessels.MCA_left  && data.vessels.MCA_left.IP)      || null;
+    const lr_d = (data.derived && data.derived.lindegaard_right) || null;
+    const lr_e = (data.derived && data.derived.lindegaard_left)  || null;
+    const vs   = (data.states && data.states.vasospasm_axis && data.states.vasospasm_axis.state) || null;
+    const pr   = (data.states && data.states.pressure_axis  && data.states.pressure_axis.state)  || null;
+    const day  = data.post_bleed_day;
+
+    const entry = {
+      patient_code: code,
+      exam_datetime: dt,
+      post_bleed_day: day,
+      context: data.context || null,
+      vm_mca_right: vm_r, vm_mca_left: vm_l,
+      ip_mca_right: ip_r, ip_mca_left: ip_l,
+      lindegaard_right: lr_d, lindegaard_left: lr_e,
+      vasospasm_state: vs, pressure_state: pr,
+      saved_at: new Date().toISOString(),
+    };
+
+    const all = dtcHistoryRead();
+    // mantém só do mesmo paciente para não misturar trajetórias
+    const sameCode = all.filter(x => x.patient_code === code);
+    sameCode.push(entry);
+    // dedupe por exam_datetime (mesma data/hora → atualiza)
+    const map = new Map();
+    sameCode.forEach(x => map.set(x.exam_datetime, x));
+    const cleaned = Array.from(map.values()).sort((a, b) => (a.exam_datetime || '').localeCompare(b.exam_datetime || ''));
+    dtcHistoryWrite(cleaned);
+    return cleaned.length;
+  } catch (e) {
+    console.warn('[DTC P3] history add failed:', e);
+    return 0;
+  }
+}
+
+function dtcHistoryClear() {
+  try { localStorage.removeItem(DTC_HISTORY_KEY); return true; } catch { return false; }
+}
+
+function dtcHistoryForPatient(code) {
+  if (!code) return [];
+  return dtcHistoryRead().filter(x => x.patient_code === code);
+}
+
+function dtcFormatDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${dd}/${mm} ${hh}:${mi}`;
+  } catch { return iso; }
+}
+
+function dtcTrajectoryClassify(deltas) {
+  // deltas: array de números (Vm n+1 − Vm n), em sequência cronológica
+  if (!deltas || deltas.length === 0) return 'sem_dados';
+  const maxAbs = Math.max(...deltas.map(d => Math.abs(d)));
+  const sum = deltas.reduce((a, b) => a + b, 0);
+  if (maxAbs < 15) return 'estabilizacao';
+  if (deltas.some(d => d >= 50)) return 'aceleracao_significativa';
+  if (deltas.some(d => d <= -50)) return 'desaceleracao_significativa';
+  if (sum >= 30)  return 'tendencia_ascendente';
+  if (sum <= -30) return 'tendencia_descendente';
+  return 'variabilidade';
+}
+
+function dtcTrajectoryNarrative(klass) {
+  switch (klass) {
+    case 'sem_dados':                  return 'dados insuficientes para leitura longitudinal';
+    case 'estabilizacao':              return 'trajetória estabilizada — variações dentro da variabilidade técnica esperada';
+    case 'aceleracao_significativa':   return 'aceleração sustentada — pelo menos um intervalo ultrapassou +50 cm/s entre exames';
+    case 'desaceleracao_significativa':return 'desaceleração relevante — pelo menos um intervalo apresentou queda ≥ 50 cm/s; em contexto de vasoespasmo prévio, considerar diferencial com pseudonormalização';
+    case 'tendencia_ascendente':       return 'tendência ascendente acumulada — soma de variações ≥ +30 cm/s no período';
+    case 'tendencia_descendente':      return 'tendência descendente acumulada — soma de variações ≤ −30 cm/s no período';
+    default:                            return 'variabilidade intermediária — sem padrão dominante';
+  }
+}
+
+// Renderiza timeline HTML compacta para o popup PDF (namespaced)
+function renderTrajectoryHTML(history) {
+  if (!history || history.length < 2) return '';
+
+  const sorted = history.slice().sort((a, b) => (a.exam_datetime || '').localeCompare(b.exam_datetime || ''));
+  // limita às últimas 8 entradas para caber no A4
+  const subset = sorted.slice(-8);
+
+  const vmRs = subset.map(x => x.vm_mca_right).filter(v => v !== null && v !== undefined && !isNaN(v));
+  const vmLs = subset.map(x => x.vm_mca_left).filter(v => v !== null && v !== undefined && !isNaN(v));
+  const deltasR = [];
+  const deltasL = [];
+  for (let i = 1; i < subset.length; i++) {
+    const a = subset[i-1], b = subset[i];
+    if (a && b) {
+      if (a.vm_mca_right != null && b.vm_mca_right != null) deltasR.push(b.vm_mca_right - a.vm_mca_right);
+      if (a.vm_mca_left  != null && b.vm_mca_left  != null) deltasL.push(b.vm_mca_left  - a.vm_mca_left);
+    }
+  }
+
+  const klassR = dtcTrajectoryClassify(deltasR);
+  const klassL = dtcTrajectoryClassify(deltasL);
+
+  // tabela longitudinal compacta
+  let html = '';
+  html += '<table class="trajectory-table">';
+  html += '<caption>Histórico longitudinal — últimos ' + subset.length + ' exames</caption>';
+  html += '<thead><tr>';
+  html += '<th>Exame</th><th>Data</th><th>Dia HSA</th>';
+  html += '<th>Vm ACM D</th><th>Vm ACM E</th>';
+  html += '<th>LR D</th><th>LR E</th>';
+  html += '<th>VS</th><th>PR</th>';
+  html += '</tr></thead><tbody>';
+  subset.forEach((x, idx) => {
+    html += '<tr>';
+    html += '<td>' + (idx + 1) + '</td>';
+    html += '<td>' + escapeHtml(dtcFormatDate(x.exam_datetime)) + '</td>';
+    html += '<td class="num">' + escapeHtml(x.post_bleed_day != null ? String(x.post_bleed_day) : '—') + '</td>';
+    html += '<td class="num">' + (x.vm_mca_right != null ? Number(x.vm_mca_right).toFixed(0) : '—') + '</td>';
+    html += '<td class="num">' + (x.vm_mca_left  != null ? Number(x.vm_mca_left ).toFixed(0) : '—') + '</td>';
+    html += '<td class="num">' + (x.lindegaard_right != null ? Number(x.lindegaard_right).toFixed(2) : '—') + '</td>';
+    html += '<td class="num">' + (x.lindegaard_left  != null ? Number(x.lindegaard_left ).toFixed(2) : '—') + '</td>';
+    html += '<td>' + escapeHtml(x.vasospasm_state || '—') + '</td>';
+    html += '<td>' + escapeHtml(x.pressure_state  || '—') + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  // leitura sintética
+  const readings = [];
+  if (deltasR.length) readings.push('ACM direita: ' + dtcTrajectoryNarrative(klassR));
+  if (deltasL.length) readings.push('ACM esquerda: ' + dtcTrajectoryNarrative(klassL));
+  if (readings.length) {
+    html += '<p class="trajectory-reading">' + readings.map(escapeHtml).join('. ') + '.</p>';
+  }
+
+  // qualificador prudencial
+  html += '<p class="trajectory-caveat">Leitura longitudinal baseada em registros locais do navegador (não substitui prontuário); requer técnica reprodutível entre sessões para validade comparativa (BC-08).</p>';
+
+  return html;
+}
+
+function renderTrajectoryText(history) {
+  if (!history || history.length < 2) return '';
+  const sorted = history.slice().sort((a, b) => (a.exam_datetime || '').localeCompare(b.exam_datetime || ''));
+  const subset = sorted.slice(-8);
+  const lines = [];
+  lines.push('TRAJETÓRIA MULTIEXAME (últimos ' + subset.length + ' exames)');
+  lines.push('');
+  lines.push('Exame  Data            Dia HSA  Vm ACM D  Vm ACM E  LR D   LR E   VS     PR');
+  subset.forEach((x, idx) => {
+    const dt = dtcFormatDate(x.exam_datetime).padEnd(14);
+    const day = String(x.post_bleed_day != null ? x.post_bleed_day : '—').padStart(7);
+    const vmR = (x.vm_mca_right != null ? Number(x.vm_mca_right).toFixed(0) : '—').padStart(8);
+    const vmL = (x.vm_mca_left  != null ? Number(x.vm_mca_left ).toFixed(0) : '—').padStart(8);
+    const lrD = (x.lindegaard_right != null ? Number(x.lindegaard_right).toFixed(2) : '—').padStart(6);
+    const lrE = (x.lindegaard_left  != null ? Number(x.lindegaard_left ).toFixed(2) : '—').padStart(6);
+    const vs  = (x.vasospasm_state || '—').padEnd(6);
+    const pr  = (x.pressure_state  || '—').padEnd(6);
+    lines.push(String(idx + 1).padStart(5) + '  ' + dt + day + vmR + vmL + lrD + lrE + ' ' + vs + ' ' + pr);
+  });
+  const deltasR = [];
+  const deltasL = [];
+  for (let i = 1; i < subset.length; i++) {
+    const a = subset[i-1], b = subset[i];
+    if (a.vm_mca_right != null && b.vm_mca_right != null) deltasR.push(b.vm_mca_right - a.vm_mca_right);
+    if (a.vm_mca_left  != null && b.vm_mca_left  != null) deltasL.push(b.vm_mca_left  - a.vm_mca_left);
+  }
+  lines.push('');
+  if (deltasR.length) lines.push('  ACM direita: ' + dtcTrajectoryNarrative(dtcTrajectoryClassify(deltasR)) + '.');
+  if (deltasL.length) lines.push('  ACM esquerda: ' + dtcTrajectoryNarrative(dtcTrajectoryClassify(deltasL)) + '.');
+  lines.push('');
+  lines.push('  Leitura longitudinal a partir de registros locais; requer técnica reprodutível (BC-08).');
+  return lines.join('\n');
 }
 
 // ============================================================
@@ -3011,6 +3264,52 @@ function printMedicalReportOnly() {
     color: var(--label);
   }
 
+  /* P3 — Trajetória multiexame (tabela longitudinal compacta) */
+  .dtc-print-document .trajectory-section {
+    margin-top: 6mm;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .dtc-print-document .trajectory-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1mm 0 3mm 0;
+    font-size: 8.8pt;
+    font-variant-numeric: tabular-nums;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .dtc-print-document .trajectory-table th,
+  .dtc-print-document .trajectory-table td {
+    padding: 1.2mm 1.2mm;
+    font-size: 8.8pt;
+    vertical-align: middle;
+  }
+  .dtc-print-document .trajectory-table th {
+    font-size: 7.2pt;
+    letter-spacing: .08em;
+  }
+  .dtc-print-document .trajectory-table caption {
+    font-size: 7.5pt;
+    letter-spacing: .1em;
+    padding-bottom: 1.2mm;
+  }
+  .dtc-print-document .trajectory-reading {
+    font-size: 9.8pt;
+    color: var(--ink);
+    margin: 1mm 0 2mm 0;
+    text-align: justify;
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  }
+  .dtc-print-document .trajectory-caveat {
+    font-size: 8.5pt;
+    color: var(--muted);
+    font-style: italic;
+    margin: 0 0 4mm 0;
+    text-align: justify;
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+  }
+
   /* Rodapé institucional discreto */
   .dtc-print-document .doc-footer {
     margin: 10mm 0 0 0;
@@ -3114,6 +3413,50 @@ ${reportHtml}
 document.getElementById('printBtn').addEventListener('click', function () {
   printMedicalReportOnly();
 });
+
+// P3 — Botões de histórico longitudinal (camada aditiva, falha silenciosa)
+(function bindP3HistoryButtons() {
+  const saveBtn   = document.getElementById('saveHistoryBtn');
+  const clearBtn  = document.getElementById('clearHistoryBtn');
+  const statusEl  = document.getElementById('historyStatus');
+
+  function refreshStatus() {
+    if (!statusEl) return;
+    try {
+      const data = snapshot();
+      const code = data.patient_code || '';
+      const all = dtcHistoryForPatient(code);
+      if (!code) { statusEl.textContent = 'sem código de paciente'; statusEl.className = 'pill draft'; return; }
+      if (all.length === 0) { statusEl.textContent = 'histórico vazio'; statusEl.className = 'pill draft'; return; }
+      statusEl.textContent = all.length + ' exame' + (all.length === 1 ? '' : 's') + ' no histórico (paciente ' + code + ')';
+      statusEl.className = 'pill saved';
+    } catch (e) { statusEl.textContent = ''; }
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function () {
+      try {
+        const code = (snapshot().patient_code || '').trim();
+        if (!code) { alert('Preencha o "Código do paciente" antes de adicionar ao histórico.'); return; }
+        const n = dtcHistoryAddCurrent();
+        if (statusEl) { statusEl.textContent = 'adicionado (' + n + ' no total)'; statusEl.className = 'pill saved'; }
+        setTimeout(refreshStatus, 1500);
+      } catch (e) { console.warn('[DTC P3] save failed:', e); }
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      if (!confirm('Apagar todo o histórico longitudinal armazenado neste navegador?')) return;
+      dtcHistoryClear();
+      refreshStatus();
+    });
+  }
+
+  // Status inicial e refresh quando o código mudar
+  refreshStatus();
+  const codeInput = document.getElementById('patient_code');
+  if (codeInput) codeInput.addEventListener('change', refreshStatus);
+})();
 
 // -------- Persistence (localStorage) --------
 const STORAGE_KEY = 'DTC_HSA_MVP_DRAFT_v1';
