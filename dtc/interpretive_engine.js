@@ -1,6 +1,6 @@
 /* ============================================================
  * Interpretação Hemodinâmica Neurovascular — DTC HSA
- * Camada narrativa avançada (v0.3)
+ * Camada narrativa avançada (v0.4 — humanização narrativa P2)
  * ============================================================
  * Produz raciocínio hemodinâmico integrado, contextual e
  * temporalmente sofisticado, no estilo de laudos neurointensivos
@@ -640,7 +640,7 @@
     // CAMADA 3 — PROGNÓSTICA
     const prognostica = prognostic.length
       ? prognostic.join(' ')
-      : 'Sem fatores prognósticos hemodinâmicos destacáveis nesta avaliação.';
+      : 'Nesta sessão, não emergem fatores prognósticos hemodinâmicos destacáveis.';
 
     // CAMADA 4 — OPERACIONAL
     const operacional = describeOperational(s, h, traj, vs, pr);
@@ -654,14 +654,14 @@
       const ant = [];
       if (present(h.mcaR)) ant.push('ACM direita Vm ' + fmt(h.mcaR, 0) + ' cm/s' + (present(h.ipR) ? ' (IP ' + fmt(h.ipR, 2) + ')' : ''));
       if (present(h.mcaL)) ant.push('ACM esquerda Vm ' + fmt(h.mcaL, 0) + ' cm/s' + (present(h.ipL) ? ' (IP ' + fmt(h.ipL, 2) + ')' : ''));
-      let antLine = 'Circulação anterior: ' + ant.join('; ') + '.';
+      let antLine = 'Na circulação anterior, ' + ant.join('; ') + '.';
       if (present(h.lrD) || present(h.lrE)) {
         const lr = [];
         if (present(h.lrD)) lr.push('LR D ' + fmt(h.lrD, 2));
         if (present(h.lrE)) lr.push('LR E ' + fmt(h.lrE, 2));
         antLine += ' Razão de Lindegaard ' + lr.join(', ') + '.';
       } else if (h.mcaElev) {
-        antLine += ' Razão de Lindegaard não computável.';
+        antLine += ' A razão de Lindegaard não pôde ser computada nesta sessão.';
       }
       parts.push(antLine);
     }
@@ -670,13 +670,13 @@
     if (present(h.bas)) post.push('basilar Vm ' + fmt(h.bas, 0));
     if (present(h.vertR)) post.push('vertebral direita ' + fmt(h.vertR, 0));
     if (present(h.vertL)) post.push('vertebral esquerda ' + fmt(h.vertL, 0));
-    if (post.length) parts.push('Circulação posterior: ' + post.join('; ') + ' cm/s.');
+    if (post.length) parts.push('Em circulação posterior, ' + post.join('; ') + ' cm/s.');
 
     if (h.asymmetryPct !== null && h.asymmetryPct > 30) {
-      parts.push('Assimetria entre hemisférios anteriores de ' + h.asymmetryPct.toFixed(0) + '%' + (h.dominantSide ? ', com predomínio à ' + h.dominantSide : '') + '.');
+      parts.push('A assimetria hemisférica anterior alcança ' + h.asymmetryPct.toFixed(0) + '%' + (h.dominantSide ? ', com predomínio à ' + h.dominantSide : '') + '.');
     }
 
-    if (parts.length === 0) parts.push('Avaliação hemodinâmica sem dados quantitativos suficientes para descrição detalhada nesta sessão.');
+    if (parts.length === 0) parts.push('A avaliação não dispõe de dados quantitativos suficientes para descrição detalhada nesta sessão.');
 
     return parts.join(' ');
   }
@@ -686,45 +686,46 @@
     const pr = (s.states && s.states.pressure_axis) || {};
     const parts = [];
 
-    // Frase principal sobre o estado dominante
+    // Eixo vasoespasmo / hiperemia — voz médica humanizada, mesmos gates
     if (vs.state === 'VS-0' && pr.state === 'PR-0') {
-      parts.push('Padrão hemodinâmico estável, sem assinatura de vasoespasmo proximal, hiperemia patológica ou aumento de resistência distal. Coerência horizontal e territorial preservadas.');
+      parts.push('O perfil hemodinâmico se mostra estável, sem assinatura de vasoespasmo proximal, de hiperemia patológica ou de aumento da resistência distal; a coerência horizontal e territorial permanece preservada.');
     } else if (vs.state === 'VS-3') {
-      parts.push('Achados configuram padrão compatível com vasoespasmo proximal grave em circulação anterior' + (h.dominantSide ? ' (predomínio à ' + h.dominantSide + ')' : '') + ', com Lindegaard ' + (h.lrConcordance || 'não computável') + '.');
+      parts.push('O conjunto velocimétrico recai sobre vasoespasmo proximal grave em circulação anterior' + (h.dominantSide ? ', com predomínio à ' + h.dominantSide : '') + ', acompanhado de razão de Lindegaard ' + (h.lrConcordance || 'não computável') + '.');
     } else if (vs.state === 'VS-2_with_discordance') {
-      parts.push('Achados configuram dissociação relevante entre velocidades em território de gravidade e razão de Lindegaard discordante — diferencial entre vasoespasmo proximal mascarado por vasoconstrição do sifão (BC-05), hiperemia regional intensa e variável técnica é apropriado.');
+      parts.push('Há dissociação relevante entre as velocidades em território de gravidade e a razão de Lindegaard, situação em que o diferencial entre vasoespasmo proximal mascarado por vasoconstrição do sifão (BC-05), hiperemia regional intensa e variável técnica é apropriado.');
     } else if (vs.state === 'VS-2') {
-      parts.push('Achados configuram padrão compatível com vasoespasmo proximal leve a moderado, com Lindegaard concordante na faixa intermediária.');
+      parts.push('Os achados se alinham a vasoespasmo proximal leve a moderado, com razão de Lindegaard concordante em faixa intermediária.');
     } else if (vs.state === 'VS-1' && h.hyperemiaContext.length) {
-      parts.push('Padrão compatível com hiperemia em contexto sistêmico favorável (' + h.hyperemiaContext.join(' + ') + '), interpretação que precede inferência vasoespástica primária e exige normalização das variáveis sistêmicas antes de reavaliação.');
+      parts.push('O perfil aponta para hiperemia em contexto sistêmico favorável (' + h.hyperemiaContext.join(' + ') + '), leitura que precede a inferência vasoespástica primária e demanda normalização das variáveis sistêmicas antes de reavaliação.');
     }
 
+    // Eixo de pressão / resistência distal — alternar conectores e cadência
     if (pr.state === 'PR-1' && h.ipContext.length === 0 && vs.state !== 'VS-3') {
-      parts.push('Pulsatilidade sustentadamente elevada favorece aumento de resistência distal — diferenciais incluem edema, hipertensão intracraniana, vasoconstrição farmacológica e vasoespasmo a jusante.');
+      parts.push('A pulsatilidade sustentadamente elevada favorece aumento da resistência distal; o diferencial inclui edema, hipertensão intracraniana, vasoconstrição farmacológica e vasoespasmo a jusante.');
     } else if (pr.state === 'PR-1' && h.ipContext.length) {
-      parts.push('Elevação de pulsatilidade contextualizada por ' + h.ipContext.join(' e ') + ' — recomenda-se cautela antes de inferir aumento de resistência distal isolado.');
+      parts.push('A elevação da pulsatilidade está contextualizada por ' + h.ipContext.join(' e ') + ', o que recomenda cautela antes de inferir aumento isolado da resistência distal.');
     } else if (pr.state === 'PR-2') {
-      parts.push('Padrão de perfusão apenas sistólica caracteriza assinatura compatível com elevação crítica de resistência distal.');
+      parts.push('A perfusão apenas sistólica caracteriza uma assinatura que recai sobre elevação crítica da resistência distal.');
     } else if (pr.state === 'PR-3') {
-      parts.push('Inversão diastólica configura assinatura de progressão hemodinâmica em direção a falência de perfusão.');
+      parts.push('A inversão diastólica desenha progressão hemodinâmica em direção à falência de perfusão.');
     } else if (['PR-4','PR-5','PR-6'].includes(pr.state)) {
-      parts.push('Padrão espectral compatível com parada circulatória cerebral em evolução.');
+      parts.push('O padrão espectral é sugestivo de parada circulatória cerebral em evolução.');
     }
 
     if (h.posteriorSloanFlag) {
       parts.push('Em circulação posterior, ' + h.posteriorSloanFlag + '.');
     }
 
-    // Trajetória
+    // Trajetória temporal — variar verbos e abrir/fechar a sentença
     if (traj.trajectory === 'aceleracao_significativa') {
-      parts.push('A trajetória temporal — aceleração que supera variabilidade esperada — favorece progressão hemodinâmica relevante em detrimento de modulação sistêmica transiente.');
+      parts.push('No plano temporal, a aceleração ultrapassa a variabilidade esperada e favorece progressão hemodinâmica relevante em detrimento de modulação sistêmica transiente.');
     } else if (traj.trajectory === 'tendencia_ascendente') {
-      parts.push('A trajetória temporal mostra tendência ascendente que merece valoração específica em série subsequente.');
+      parts.push('A trajetória, em ascensão, merece valoração específica em série subsequente.');
     } else if (traj.trajectory === 'desaceleracao') {
-      parts.push('A trajetória temporal mostra desaceleração relevante, compatível com resposta terapêutica favorável ou normalização de variável sistêmica modulatória.');
+      parts.push('A trajetória em desaceleração é coerente com resposta terapêutica favorável ou com normalização de variável sistêmica modulatória.');
     }
 
-    if (parts.length === 0) parts.push('Sem assinatura hemodinâmica destacável nesta avaliação.');
+    if (parts.length === 0) parts.push('Nesta avaliação, não emerge assinatura hemodinâmica destacável.');
 
     return parts.join(' ');
   }
@@ -733,40 +734,40 @@
     const items = [];
 
     if (vs.state === 'VS-3' || pr.state === 'PR-2' || pr.state === 'PR-3') {
-      items.push('Comunicação imediata à equipe assistencial (intensivista e neurocirurgia) com correlação clínica integrada antes de qualquer decisão terapêutica.');
-      items.push('Reavaliação em janela curta com técnica reprodutível, conforme pactuação institucional (BC-09).');
-      items.push('Considerar neuroimagem vascular complementar para caracterização anatômica que o método não substitui (BC-04).');
+      items.push('Cabe comunicação imediata à equipe assistencial — intensivista e neurocirurgia — com correlação clínica integrada antes de qualquer decisão terapêutica.');
+      items.push('A reavaliação em janela curta, com técnica reprodutível, segue a pactuação institucional (BC-09).');
+      items.push('Recomenda-se considerar neuroimagem vascular complementar, uma vez que a caracterização anatômica fina escapa ao escopo do método (BC-04).');
     } else if (vs.state === 'VS-2' || vs.state === 'VS-2_with_discordance' || pr.state === 'PR-1') {
-      items.push('Comunicação ao intensivista no plantão; cadência intensificada com técnica idêntica (BC-08).');
-      items.push('Manter correlação seriada com variáveis sistêmicas (PaCO₂, sedação, hematócrito, PAM).');
+      items.push('Sugere-se comunicação ao intensivista no plantão e intensificação da cadência seriada, mantida a técnica idêntica (BC-08).');
+      items.push('A correlação seriada com variáveis sistêmicas — PaCO₂, sedação, hematócrito, PAM — permanece essencial.');
     } else if (vs.state === 'VS-INDETERMINATE' && s.context === 'HSA') {
       const fisher = s.fisher;
       const hh = s.hunt_hess;
       const highRisk = (fisher == 3 || fisher == 4 || fisher === '3' || fisher === '4' ||
                         ['III','IV','V'].includes(hh));
       if (highRisk) {
-        items.push('Complementação por neuroimagem vascular (angio-TC/RM) — limitação anatômica de janela em paciente de alto risco não se resolve com repetição.');
+        items.push('Em paciente de alto risco, a limitação anatômica de janela não se resolve por repetição e indica complementação por neuroimagem vascular (angio-TC/RM).');
       } else {
-        items.push('Considerar repetição com troubleshooting documentado; complementação por neuroimagem se vulnerabilidade clínica aumentar.');
+        items.push('Vale considerar a repetição com troubleshooting documentado; a neuroimagem vascular complementar fica reservada para o cenário em que a vulnerabilidade clínica aumentar.');
       }
     } else if (s.context === 'HSA') {
-      items.push('Manutenção de vigilância serial conforme protocolo institucional, com técnica reprodutível para comparabilidade.');
+      items.push('A vigilância serial deve seguir o protocolo institucional, preservada a técnica reprodutível para comparabilidade.');
     }
 
     if (['PR-4','PR-5','PR-6'].includes(pr.state)) {
-      items.push('Integração ao protocolo CFM 2.173/2017 somente se já ativado pela equipe assistencial responsável; achado isolado não autoriza inferência diagnóstica de morte encefálica.');
+      items.push('A integração ao protocolo CFM 2.173/2017 só se aplica se já ativado pela equipe assistencial responsável; o achado isolado não autoriza inferência diagnóstica de morte encefálica.');
     }
 
     if (traj.flags.includes('aceleração sustentada ACM direita — peso prognóstico independente (BC-08)') ||
         traj.flags.includes('aceleração sustentada ACM esquerda — peso prognóstico independente (BC-08)')) {
-      items.push('Reforço de comunicação à equipe assistencial — aceleração > 50 cm/s/24h adiciona peso prognóstico independente.');
+      items.push('Reforça-se a comunicação à equipe assistencial: aceleração superior a 50 cm/s em 24h adiciona peso prognóstico independente.');
     }
 
     if (h.posteriorSloanFlag) {
-      items.push('Considerar avaliação dirigida da circulação posterior por imagem complementar.');
+      items.push('Vale também considerar avaliação dirigida da circulação posterior por imagem complementar.');
     }
 
-    if (items.length === 0) items.push('Manutenção de cadência conforme contexto clínico e protocolo institucional.');
+    if (items.length === 0) items.push('A cadência deve seguir o contexto clínico e o protocolo institucional vigente.');
 
     return items.join(' ');
   }
@@ -844,11 +845,11 @@
 
     // -- Boundaries finais obrigatórios --
     lines.push(dash);
-    lines.push('O Doppler transcraniano compõe avaliação hemodinâmica multimodal e não substitui exame neurológico, neuroimagem vascular/estrutural, monitorização invasiva ou decisão clínica especializada.');
+    lines.push('O Doppler transcraniano integra a avaliação hemodinâmica multimodal e não substitui o exame neurológico, a neuroimagem vascular ou estrutural, a monitorização invasiva nem a decisão clínica especializada.');
     lines.push('');
-    lines.push('Doppler transcraniano informa dinâmica hemodinâmica; a equipe assistencial decide interpretação clínica integrada e conduta.');
+    lines.push('O método informa a dinâmica hemodinâmica; a interpretação clínica integrada e a conduta cabem à equipe assistencial.');
     lines.push(dash);
-    lines.push('Laudo de apoio interpretativo · exige homologação médica antes de uso clínico.');
+    lines.push('Laudo de apoio interpretativo — homologação médica é requerida antes de uso clínico.');
 
     return lines.join('\n');
   }
@@ -929,7 +930,7 @@
   // Expose
   global.DTCInterpretive = {
     generate: generate,
-    version: '0.3',
+    version: '0.4-humanized-narrative',
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);
