@@ -15,7 +15,7 @@
 /* =========================================================
  * DTC BUILD VERSION + diagnóstico de cache/SW
  * ========================================================= */
-window.DTC_BUILD_VERSION = 'v0.5-print-fix-2026-05-27-A';
+window.DTC_BUILD_VERSION = 'v0.6-pdf-premium-2026-05-27-A';
 try {
   // Log visível no DevTools — confirma que a versão correta carregou
   console.log('%c[DTC]%c Build: ' + window.DTC_BUILD_VERSION,
@@ -2488,133 +2488,255 @@ function printMedicalReportOnly() {
 <meta charset="utf-8">
 <title>Doppler Transcraniano — Laudo Médico</title>
 <style>
+  /* DTC HSA · Print stylesheet — laudo institucional neurovascular
+     Build: P4 PDF Hospitalar Premium · 2026-05-27
+     Referência estética: Mayo · Cleveland · Hopkins · Sírio · Einstein · Barrow */
+
   @page {
     size: A4;
-    margin: 18mm 16mm 18mm 16mm;
+    margin: 22mm 18mm 24mm 18mm;
+    @bottom-center {
+      content: "Doppler Transcraniano · Página " counter(page) " de " counter(pages);
+      font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+      font-size: 8pt;
+      color: #888;
+      letter-spacing: .06em;
+    }
   }
+
+  :root {
+    --ink:        #1a1a1a;
+    --ink-soft:   #2b2b2b;
+    --muted:      #555;
+    --muted-2:    #6b6b6b;
+    --label:      #777;
+    --rule:       #c4c4c4;
+    --rule-soft:  #d8d8d8;
+    --rule-strong:#8a8a8a;
+    --accent:     #4a4a4a;
+  }
+
   html, body {
     background: #fff;
-    color: #111;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 11pt;
-    line-height: 1.45;
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
     margin: 0;
     padding: 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
   }
   body { width: 100%; }
+
+  /* === Cabeçalho institucional === */
   h1 {
-    font-family: Arial, sans-serif;
-    font-size: 16pt;
-    letter-spacing: .03em;
-    text-align: center;
-    margin: 0 0 2mm 0;
-    color: #111;
-  }
-  h2 {
-    font-family: Arial, sans-serif;
-    font-size: 9pt;
-    text-transform: uppercase;
-    letter-spacing: .12em;
-    margin: 7mm 0 3mm 0;
-    border-bottom: 1px solid #bbb;
-    padding-bottom: 1mm;
-    color: #333;
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    font-weight: 600;
+    font-size: 13.5pt;
+    letter-spacing: .005em;
+    text-align: left;
+    margin: 0 0 1.2mm 0;
+    color: var(--ink);
+    line-height: 1.25;
   }
   .subtitle {
-    text-align: center;
-    font-style: italic;
-    color: #666;
-    font-size: 10pt;
-    margin: 0 0 6mm 0;
-    font-family: Arial, sans-serif;
+    text-align: left;
+    font-style: normal;
+    color: var(--muted);
+    font-size: 9.5pt;
+    margin: 0 0 5mm 0;
+    padding-bottom: 4.5mm;
+    border-bottom: 0.6pt solid var(--rule-strong);
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    letter-spacing: .015em;
   }
+
+  /* === Seções === */
+  h2 {
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    font-weight: 600;
+    margin: 7.5mm 0 2.5mm 0;
+    padding-bottom: 1.2mm;
+    border-bottom: 0.5pt solid var(--rule);
+    color: var(--ink-soft);
+    page-break-after: avoid;
+    break-after: avoid-page;
+  }
+  h1 + .subtitle + h2,
+  .subtitle + h2 { margin-top: 4mm; }
+
+  /* === Texto === */
   p {
-    margin: 0 0 3.5mm 0;
+    margin: 0 0 3mm 0;
     orphans: 3;
     widows: 3;
     text-align: justify;
+    hyphens: auto;
+    -webkit-hyphens: auto;
   }
+
+  /* === Bloco de identificação do paciente — tabela limpa, sem cor === */
+  .patient-block {
+    background: transparent;
+    padding: 0;
+    margin: 0 0 5mm 0;
+    display: grid;
+    grid-template-columns: 26mm 1fr 26mm 1fr;
+    column-gap: 6mm;
+    row-gap: 1.6mm;
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .patient-block dt {
+    color: var(--label);
+    font-weight: 500;
+    font-size: 7.8pt;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    margin: 0;
+    align-self: center;
+  }
+  .patient-block dd {
+    margin: 0;
+    color: var(--ink);
+    font-weight: 500;
+    align-self: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* === Blocos interpretativos — régua lateral sóbria, SEM background === */
+  .summary, .conclusion, .exec-summary {
+    border-left: 1.8pt solid var(--accent);
+    background: transparent;
+    padding: 1mm 0 1mm 5mm;
+    margin: 3mm 0 5mm 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.55;
+  }
+
+  /* === Tabelas hemodinâmicas === */
   table {
     width: 100%;
     border-collapse: collapse;
-    margin: 2mm 0 5mm 0;
+    margin: 1mm 0 5mm 0;
     page-break-inside: avoid;
     break-inside: avoid;
+    font-variant-numeric: tabular-nums;
   }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr    { page-break-inside: avoid; break-inside: avoid; }
   th, td {
-    border-bottom: 1px solid #ddd;
-    padding: 1.8mm 1.5mm;
+    padding: 1.8mm 2mm;
     text-align: left;
-    font-size: 10pt;
+    font-size: 9.5pt;
+    vertical-align: top;
+    border-bottom: 0.4pt solid var(--rule-soft);
   }
   th {
-    font-family: Arial, sans-serif;
-    font-size: 8.5pt;
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    font-size: 7.8pt;
     text-transform: uppercase;
-    letter-spacing: .08em;
-    color: #333;
+    letter-spacing: .1em;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 0.7pt solid var(--rule-strong);
+    background: transparent;
   }
+  tbody tr:last-child td { border-bottom: 0.6pt solid var(--rule-strong); }
   caption {
     text-align: left;
-    font-style: italic;
-    font-size: 9pt;
-    color: #666;
-    padding: 0 0 1mm 0;
-    font-family: Arial, sans-serif;
+    font-style: normal;
+    font-size: 7.8pt;
+    color: var(--label);
+    padding: 0 0 1.8mm 0;
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    letter-spacing: .12em;
+    text-transform: uppercase;
     caption-side: top;
   }
-  .summary, .conclusion, .exec-summary {
-    border-left: 3px solid #2c5f8f;
-    background: #f7f9fb;
-    padding: 4mm 5mm;
-    margin: 4mm 0 6mm 0;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .patient-block {
-    background: #f7f9fb;
-    padding: 3mm 5mm;
-    margin: 0 0 4mm 0;
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 2mm 8mm;
-    font-family: Arial, sans-serif;
-    font-size: 10pt;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .patient-block dt { color: #555; font-weight: 600; margin: 0; }
-  .patient-block dd { margin: 0; color: #111; }
+  td.num, td.numeric, .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Linha técnica monoespaçada (índices) */
   .indices-line {
-    font-family: ui-monospace, "Courier New", monospace;
-    font-size: 10pt;
-    margin: 0 0 5mm 0;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Courier New", monospace;
+    font-size: 9.5pt;
+    color: var(--ink);
+    margin: 0 0 4mm 0;
+    letter-spacing: 0;
   }
-  .signature {
-    margin-top: 12mm;
-    border-top: 1px solid #999;
-    padding-top: 4mm;
-    font-family: Arial, sans-serif;
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .signature .name { font-weight: 600; font-size: 11pt; color: #111; }
-  .signature .role { font-size: 10pt; color: #555; margin-top: 1mm; }
+
+  /* Limitações */
   .limitations {
     font-style: italic;
-    color: #555;
-    font-size: 10pt;
-    font-family: Arial, sans-serif;
+    color: var(--muted);
+    font-size: 9.5pt;
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
     text-align: justify;
+    margin: 0 0 6mm 0;
+    hyphens: auto;
   }
-  td.num { font-variant-numeric: tabular-nums; }
-  .no-print, button, .actions, .toolbar, .badge {
+
+  /* === Bloco de responsabilidade médica + assinatura === */
+  .signature {
+    margin-top: 14mm;
+    border-top: 0.5pt solid var(--muted-2);
+    padding-top: 5mm;
+    font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    font-size: 9.5pt;
+  }
+  .signature::before {
+    content: "Responsável médico pela emissão deste laudo";
+    display: block;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: .16em;
+    color: var(--label);
+    margin-bottom: 4mm;
+  }
+  .signature .name {
+    font-weight: 600;
+    font-size: 10.5pt;
+    color: var(--ink);
+    letter-spacing: .005em;
+  }
+  .signature .role {
+    font-size: 9pt;
+    color: var(--muted);
+    margin-top: 0.8mm;
+    letter-spacing: .015em;
+  }
+
+  /* === Robustez de paginação === */
+  h1, h2, h3, h4 { page-break-after: avoid; break-after: avoid-page; }
+  h2 + p, h2 + ul, h2 + ol, h2 + table, h2 + .summary, h2 + .conclusion, h2 + .exec-summary,
+  h2 + .indices-line { page-break-before: avoid; break-before: avoid-page; }
+  .signature, .summary, .conclusion, .exec-summary, .patient-block, table, caption + table {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* === Esconder qualquer vestígio de UI (defesa em profundidade) === */
+  .no-print, button, .actions, .toolbar, .badge,
+  [role="toolbar"], [role="button"], .controls, .controls-bar,
+  .hint, .pill, .save-status, .toggle, .preset-bar {
     display: none !important;
   }
+
+  /* === Sem overflow horizontal === */
+  img, table { max-width: 100%; }
+  pre, code { white-space: pre-wrap; word-wrap: break-word; }
 </style>
 </head>
 <body>
