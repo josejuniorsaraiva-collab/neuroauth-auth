@@ -15,7 +15,7 @@
 /* =========================================================
  * DTC BUILD VERSION + diagnóstico de cache/SW
  * ========================================================= */
-window.DTC_BUILD_VERSION = 'v0.7-prontuario-oficial-2026-05-27-A';
+window.DTC_BUILD_VERSION = 'v0.8-print-isolation-2026-05-27-A';
 try {
   // Log visível no DevTools — confirma que a versão correta carregou
   console.log('%c[DTC]%c Build: ' + window.DTC_BUILD_VERSION,
@@ -2605,11 +2605,24 @@ function printMedicalReportOnly() {
 <head>
 <meta charset="utf-8">
 <title>Doppler Transcraniano — Laudo Médico</title>
+<meta name="dtc-print-isolated" content="true">
 <style>
-  /* DTC HSA · Print stylesheet — laudo institucional neurovascular
-     Build: P1 Visual Prontuário Oficial · 2026-05-27 (sobre P4 Premium)
-     Referência estética: Mayo · Cleveland · Hopkins · Sírio · Einstein · Barrow */
+  /* ════════════════════════════════════════════════════════════════
+     DTC HSA · Print stylesheet · ISOLATED PRINT NAMESPACE
+     Build: P6 — Isolamento Visual Absoluto · 2026-05-27
+     (over P1 Visual Prontuário Oficial / P4 PDF Hospitalar Premium)
 
+     P6 — isolated print namespace.
+     Do NOT use global selectors here.
+     This popup must remain independent from cockpit UI.
+     Every rule below is anchored to .dtc-print-document.
+
+     Referência estética: Mayo · Cleveland · Hopkins · Sírio · Einstein · Barrow
+     ════════════════════════════════════════════════════════════════ */
+
+  /* @page é regra at-rule de nível de página — não pode ser namespaced
+     dentro de um seletor; permanece global ao documento do popup, que
+     é dedicado exclusivamente ao laudo. */
   @page {
     size: A4;
     margin: 22mm 18mm 24mm 18mm;
@@ -2622,7 +2635,18 @@ function printMedicalReportOnly() {
     }
   }
 
-  :root {
+  /* Reset mínimo apenas do documento isolado.
+     Nada de seletores universais soltos no popup. */
+  html, body {
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Container isolado — toda a tipografia/cores vivem aqui dentro.
+     Variáveis CSS escopadas para impedir herança do cockpit. */
+  .dtc-print-document {
+    /* Tokens institucionais — escopo local */
     --ink:        #1a1a1a;
     --ink-soft:   #2b2b2b;
     --muted:      #555;
@@ -2632,23 +2656,38 @@ function printMedicalReportOnly() {
     --rule-soft:  #d8d8d8;
     --rule-strong:#8a8a8a;
     --accent:     #4a4a4a;
-  }
 
-  html, body {
     background: #fff;
     color: var(--ink);
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
     font-size: 10.5pt;
     line-height: 1.55;
-    margin: 0;
-    padding: 0;
     -webkit-font-smoothing: antialiased;
     text-rendering: geometricPrecision;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    display: block;
+    width: 100%;
   }
-  body { width: 100%; }
+
+  /* Reset interno controlado — só elementos descendentes do documento */
+  .dtc-print-document,
+  .dtc-print-document * {
+    box-sizing: border-box;
+  }
+  .dtc-print-document *,
+  .dtc-print-document *::before,
+  .dtc-print-document *::after {
+    /* Anula heranças não desejadas que poderiam vir do cockpit
+       caso este CSS fosse, por engano, embarcado na UI principal. */
+    text-shadow: none;
+    box-shadow: none;
+    transition: none !important;
+    animation: none !important;
+  }
 
   /* === Cabeçalho institucional === */
-  h1 {
+  .dtc-print-document h1 {
     font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
     font-weight: 600;
     font-size: 13.5pt;
@@ -2658,7 +2697,7 @@ function printMedicalReportOnly() {
     color: var(--ink);
     line-height: 1.25;
   }
-  .subtitle {
+  .dtc-print-document .subtitle {
     text-align: left;
     font-style: normal;
     color: var(--muted);
@@ -2671,7 +2710,7 @@ function printMedicalReportOnly() {
   }
 
   /* === Seções === */
-  h2 {
+  .dtc-print-document h2 {
     font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
     font-size: 8.5pt;
     text-transform: uppercase;
@@ -2684,21 +2723,22 @@ function printMedicalReportOnly() {
     page-break-after: avoid;
     break-after: avoid-page;
   }
-  h1 + .subtitle + h2,
-  .subtitle + h2 { margin-top: 4mm; }
+  .dtc-print-document h1 + .subtitle + h2,
+  .dtc-print-document .subtitle + h2 { margin-top: 4mm; }
 
   /* === Texto === */
-  p {
+  .dtc-print-document p {
     margin: 0 0 3mm 0;
     orphans: 3;
     widows: 3;
     text-align: justify;
     hyphens: auto;
     -webkit-hyphens: auto;
+    color: var(--ink);
   }
 
-  /* === Bloco de identificação do paciente — tabela limpa, sem cor === */
-  .patient-block {
+  /* === Bloco de identificação do paciente === */
+  .dtc-print-document .patient-block {
     background: transparent;
     padding: 0;
     margin: 0 0 5mm 0;
@@ -2711,7 +2751,7 @@ function printMedicalReportOnly() {
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  .patient-block dt {
+  .dtc-print-document .patient-block dt {
     color: var(--label);
     font-weight: 500;
     font-size: 7.8pt;
@@ -2720,7 +2760,7 @@ function printMedicalReportOnly() {
     margin: 0;
     align-self: center;
   }
-  .patient-block dd {
+  .dtc-print-document .patient-block dd {
     margin: 0;
     color: var(--ink);
     font-weight: 500;
@@ -2729,7 +2769,9 @@ function printMedicalReportOnly() {
   }
 
   /* === Blocos interpretativos — régua lateral sóbria, SEM background === */
-  .summary, .conclusion, .exec-summary {
+  .dtc-print-document .summary,
+  .dtc-print-document .conclusion,
+  .dtc-print-document .exec-summary {
     border-left: 1.8pt solid var(--accent);
     background: transparent;
     padding: 1mm 0 1mm 5mm;
@@ -2742,7 +2784,7 @@ function printMedicalReportOnly() {
   }
 
   /* === Tabelas hemodinâmicas === */
-  table {
+  .dtc-print-document table {
     width: 100%;
     border-collapse: collapse;
     margin: 1mm 0 5mm 0;
@@ -2750,17 +2792,19 @@ function printMedicalReportOnly() {
     break-inside: avoid;
     font-variant-numeric: tabular-nums;
   }
-  thead { display: table-header-group; }
-  tfoot { display: table-footer-group; }
-  tr    { page-break-inside: avoid; break-inside: avoid; }
-  th, td {
+  .dtc-print-document thead { display: table-header-group; }
+  .dtc-print-document tfoot { display: table-footer-group; }
+  .dtc-print-document tr    { page-break-inside: avoid; break-inside: avoid; }
+  .dtc-print-document th,
+  .dtc-print-document td {
     padding: 1.8mm 2mm;
     text-align: left;
     font-size: 9.5pt;
     vertical-align: top;
     border-bottom: 0.4pt solid var(--rule-soft);
+    color: var(--ink);
   }
-  th {
+  .dtc-print-document th {
     font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
     font-size: 7.8pt;
     text-transform: uppercase;
@@ -2770,8 +2814,8 @@ function printMedicalReportOnly() {
     border-bottom: 0.7pt solid var(--rule-strong);
     background: transparent;
   }
-  tbody tr:last-child td { border-bottom: 0.6pt solid var(--rule-strong); }
-  caption {
+  .dtc-print-document tbody tr:last-child td { border-bottom: 0.6pt solid var(--rule-strong); }
+  .dtc-print-document caption {
     text-align: left;
     font-style: normal;
     font-size: 7.8pt;
@@ -2782,10 +2826,12 @@ function printMedicalReportOnly() {
     text-transform: uppercase;
     caption-side: top;
   }
-  td.num, td.numeric, .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dtc-print-document td.num,
+  .dtc-print-document td.numeric,
+  .dtc-print-document .num { text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Linha técnica monoespaçada (índices) */
-  .indices-line {
+  .dtc-print-document .indices-line {
     font-family: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Courier New", monospace;
     font-size: 9.5pt;
     color: var(--ink);
@@ -2794,7 +2840,7 @@ function printMedicalReportOnly() {
   }
 
   /* Limitações */
-  .limitations {
+  .dtc-print-document .limitations {
     font-style: italic;
     color: var(--muted);
     font-size: 9.5pt;
@@ -2805,7 +2851,7 @@ function printMedicalReportOnly() {
   }
 
   /* === Bloco de responsabilidade médica + assinatura === */
-  .signature {
+  .dtc-print-document .signature {
     margin-top: 14mm;
     border-top: 0.5pt solid var(--muted-2);
     padding-top: 5mm;
@@ -2814,7 +2860,7 @@ function printMedicalReportOnly() {
     break-inside: avoid;
     font-size: 9.5pt;
   }
-  .signature::before {
+  .dtc-print-document .signature::before {
     content: "Responsável médico pela emissão deste laudo";
     display: block;
     font-size: 7.5pt;
@@ -2823,19 +2869,19 @@ function printMedicalReportOnly() {
     color: var(--label);
     margin-bottom: 4mm;
   }
-  .signature .name {
+  .dtc-print-document .signature .name {
     font-weight: 600;
     font-size: 10.5pt;
     color: var(--ink);
     letter-spacing: .005em;
   }
-  .signature .role {
+  .dtc-print-document .signature .role {
     font-size: 9pt;
     color: var(--muted);
     margin-top: 0.8mm;
     letter-spacing: .015em;
   }
-  .signature .role.meta {
+  .dtc-print-document .signature .role.meta {
     color: var(--muted-2);
     margin-top: 1.8mm;
     font-size: 8.5pt;
@@ -2846,19 +2892,19 @@ function printMedicalReportOnly() {
      estrutura semântica de laudo, rodapé hospitalar discreto.
      ════════════════════════════════════════════════════════════════ */
 
-  .medical-document {
+  .dtc-print-document .medical-document {
     display: block;
   }
 
   /* Cabeçalho institucional do laudo */
-  .institutional-header {
+  .dtc-print-document .institutional-header {
     margin: 0 0 5mm 0;
     padding: 0 0 4.5mm 0;
     border-bottom: 0.6pt solid var(--rule-strong);
     page-break-after: avoid;
     break-after: avoid-page;
   }
-  .institutional-header .hospital-name {
+  .dtc-print-document .institutional-header .hospital-name {
     font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
     font-weight: 600;
     font-size: 9.5pt;
@@ -2868,7 +2914,7 @@ function printMedicalReportOnly() {
     line-height: 1.2;
     margin: 0 0 0.6mm 0;
   }
-  .institutional-header .hospital-service {
+  .dtc-print-document .institutional-header .hospital-service {
     font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
     font-style: italic;
     font-size: 8.5pt;
@@ -2876,7 +2922,7 @@ function printMedicalReportOnly() {
     letter-spacing: .03em;
     margin: 0 0 4mm 0;
   }
-  .institutional-header .doc-title {
+  .dtc-print-document .institutional-header .doc-title {
     font-family: -apple-system, "Helvetica Neue", "Inter", Arial, sans-serif;
     font-weight: 500;
     font-size: 15pt;
@@ -2888,7 +2934,7 @@ function printMedicalReportOnly() {
     border: 0;
     text-align: left;
   }
-  .institutional-header .doc-subtitle {
+  .dtc-print-document .institutional-header .doc-subtitle {
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
     font-style: italic;
     font-size: 10pt;
@@ -2899,47 +2945,46 @@ function printMedicalReportOnly() {
 
   /* Quando o cabeçalho institucional toma conta do topo, a .subtitle
      original (caso ainda exista) deve recolher para não duplicar a régua. */
-  .medical-document > .subtitle { display: none; }
+  .dtc-print-document .medical-document > .subtitle { display: none; }
 
   /* Identificação compacta do paciente */
-  .patient-id {
+  .dtc-print-document .patient-id {
     margin: 0 0 6mm 0;
     padding: 0;
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  .patient-id .patient-block {
+  .dtc-print-document .patient-id .patient-block {
     margin: 0;
   }
 
   /* Seções do laudo */
-  .doc-section {
+  .dtc-print-document .doc-section {
     margin: 0 0 4mm 0;
   }
-  .doc-section + .doc-section { margin-top: 1mm; }
-  .doc-section > h2:first-child { margin-top: 6mm; }
-  .doc-section > p:last-child,
-  .doc-section > .conclusion:last-child,
-  .doc-section > .exec-callout:last-child,
-  .doc-section > .conclusion-callout:last-child { margin-bottom: 0; }
+  .dtc-print-document .doc-section + .doc-section { margin-top: 1mm; }
+  .dtc-print-document .doc-section > h2:first-child { margin-top: 6mm; }
+  .dtc-print-document .doc-section > p:last-child,
+  .dtc-print-document .doc-section > .conclusion:last-child,
+  .dtc-print-document .doc-section > .exec-callout:last-child,
+  .dtc-print-document .doc-section > .conclusion-callout:last-child { margin-bottom: 0; }
 
-  /* Callouts (achados + conclusão) — ambos derivam de .conclusion (régua lateral sóbria) */
-  .exec-callout,
-  .conclusion-callout {
-    /* já herda border-left/font-size de .conclusion; ajustes finos: */
+  /* Callouts (achados + conclusão) */
+  .dtc-print-document .exec-callout,
+  .dtc-print-document .conclusion-callout {
     padding: 0.6mm 0 0.6mm 5mm;
     margin: 1mm 0 3mm 0;
   }
 
   /* Linha de comparação temporal */
-  .temporal-line {
+  .dtc-print-document .temporal-line {
     font-size: 9.8pt;
     color: var(--muted);
     margin: 1mm 0 3mm 0;
     font-style: italic;
     text-align: justify;
   }
-  .temporal-line .temporal-label {
+  .dtc-print-document .temporal-line .temporal-label {
     font-style: normal;
     font-weight: 600;
     color: var(--muted-2);
@@ -2947,21 +2992,19 @@ function printMedicalReportOnly() {
     letter-spacing: .01em;
   }
 
-  /* Seção de homologação médica — h2 institucional + signature compacta */
-  .signature-section {
+  /* Seção de homologação médica */
+  .dtc-print-document .signature-section {
     margin-top: 8mm;
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  .signature-section h2 { margin-top: 8mm; }
-  .signature-section .signature {
-    /* dentro da section, removemos border-top duplicada (a h2 já tem régua) */
+  .dtc-print-document .signature-section h2 { margin-top: 8mm; }
+  .dtc-print-document .signature-section .signature {
     margin-top: 3mm;
     border-top: 0;
     padding-top: 0;
   }
-  .signature-section .signature::before {
-    /* prefixo institucional fica visualmente subordinado à h2 */
+  .dtc-print-document .signature-section .signature::before {
     font-size: 7.2pt;
     letter-spacing: .18em;
     margin-bottom: 3mm;
@@ -2969,7 +3012,7 @@ function printMedicalReportOnly() {
   }
 
   /* Rodapé institucional discreto */
-  .doc-footer {
+  .dtc-print-document .doc-footer {
     margin: 10mm 0 0 0;
     padding: 3mm 0 0 0;
     border-top: 0.4pt solid var(--rule);
@@ -2984,36 +3027,76 @@ function printMedicalReportOnly() {
   }
 
   /* === Robustez de paginação === */
-  h1, h2, h3, h4 { page-break-after: avoid; break-after: avoid-page; }
-  h2 + p, h2 + ul, h2 + ol, h2 + table,
-  h2 + .summary, h2 + .conclusion, h2 + .exec-summary,
-  h2 + .exec-callout, h2 + .conclusion-callout,
-  h2 + .indices-line, h2 + .signature {
+  .dtc-print-document h1,
+  .dtc-print-document h2,
+  .dtc-print-document h3,
+  .dtc-print-document h4 { page-break-after: avoid; break-after: avoid-page; }
+  .dtc-print-document h2 + p,
+  .dtc-print-document h2 + ul,
+  .dtc-print-document h2 + ol,
+  .dtc-print-document h2 + table,
+  .dtc-print-document h2 + .summary,
+  .dtc-print-document h2 + .conclusion,
+  .dtc-print-document h2 + .exec-summary,
+  .dtc-print-document h2 + .exec-callout,
+  .dtc-print-document h2 + .conclusion-callout,
+  .dtc-print-document h2 + .indices-line,
+  .dtc-print-document h2 + .signature {
     page-break-before: avoid;
     break-before: avoid-page;
   }
-  .signature, .summary, .conclusion, .exec-summary,
-  .exec-callout, .conclusion-callout,
-  .patient-block, table, caption + table,
-  .institutional-header, .patient-id, .signature-section, .doc-footer {
+  .dtc-print-document .signature,
+  .dtc-print-document .summary,
+  .dtc-print-document .conclusion,
+  .dtc-print-document .exec-summary,
+  .dtc-print-document .exec-callout,
+  .dtc-print-document .conclusion-callout,
+  .dtc-print-document .patient-block,
+  .dtc-print-document table,
+  .dtc-print-document caption + table,
+  .dtc-print-document .institutional-header,
+  .dtc-print-document .patient-id,
+  .dtc-print-document .signature-section,
+  .dtc-print-document .doc-footer {
     page-break-inside: avoid;
     break-inside: avoid;
   }
 
-  /* === Esconder qualquer vestígio de UI (defesa em profundidade) === */
-  .no-print, button, .actions, .toolbar, .badge,
-  [role="toolbar"], [role="button"], .controls, .controls-bar,
-  .hint, .pill, .save-status, .toggle, .preset-bar {
+  /* === Defesa em profundidade — esconder qualquer vestígio de UI
+         que possa ter sido injetado erroneamente dentro do documento === */
+  .dtc-print-document .no-print,
+  .dtc-print-document button,
+  .dtc-print-document .actions,
+  .dtc-print-document .toolbar,
+  .dtc-print-document .badge,
+  .dtc-print-document [role="toolbar"],
+  .dtc-print-document [role="button"],
+  .dtc-print-document .controls,
+  .dtc-print-document .controls-bar,
+  .dtc-print-document .hint,
+  .dtc-print-document .pill,
+  .dtc-print-document .save-status,
+  .dtc-print-document .toggle,
+  .dtc-print-document .preset-bar,
+  .dtc-print-document input,
+  .dtc-print-document select,
+  .dtc-print-document textarea,
+  .dtc-print-document form,
+  .dtc-print-document nav {
     display: none !important;
   }
 
   /* === Sem overflow horizontal === */
-  img, table { max-width: 100%; }
-  pre, code { white-space: pre-wrap; word-wrap: break-word; }
+  .dtc-print-document img,
+  .dtc-print-document table { max-width: 100%; }
+  .dtc-print-document pre,
+  .dtc-print-document code { white-space: pre-wrap; word-wrap: break-word; }
 </style>
 </head>
 <body>
+<div class="dtc-print-document" data-print-isolated="true" role="document" aria-label="Doppler Transcraniano — Laudo Médico">
 ${reportHtml}
+</div>
 </body>
 </html>`);
   printWindow.document.close();
