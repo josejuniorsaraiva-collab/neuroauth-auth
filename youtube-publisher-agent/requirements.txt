@@ -1,0 +1,10 @@
+# YouTube Data API (upload). Necessário só para o modo real (não para --dry-run).
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.2.0
+google-auth>=2.23.0
+
+# Metadados em YAML/Markdown (opcional; .json funciona sem isso).
+PyYAML>=6.0
+
+# Testes
+pytest>=7.4

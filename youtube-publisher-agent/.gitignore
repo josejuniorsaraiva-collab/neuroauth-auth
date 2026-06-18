@@ -1,0 +1,22 @@
+# Segredos e tokens — NUNCA versionar
+.env
+credentials/*.json
+credentials/client_secret*.json
+credentials/token*.json
+
+# Conteúdo de vídeo e logs gerados em runtime
+READY_TO_UPLOAD/*
+UPLOADED/*
+FAILED/*
+logs/*.csv
+
+# Mantém as pastas no git, ignorando o conteúdo
+!**/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/

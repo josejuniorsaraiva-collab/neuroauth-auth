@@ -1,0 +1,9 @@
+{
+  "title": "Como automatizei meu canal — Nível 3",
+  "description": "Neste vídeo eu mostro o Publisher Agent que detecta um MP4 numa pasta e publica sozinho no YouTube.\n\nCapítulos:\n00:00 Intro\n01:30 A arquitetura READY_TO_UPLOAD\n05:00 YouTube Data API\n\n#automacao #youtube #python",
+  "tags": ["automação", "youtube api", "python", "publisher agent"],
+  "category": "Science & Technology",
+  "privacy": "private",
+  "publish_at": "2026-07-01T13:00:00Z",
+  "made_for_kids": false
+}
