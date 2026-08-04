@@ -19,12 +19,9 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-import gspread
 from fastapi import APIRouter, Depends, HTTPException, Query
-from google.oauth2.service_account import Credentials
 from pydantic import BaseModel
 
-from app.core.config import settings
 from app.core.security import get_current_user
 from app.models.surgeon import CirurgiaoPayload
 from app.services.surgeon_validator import validate_cirurgiao
@@ -40,23 +37,8 @@ from repositories.sheets_client import (
 logger = logging.getLogger("neuroauth.hub")
 router = APIRouter()
 
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.readonly",
-]
-
 TAB_RUNS = "21_DECISION_RUNS"
 TAB_EPIS = "22_EPISODIOS"
-
-# ── Sheets client ─────────────────────────────────────────────────────────────
-def _get_sheet(tab: str) -> gspread.Worksheet:
-    creds = Credentials.from_service_account_file(
-        settings.GOOGLE_APPLICATION_CREDENTIALS, scopes=SCOPES
-    )
-    gc = gspread.authorize(creds)
-    ss = gc.open_by_key(settings.SPREADSHEET_ID)
-    return ss.worksheet(tab)
-
 
 def _safe_str(v) -> str:
     return (v or "").strip()
@@ -115,14 +97,14 @@ class ActionResponse(BaseModel):
 
 # ── GET /hub/decision_runs ────────────────────────────────────────────────────
 @router.get("/decision_runs")
-async def list_decision_runs(
+def list_decision_runs(
     gate: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
     user: dict = Depends(get_current_user),
 ):
     """Lista runs de 21_DECISION_RUNS, mais recentes primeiro."""
     try:
-        ws = _get_sheet(TAB_RUNS)
+        ws = sc_get_worksheet(TAB_RUNS)
         all_rows = ws.get_all_values()
     except Exception as e:
         logger.error("hub decision_runs: Sheets error: %s", e)
@@ -165,13 +147,13 @@ async def list_decision_runs(
 
 # ── GET /hub/episodes ─────────────────────────────────────────────────────────
 @router.get("/episodes")
-async def list_episodes(
+def list_episodes(
     limit: int = Query(50, le=200),
     user: dict = Depends(get_current_user),
 ):
     """Lista episódios de 22_EPISODIOS via header discovery."""
     try:
-        ws = _get_sheet(TAB_EPIS)
+        ws = sc_get_worksheet(TAB_EPIS)
         all_rows = ws.get_all_values()
     except Exception as e:
         logger.error("hub episodes: Sheets error: %s", e)
@@ -228,12 +210,12 @@ async def list_episodes(
 
 # ── GET /hub/metrics ──────────────────────────────────────────────────────────
 @router.get("/metrics", response_model=HubMetrics)
-async def hub_metrics(
+def hub_metrics(
     user: dict = Depends(get_current_user),
 ):
     """Métricas agregadas de 21_DECISION_RUNS para o cockpit."""
     try:
-        ws = _get_sheet(TAB_RUNS)
+        ws = sc_get_worksheet(TAB_RUNS)
         all_rows = ws.get_all_values()
     except Exception as e:
         logger.error("hub metrics: Sheets error: %s", e)
@@ -297,7 +279,7 @@ async def hub_metrics(
 
 # ── PATCH /hub/runs/{run_id}/action ──────────────────────────────────────────
 @router.patch("/runs/{run_id}/action", response_model=ActionResponse)
-async def hub_action(
+def hub_action(
     run_id: str,
     body: ActionRequest,
     user: dict = Depends(get_current_user),
@@ -309,7 +291,7 @@ async def hub_action(
         raise HTTPException(status_code=400, detail=f"action inválida: {action}. Use: {sorted(VALID)}")
 
     try:
-        ws = _get_sheet(TAB_RUNS)
+        ws = sc_get_worksheet(TAB_RUNS)
         all_rows = ws.get_all_values()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Sheets unavailable: {e}")
@@ -349,7 +331,7 @@ _SC_HEAD     = 3                # head=3 é o padrão de 22_EPISODIOS e novas ab
 
 # ── GET /hub/casos ────────────────────────────────────────────────────────────
 @router.get("/casos")
-async def listar_casos(
+def listar_casos(
     cirurgiao_principal: Optional[str] = Query(None, description="Filtrar por ID do cirurgião principal"),
     cirurgiao_auxiliar: Optional[str]  = Query(None, description="Filtrar por ID de qualquer auxiliar"),
     papel: Optional[str]               = Query(None, description="'principal' | 'auxiliar' — filtra por papel"),
@@ -432,7 +414,7 @@ async def listar_casos(
 
 # ── GET /hub/producao ─────────────────────────────────────────────────────────
 @router.get("/producao")
-async def producao_por_cirurgiao(
+def producao_por_cirurgiao(
     cirurgiao_id: Optional[str]  = Query(None, description="Filtrar por ID do cirurgião"),
     papel: Optional[str]         = Query(None, description="PRINCIPAL | AUXILIAR_1 | AUXILIAR_2 | AUXILIAR_3"),
     data_inicio: Optional[str]   = Query(None, description="Data início ISO (YYYY-MM-DD)"),
@@ -518,7 +500,7 @@ class SurgeonAssignResponse(BaseModel):
 
 
 @router.post("/casos/{caso_id}/surgeons", response_model=SurgeonAssignResponse)
-async def atribuir_equipe(
+def atribuir_equipe(
     caso_id: str,
     body: SurgeonAssignRequest,
     user: dict = Depends(get_current_user),
@@ -610,7 +592,7 @@ TAB_PERIODOS_HUB = "PERIODOS_COMPETENCIA"
 
 
 @router.post("/producao/{caso_id}/retificar")
-async def endpoint_retificar_producao(
+def endpoint_retificar_producao(
     caso_id:     str,
     motivo:      str,
     usuario:     str,
@@ -645,7 +627,7 @@ async def endpoint_retificar_producao(
 
 
 @router.post("/producao/fechar/{periodo}")
-async def endpoint_fechar_periodo(
+def endpoint_fechar_periodo(
     periodo: str,
     usuario: str,
     user: dict = Depends(get_current_user),
@@ -670,7 +652,7 @@ async def endpoint_fechar_periodo(
 
 
 @router.get("/producao/status/{periodo}")
-async def endpoint_status_periodo(
+def endpoint_status_periodo(
     periodo: str,
     user: dict = Depends(get_current_user),
 ):

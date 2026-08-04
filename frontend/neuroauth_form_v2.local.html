@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEUROAUTH — Solicitacao Cirurgica [LOCAL]</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root {
+      --bg: #f0f4f8; --surface: #ffffff; --border: #d1d9e0;
+      --accent: #1e3a8a; --accent-hover: #172f6b;
+      --danger: #dc2626; --warn: #d97706; --success: #16a34a;
+      --text: #1a2332; --muted: #6b7280; --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+           background: var(--bg); min-height: 100vh; padding: 24px 16px; color: var(--text); }
+    .card { max-width: 580px; margin: 0 auto; background: var(--surface);
+            border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden; }
+    .card-header { background: var(--accent); color: white; padding: 20px 24px; }
+    .card-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+    .card-header p { font-size: 12px; opacity: 0.75; margin-top: 4px; }
+    .card-body { padding: 24px; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--text); }
+    label .req { color: var(--danger); margin-left: 2px; }
+    label .hint { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 6px; }
+    input, select, textarea { width: 100%; padding: 9px 12px; border-radius: var(--radius);
+      border: 1px solid var(--border); font-size: 14px; color: var(--text);
+      background: #fff; transition: border-color 0.15s; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(30,58,138,0.08); }
+    input.error, select.error, textarea.error { border-color: var(--danger); border-width: 2px; }
+    input[readonly] { background: #f8fafc; cursor: default; color: var(--muted); }
+    .field-error { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
+    .field-error.visible { display: block; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin: 20px 0 12px;
+      padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .btn-submit { width: 100%; padding: 13px; margin-top: 20px; background: var(--accent);
+      color: white; border: none; border-radius: var(--radius);
+      font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .btn-submit:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+    #result-box { display: none; margin-top: 16px; padding: 16px;
+      border-radius: var(--radius); border: 1px solid var(--border); }
+    #result-box.go    { border-color: var(--success); background: #f0fdf4; }
+    #result-box.nogo  { border-color: var(--danger);  background: #fef2f2; }
+    #result-box.pending { border-color: var(--warn);  background: #fffbeb; }
+    .result-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+    .result-title.go    { color: var(--success); }
+    .result-title.nogo  { color: var(--danger); }
+    .result-title.pending { color: var(--warn); }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag { font-size: 11px; font-weight: 600; padding: 3px 8px;
+           border-radius: 4px; letter-spacing: 0.03em; }
+    .tag.block { background: #fee2e2; color: var(--danger); }
+    .tag.pend  { background: #fef3c7; color: var(--warn); }
+    .result-meta { font-size: 11px; color: var(--muted); margin-top: 10px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; vertical-align: middle;
+      border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Auth section */
+    #auth-section { text-align: center; padding: 40px 24px; }
+    #auth-section h2 { font-size: 16px; margin-bottom: 8px; }
+    #auth-section p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .user-bar { display: flex; align-items: center; justify-content: space-between;
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius);
+      padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+    .user-bar .name { font-weight: 600; color: var(--success); }
+    .user-bar .logout { background: none; border: none; color: var(--danger);
+      cursor: pointer; font-size: 12px; text-decoration: underline; }
+    #opme-block { display: none; }
+    .opme-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .opme-row input[type="text"]   { flex: 1; }
+    .opme-row input[type="number"] { width: 80px; }
+    .opme-row .btn-rm { padding: 6px 10px; background: #fee2e2; color: var(--danger);
+      border: 1px solid #fca5a5; border-radius: var(--radius); cursor: pointer; font-size: 13px; }
+    .btn-add-opme { margin-top: 4px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+      background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+      border-radius: var(--radius); cursor: pointer; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <h1>NEUROAUTH — Solicitacao Cirurgica [LOCAL DEV]</h1>
+    <p>Motor de Decisao Clinica v2.1 · API → 127.0.0.1:8000</p>
+  </div>
+  <div class="card-body">
+
+    <!-- ── AUTH GATE ────────────────────────────────────────────────────────── -->
+    <div id="auth-section">
+      <h2>Autenticacao Necessaria</h2>
+      <p>Faca login com sua conta Google autorizada para acessar o motor de decisao.</p>
+      <div id="g_id_onload"
+           data-client_id="118851719832-qaktum0kj1a6r2a2fp6c75hhag8p2tlf.apps.googleusercontent.com"
+           data-callback="handleGoogleCredential"
+           data-auto_prompt="false">
+      </div>
+      <div class="g_id_signin"
+           data-type="standard"
+           data-shape="rectangular"
+           data-theme="outline"
+           data-text="signin_with"
+           data-size="large"
+           data-logo_alignment="left">
+      </div>
+      <div id="auth-error" style="color:var(--danger);font-size:13px;margin-top:12px;display:none;"></div>
+    </div>
+
+    <!-- ── FORM (hidden until auth) ─────────────────────────────────────────── -->
+    <div id="form-section" style="display:none;">
+      <div class="user-bar">
+        <span>Logado como: <span class="name" id="user-name">—</span></span>
+        <button class="logout" onclick="doLogout()">Sair</button>
+      </div>
+
+      <form id="form" novalidate>
+
+        <!-- MEDICO -->
+        <div class="section-title">Medico Solicitante</div>
+        <div class="row-3">
+          <div class="field">
+            <label>Nome <span class="req">*</span></label>
+            <input type="text" name="medico_solicitante" id="medico_solicitante">
+            <div class="field-error" id="err-medico">Campo obrigatorio.</div>
+          </div>
+          <div class="field">
+            <label>CRM <span class="req">*</span></label>
+            <input type="text" name="crm" id="crm" placeholder="ex: 12345-CE">
+            <div class="field-error" id="err-crm">Campo obrigatorio.</div>
+          </div>
+          <div class="field">
+            <label>CBO <span class="req">*</span></label>
+            <input type="text" name="cbo" id="cbo" placeholder="ex: 225142">
+            <div class="field-error" id="err-cbo">Campo obrigatorio.</div>
+          </div>
+        </div>
+
+        <!-- PROCEDIMENTO -->
+        <div class="section-title">Procedimento</div>
+        <div class="field">
+          <label>Procedimento <span class="req">*</span></label>
+          <select name="procedimento" id="procedimento">
+            <option value="">Selecione o procedimento...</option>
+            <option value="MICRODISCECTOMIA_LOMBAR" data-cbhpm="40808019" data-opme="false">Microdiscectomia Lombar</option>
+            <option value="ACDF_1_NIVEL" data-cbhpm="40808505" data-opme="true">ACDF 1 Nivel</option>
+            <option value="ACDF_2_NIVEIS" data-cbhpm="40808506" data-opme="true">ACDF 2 Niveis</option>
+            <option value="ARTRODESE_LOMBAR_POSTERIOR" data-cbhpm="40808116" data-opme="true">Artrodese Lombar Posterior</option>
+            <option value="ESTENOSE_CANAL_LOMBAR" data-cbhpm="40808030" data-opme="false">Estenose do Canal Lombar</option>
+            <option value="DVP" data-cbhpm="40806010" data-opme="true">DVP — Derivacao Ventricular Peritoneal</option>
+            <option value="HEMATOMA_SUBDURAL" data-cbhpm="40806070" data-opme="false">Craniotomia — Hematoma Subdural</option>
+            <option value="TUMOR_CEREBRAL_RESECCAO" data-cbhpm="40806077" data-opme="true">Resseccao de Tumor Cerebral</option>
+            <option value="TROMBECTOMIA_MECANICA" data-cbhpm="40809100" data-opme="true">Trombectomia Mecanica</option>
+            <option value="ANEURISMA_EMBOLIZACAO" data-cbhpm="40809050" data-opme="true">Embolizacao de Aneurisma</option>
+          </select>
+          <div class="field-error" id="err-proc">Selecione o procedimento.</div>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label>Codigo CBHPM <span class="hint">preenchido automaticamente</span></label>
+            <input type="text" name="cod_cbhpm" id="cod_cbhpm" readonly placeholder="Selecione acima">
+          </div>
+          <div class="field">
+            <label>CID Principal <span class="req">*</span></label>
+            <input type="text" name="cid_principal" id="cid_principal" placeholder="ex: M50.1">
+            <div class="field-error" id="err-cid">Campo obrigatorio.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Convenio <span class="req">*</span></label>
+          <input type="text" name="convenio" id="convenio" placeholder="ex: UNIMED_CARIRI">
+          <div class="field-error" id="err-convenio">Campo obrigatorio.</div>
+        </div>
+
+        <div class="field">
+          <label>Indicacao Clinica <span class="req">*</span></label>
+          <textarea name="indicacao_clinica" id="indicacao_clinica" rows="3"
+                    placeholder="Descreva a indicacao clinica..."></textarea>
+          <div class="field-error" id="err-indicacao">Campo obrigatorio.</div>
+        </div>
+
+        <div class="field">
+          <label>Achados / Resumo</label>
+          <textarea name="achados_resumo" id="achados_resumo" rows="2"
+                    placeholder="Achados de exames, resumo clinico (opcional)"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Tratamento Conservador</label>
+          <input type="text" name="tto_conservador" id="tto_conservador"
+                 placeholder="ex: Fisioterapia 3 meses sem melhora (opcional)">
+        </div>
+
+        <!-- OPME -->
+        <div class="field" id="opme-block">
+          <div class="section-title">Materiais / OPME</div>
+          <div id="opme-list"></div>
+          <button type="button" class="btn-add-opme" onclick="addOpme()">+ Adicionar material</button>
+          <div class="field-error" id="err-opme">Adicione ao menos um material com descricao.</div>
+        </div>
+
+        <button class="btn-submit" type="submit" id="btn-submit">
+          Enviar para Motor de Decisao
+        </button>
+      </form>
+
+      <!-- RESULTADO -->
+      <div id="result-box">
+        <div class="result-title" id="res-title">—</div>
+        <div id="res-motivos" class="tag-list"></div>
+        <div class="result-meta" id="res-meta"></div>
+      </div>
+    </div><!-- /form-section -->
+
+  </div><!-- /.card-body -->
+</div>
+
+<script>
+"use strict";
+const API = "http://127.0.0.1:8000";
+let _jwt = null;
+let _user = null;
+let _opmeItems = [];
+let _submitting = false;
+
+// ── Google Auth ──────────────────────────────────────────────────────────────
+function handleGoogleCredential(response) {
+  const errEl = document.getElementById("auth-error");
+  errEl.style.display = "none";
+  fetch(API + "/auth/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_token: response.credential }),
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(e => { throw new Error(e.detail || "Erro " + r.status); });
+    return r.json();
+  })
+  .then(data => {
+    _jwt = data.access_token;
+    _user = { email: data.email, name: data.name, role: data.role };
+    showForm();
+  })
+  .catch(e => {
+    errEl.textContent = e.message;
+    errEl.style.display = "block";
+  });
+}
+
+function showForm() {
+  document.getElementById("auth-section").style.display = "none";
+  document.getElementById("form-section").style.display = "block";
+  document.getElementById("user-name").textContent = _user.name + " (" + _user.email + ")";
+  // Pre-fill medico name from Google profile
+  const medicoEl = document.getElementById("medico_solicitante");
+  if (!medicoEl.value) medicoEl.value = _user.name;
+}
+
+function doLogout() {
+  _jwt = null; _user = null;
+  document.getElementById("auth-section").style.display = "block";
+  document.getElementById("form-section").style.display = "none";
+}
+
+// ── Procedimento change ──────────────────────────────────────────────────────
+document.getElementById("procedimento").addEventListener("change", function() {
+  const opt = this.options[this.selectedIndex];
+  document.getElementById("cod_cbhpm").value = (opt && opt.dataset.cbhpm) || "";
+  const needsOpme = opt && opt.dataset.opme === "true";
+  document.getElementById("opme-block").style.display = needsOpme ? "block" : "none";
+  if (needsOpme && _opmeItems.length === 0) { _opmeItems = [{ descricao: "", qtd: 1 }]; renderOpme(); }
+  if (!needsOpme) { _opmeItems = []; document.getElementById("opme-list").innerHTML = ""; }
+});
+
+// ── OPME helpers ─────────────────────────────────────────────────────────────
+function addOpme() { _opmeItems.push({ descricao: "", qtd: 1 }); renderOpme(); }
+function removeOpme(i) { _opmeItems.splice(i, 1); renderOpme(); }
+function renderOpme() {
+  document.getElementById("opme-list").innerHTML = _opmeItems.map((it, i) =>
+    '<div class="opme-row">' +
+    '<input type="text" placeholder="Descricao do material" value="' + (it.descricao||"").replace(/"/g,"&quot;") + '" oninput="_opmeItems['+i+'].descricao=this.value">' +
+    '<input type="number" min="1" max="99" value="'+(it.qtd||1)+'" style="width:80px" oninput="_opmeItems['+i+'].qtd=parseInt(this.value)||1">' +
+    '<button type="button" class="btn-rm" onclick="removeOpme('+i+')">X</button>' +
+    '</div>'
+  ).join("");
+}
+
+// ── Validation ───────────────────────────────────────────────────────────────
+function validate() {
+  let ok = true;
+  const checks = [
+    ["medico_solicitante", "err-medico", v => v.trim().length > 0],
+    ["crm",                "err-crm",    v => v.trim().length > 0],
+    ["cbo",                "err-cbo",    v => v.trim().length > 0],
+    ["procedimento",       "err-proc",   v => v !== ""],
+    ["cid_principal",      "err-cid",    v => v.trim().length > 0],
+    ["convenio",           "err-convenio", v => v.trim().length > 0],
+    ["indicacao_clinica",  "err-indicacao", v => v.trim().length > 0],
+  ];
+  checks.forEach(([fid, eid, fn]) => {
+    const el = document.getElementById(fid);
+    const err = document.getElementById(eid);
+    const pass = fn(el.value);
+    el.classList.toggle("error", !pass);
+    err.classList.toggle("visible", !pass);
+    if (!pass) ok = false;
+  });
+  // OPME validation if visible
+  if (document.getElementById("opme-block").style.display !== "none") {
+    const errOpme = document.getElementById("err-opme");
+    const pass = _opmeItems.length > 0 && _opmeItems.every(i => (i.descricao||"").trim().length > 0);
+    errOpme.classList.toggle("visible", !pass);
+    if (!pass) ok = false;
+  }
+  return ok;
+}
+
+// ── Submit ───────────────────────────────────────────────────────────────────
+document.getElementById("form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  if (_submitting || !_jwt) return;
+  if (!validate()) return;
+  _submitting = true;
+  const btn = document.getElementById("btn-submit");
+  btn.innerHTML = '<span class="spinner"></span>Processando...';
+  btn.disabled = true;
+  document.getElementById("result-box").style.display = "none";
+
+  const f = id => document.getElementById(id).value.trim();
+  const opt = document.getElementById("procedimento").options[document.getElementById("procedimento").selectedIndex];
+  const needsOpme = opt && opt.dataset.opme === "true";
+
+  const payload = {
+    cid_principal:       f("cid_principal"),
+    procedimento:        f("procedimento"),
+    cod_cbhpm:           f("cod_cbhpm") || "",
+    convenio:            f("convenio"),
+    indicacao_clinica:   f("indicacao_clinica"),
+    achados_resumo:      f("achados_resumo") || "",
+    tto_conservador:     f("tto_conservador") || "",
+    necessita_opme:      needsOpme ? "Sim" : "Nao",
+    opme_items:          needsOpme ? _opmeItems : [],
+    crm:                 f("crm"),
+    cbo:                 f("cbo"),
+    medico_solicitante:  f("medico_solicitante"),
+  };
+
+  try {
+    const r = await fetch(API + "/decide", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + _jwt,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || "Erro " + r.status);
+    showResult(data);
+  } catch (err) {
+    showError(err.message || "Erro de comunicacao");
+  } finally {
+    btn.innerHTML = "Enviar para Motor de Decisao";
+    btn.disabled = false;
+    _submitting = false;
+  }
+});
+
+// ── Result display ───────────────────────────────────────────────────────────
+function showResult(data) {
+  const box = document.getElementById("result-box");
+  const title = document.getElementById("res-title");
+  const tags = document.getElementById("res-motivos");
+  const meta = document.getElementById("res-meta");
+  const status = data.classification || data.decision_status || "ERRO";
+  let cls, label;
+  if (status === "GO") { cls = "go"; label = "GO — Envio liberado"; }
+  else if (status === "GO_COM_RESSALVAS") { cls = "go"; label = "GO com ressalvas"; }
+  else if (status === "NO_GO") { cls = "nogo"; label = "NO-GO — Envio bloqueado"; }
+  else { cls = "pending"; label = status; }
+
+  box.className = cls; box.style.display = "block";
+  title.className = "result-title " + cls;
+  title.textContent = label;
+  tags.innerHTML = "";
+  (data.pendencias || []).forEach(p => {
+    const t = document.createElement("span"); t.className = "tag pend"; t.textContent = p; tags.appendChild(t);
+  });
+  (data.pontos_frageis || []).forEach(p => {
+    const t = document.createElement("span"); t.className = "tag block"; t.textContent = p; tags.appendChild(t);
+  });
+  meta.textContent = "Episodio: " + (data.episodio_id||"—") + " | Score: " + (data.score||"—") +
+    " | Risco glosa: " + (data.risco_glosa||"—") + " | Run: " + (data.decision_run_id||"—");
+}
+
+function showError(msg) {
+  const box = document.getElementById("result-box");
+  box.className = "nogo"; box.style.display = "block";
+  document.getElementById("res-title").className = "result-title nogo";
+  document.getElementById("res-title").textContent = "Erro: " + msg;
+  document.getElementById("res-motivos").innerHTML = "";
+  document.getElementById("res-meta").textContent = "";
+}
+</script>
+</body>
+</html>

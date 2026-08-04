@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NRI — Auditoria de Internações · FOCS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1a202c;min-height:100vh}
+  header{background:#1a365d;color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;gap:.75rem}
+  header h1{font-size:1.1rem;font-weight:600;letter-spacing:.02em}
+  header span{font-size:.78rem;opacity:.7;margin-left:auto}
+  #user-badge{font-size:.78rem;background:#2b6cb0;padding:.25rem .65rem;border-radius:4px}
+  .container{max-width:1100px;margin:0 auto;padding:1.5rem}
+  /* Login */
+  #login-panel{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.12);
+    padding:2rem;max-width:420px;margin:3rem auto}
+  #login-panel h2{font-size:1.15rem;margin-bottom:.5rem;color:#1a365d}
+  #login-panel p{font-size:.85rem;color:#4a5568;margin-bottom:1.5rem}
+  input[type=email]{width:100%;padding:.65rem .75rem;border:1px solid #cbd5e0;border-radius:5px;
+    font-size:.95rem;outline:none;transition:border .2s}
+  input[type=email]:focus{border-color:#3182ce}
+  button{cursor:pointer;border:none;border-radius:5px;padding:.65rem 1.2rem;font-size:.9rem;
+    font-weight:600;transition:background .2s}
+  #btn-login{background:#2b6cb0;color:#fff;width:100%;margin-top:.75rem}
+  #btn-login:hover{background:#2c5282}
+  #btn-login:disabled{opacity:.5;cursor:not-allowed}
+  #btn-logout{background:#e53e3e;color:#fff;padding:.4rem .9rem;font-size:.8rem}
+  .msg{margin-top:.75rem;font-size:.85rem;padding:.5rem .75rem;border-radius:4px}
+  .msg.ok{background:#c6f6d5;color:#276749}
+  .msg.err{background:#fed7d7;color:#9b2c2c}
+  /* Dashboard */
+  #dashboard{display:none}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem}
+  .stat{background:#fff;border-radius:6px;padding:1rem 1.25rem;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .stat .val{font-size:1.8rem;font-weight:700;color:#2b6cb0}
+  .stat .lbl{font-size:.78rem;color:#718096;margin-top:.2rem}
+  .card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);overflow:hidden}
+  .card-header{display:flex;align-items:center;justify-content:space-between;
+    padding:.85rem 1.25rem;border-bottom:1px solid #e2e8f0}
+  .card-header h2{font-size:.95rem;font-weight:600;color:#2d3748}
+  #btn-refresh{background:#ebf8ff;color:#2b6cb0;font-size:.8rem;padding:.35rem .8rem;border-radius:4px}
+  #btn-refresh:hover{background:#bee3f8}
+  table{width:100%;border-collapse:collapse;font-size:.84rem}
+  th{background:#f7fafc;color:#4a5568;font-weight:600;text-align:left;
+    padding:.6rem 1rem;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+  td{padding:.65rem 1rem;border-bottom:1px solid #f0f4f8;vertical-align:top}
+  tr:hover td{background:#f7fafc}
+  .badge{display:inline-block;padding:.2rem .55rem;border-radius:999px;font-size:.73rem;font-weight:600}
+  .badge.pendente{background:#fef3c7;color:#92400e}
+  .badge.em_analise{background:#dbeafe;color:#1e40af}
+  .badge.aprovado{background:#d1fae5;color:#065f46}
+  .badge.negado{background:#fee2e2;color:#991b1b}
+  #loading{text-align:center;padding:2rem;color:#718096;font-size:.9rem}
+  #empty{text-align:center;padding:2rem;color:#a0aec0;font-size:.9rem;display:none}
+  .err-banner{background:#fed7d7;color:#9b2c2c;padding:.65rem 1rem;font-size:.85rem;
+    border-radius:4px;margin-bottom:1rem;display:none}
+</style>
+</head>
+<body>
+<header>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+  <h1>NRI — Núcleo de Revisão de Internações</h1>
+  <span id="user-badge" style="display:none"></span>
+  <button id="btn-logout" style="display:none" onclick="logout()">Sair</button>
+</header>
+
+<!-- LOGIN -->
+<div class="container">
+<div id="login-panel">
+  <h2>Acesso Restrito</h2>
+  <p>Digite seu e-mail institucional. Você receberá um link de acesso.</p>
+  <input type="email" id="email-input" placeholder="seu@focs.org.br" autocomplete="email"/>
+  <button id="btn-login" onclick="sendMagicLink()">Enviar link de acesso</button>
+  <div id="login-msg" class="msg" style="display:none"></div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="err-banner" id="err-banner"></div>
+  <div class="stats">
+    <div class="stat"><div class="val" id="stat-total">—</div><div class="lbl">Total na fila</div></div>
+    <div class="stat"><div class="val" id="stat-pendente">—</div><div class="lbl">Pendentes</div></div>
+    <div class="stat"><div class="val" id="stat-analise">—</div><div class="lbl">Em análise</div></div>
+    <div class="stat"><div class="val" id="stat-user">—</div><div class="lbl">Usuário</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h2>Internações Pendentes</h2>
+      <button id="btn-refresh" onclick="loadFila()">↻ Atualizar</button>
+    </div>
+    <div id="loading">Carregando dados…</div>
+    <div id="empty">Nenhuma internação pendente no momento.</div>
+    <table id="table-fila" style="display:none">
+      <thead>
+        <tr>
+          <th>ID</th><th>Paciente</th><th>CID</th><th>Convênio</th>
+          <th>Data entrada</th><th>Status</th><th>Observação</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-fila"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<script>
+// ── Configuração Supabase (anon key — pública, segura para frontend) ──
+const SUPABASE_URL = 'https://kkcojqlzmskuznbaxwqy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrY29qcWx6bXNrdXpuYmF4d3F5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMDcwNDMsImV4cCI6MjA5Mzc4MzA0M30.MbK2ugruxKKK25pmhpSA2-BP1Ur_KAwgqfi6WHWWMqY';
+const BACKEND_URL = 'https://nri-api-production.onrender.com';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let _accessToken = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function sendMagicLink() {
+  const email = document.getElementById('email-input').value.trim();
+  const btn = document.getElementById('btn-login');
+  const msg = document.getElementById('login-msg');
+
+  if (!email) { showMsg('Digite seu e-mail.', 'err'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  msg.style.display = 'none';
+
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false }
+  });
+
+  if (error) {
+    showMsg('Erro: ' + error.message, 'err');
+  } else {
+    showMsg('Link enviado! Verifique seu e-mail e clique no link para entrar.', 'ok');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Enviar link de acesso';
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('login-msg');
+  el.textContent = text;
+  el.className = 'msg ' + type;
+  el.style.display = 'block';
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  _accessToken = null;
+  showPanel('login');
+}
+
+// ── Session ───────────────────────────────────────────────────────────────────
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session) {
+    _accessToken = session.access_token;
+    const email = session.user?.email || '';
+    document.getElementById('user-badge').textContent = email;
+    document.getElementById('user-badge').style.display = 'inline';
+    document.getElementById('btn-logout').style.display = 'inline';
+    document.getElementById('stat-user').textContent = email.split('@')[0];
+    showPanel('dashboard');
+    await loadFila();
+  } else {
+    showPanel('login');
+  }
+});
+
+function showPanel(panel) {
+  document.getElementById('login-panel').style.display = panel === 'login' ? 'block' : 'none';
+  document.getElementById('dashboard').style.display = panel === 'dashboard' ? 'block' : 'none';
+  document.getElementById('user-badge').style.display = panel === 'dashboard' ? 'inline' : 'none';
+  document.getElementById('btn-logout').style.display = panel === 'dashboard' ? 'inline' : 'none';
+}
+
+// ── Fila ─────────────────────────────────────────────────────────────────────
+async function loadFila() {
+  if (!_accessToken) return;
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('table-fila').style.display = 'none';
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('err-banner').style.display = 'none';
+
+  try {
+    const resp = await fetch(`${BACKEND_URL}/nri/fila?status=pendente&limit=200`, {
+      headers: { 'Authorization': 'Bearer ' + _accessToken }
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: 'Erro desconhecido' }));
+      throw new Error(`HTTP ${resp.status}: ${err.detail || 'falha na API'}`);
+    }
+
+    const data = await resp.json();
+    renderFila(data.fila || [], data.total || 0);
+
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    const banner = document.getElementById('err-banner');
+    banner.textContent = 'Erro ao carregar fila: ' + e.message;
+    banner.style.display = 'block';
+  }
+}
+
+function renderFila(items, total) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-pendente').textContent = items.filter(i => i.status === 'pendente').length;
+  document.getElementById('stat-analise').textContent = items.filter(i => i.status === 'em_analise').length;
+
+  const tbody = document.getElementById('tbody-fila');
+  tbody.innerHTML = '';
+
+  if (!items.length) {
+    document.getElementById('empty').style.display = 'block';
+    return;
+  }
+
+  items.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:monospace;font-size:.8rem">${esc(row.id || row.internacao_id || '—')}</td>
+      <td>${esc(row.nome_paciente || row.paciente || '—')}</td>
+      <td>${esc(row.cid || row.cid_principal || '—')}</td>
+      <td>${esc(row.convenio || row.operadora || '—')}</td>
+      <td>${fmtDate(row.data_entrada || row.created_at)}</td>
+      <td><span class="badge ${esc(row.status || '')}">${esc(row.status || '—')}</span></td>
+      <td>${esc(row.observacao || row.obs || '')}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('table-fila').style.display = 'table';
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = String(str ?? '');
+  return d.innerHTML;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  } catch { return iso; }
+}
+</script>
+</body>
+</html>

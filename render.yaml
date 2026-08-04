@@ -20,4 +20,17 @@ services:
       - key: MAKE_BILLING_WEBHOOK
         sync: false
 
-# redeploy trigger 1775820076
+  - type: web
+    name: nri-api-production
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app_nri.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SUPABASE_URL
+        value: https://kkcojqlzmskuznbaxwqy.supabase.co
+      - key: SUPABASE_JWKS_URL
+        value: https://kkcojqlzmskuznbaxwqy.supabase.co/auth/v1/.well-known/jwks.json
+      - key: NRI_TABLE
+        value: internacoes
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
