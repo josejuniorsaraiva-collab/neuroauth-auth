@@ -7,6 +7,7 @@ test_blindagem.py - Testes especificos das blindagens v2.3:
   [5] Idempotencia do OutcomeRecorder
 """
 
+import copy
 import json
 import logging
 from app.services.decision_engine_v2 import DecisionEngine, OutcomeRecorder
@@ -47,6 +48,7 @@ def test_failsafe():
     # Caso 4: confirma JAMAIS GO em erro
     all_ok &= t("fail-safe NUNCA retorna GO", result["final_gate"] != "GO")
 
+    assert all_ok, "verificacoes de blindagem falharam"
     return all_ok
 
 
@@ -107,12 +109,23 @@ def test_sanitizacao():
                 result["perfil_operadora_aplicado"] == "UNIMED_CARIRI",
                 f"obtido: '{result['perfil_operadora_aplicado']}'")
 
+    assert all_ok, "verificacoes de blindagem falharam"
     return all_ok
 
 
 def test_defesa_com_contexto():
     print("\n>>> [3] DEFESA COM CONTEXTO CLINICO")
-    engine = DecisionEngine.from_file("app/services/rules_v2_1.json", context=GLOBAL_CONTEXT)
+    # FLEX_003 (defesa juridica fora do Rol) esta desativada em producao desde 9097b54
+    # porque o formulario nao envia fora_do_rol/evidencia_forte/ausencia_alternativa_documentada.
+    # Para manter a cobertura de _compose_defense, ativamos a regra so numa copia em memoria.
+    with open("app/services/rules_v2_1.json", encoding="utf-8") as f:
+        ruleset_prod = json.load(f)
+    ruleset_flex = copy.deepcopy(ruleset_prod)
+    flex_003 = [r for r in ruleset_flex["rules"] if r["id"] == "FLEX_003"]
+    assert len(flex_003) == 1, "FLEX_003 nao encontrada no ruleset"
+    flex_003[0].pop("disabled", None)
+    engine = DecisionEngine(ruleset_flex, context=GLOBAL_CONTEXT)
+    engine_prod = DecisionEngine(ruleset_prod, context=GLOBAL_CONTEXT)
 
     case_nogo = {
         "case_id": "DEF-001",
@@ -157,13 +170,22 @@ def test_defesa_com_contexto():
     }
 
     result = engine.evaluate(case_nogo)
-    defesa = result.get("defense_ready", "")
+    defesa = result.get("defense_ready") or ""
 
     all_ok = True
+    all_ok &= t("FLEX_003 disparou", any(r["id"] == "FLEX_003" for r in result["rules_fired"]))
     all_ok &= t("defesa contem CID do caso", "I63.5" in defesa, f"snippet: {defesa[:80]}")
     all_ok &= t("defesa contem nome do procedimento", "Trombectomia" in defesa)
     all_ok &= t("defesa contem flags clinicas", "urgencia" in defesa.lower())
 
+    # Com o ruleset de producao: sem FLEX_003, nenhuma defesa sem contexto clinico
+    prod = engine_prod.evaluate(case_nogo)
+    defesa_prod = prod.get("defense_ready")
+    all_ok &= t("producao: defesa ausente ou com CID",
+                defesa_prod is None or "I63.5" in defesa_prod,
+                f"gate={prod['final_gate']} risk={prod['final_risk']}")
+
+    assert all_ok, "defesa com contexto clinico falhou"
     return all_ok
 
 
@@ -227,6 +249,7 @@ def test_baixo_com_atencao():
         all_ok &= t("Caso classificado coerentemente", True,
                     f"obtido: {result['final_gate']}/{result['final_risk']}")
 
+    assert all_ok, "verificacoes de blindagem falharam"
     return all_ok
 
 
@@ -258,6 +281,7 @@ def test_idempotencia_recorder():
     all_ok &= t("segunda gravacao do mesmo trace_id retorna False", second is False)
     all_ok &= t("trace_id diferente grava normalmente", third is True)
 
+    assert all_ok, "verificacoes de blindagem falharam"
     return all_ok
 
 
