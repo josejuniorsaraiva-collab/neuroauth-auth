@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from app.routers import decide, decide_v2, auth, make_proxy, metrics, audit, cockpit, hub, relay
+from app.routers import decide, decide_v2, auth, metrics, audit, cockpit, hub, relay
 from app.core.config import settings
 
 logger = logging.getLogger("neuroauth.app")
@@ -84,7 +84,8 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(decide.router, prefix="/decide", tags=["decide"])
-app.include_router(make_proxy.router, prefix="/api", tags=["proxy"])
+# /api/make-proxy desativado (2026-10-21): rota pública sem autenticação, sem consumidores ativos.
+# O frontend usa /relay/* (autenticado).
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 app.include_router(audit.router, prefix="/audit", tags=["audit"])
 app.include_router(cockpit.router, prefix="/cockpit", tags=["cockpit"])
