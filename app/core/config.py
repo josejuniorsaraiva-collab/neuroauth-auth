@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     MAKE_DOC_WEBHOOK: str = ""
     MAKE_BILLING_WEBHOOK: str = ""
 
+    # NEUROCASE — Apps Script da biblioteca (URL /exec e token ficam só no servidor)
+    NEUROCASE_ENDPOINT: str = ""
+    NEUROCASE_TOKEN: str = ""
+    # Permissão específica: e-mails (CSV) autorizados a enviar casos. Vazio = ninguém.
+    NEUROCASE_ALLOWED_EMAILS: str = ""
+
+    @property
+    def neurocase_allowed_list(self) -> set:
+        return {e.strip().lower() for e in self.NEUROCASE_ALLOWED_EMAILS.split(",") if e.strip()}
+
     @property
     def allowed_origins_list(self) -> List[str]:
         """Parse CSV string into list for CORS middleware."""

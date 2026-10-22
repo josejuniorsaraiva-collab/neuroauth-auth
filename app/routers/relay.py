@@ -254,3 +254,74 @@ async def relay_notify(request: Request, user: dict = Depends(require_authorized
     except Exception as exc:
         logger.error("[%s] relay_notify error: %s (user=%s)", trace_id, exc, user_email)
         raise HTTPException(status_code=500, detail=f"{str(exc)[:200]}. trace_id={trace_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# POST /relay/neurocase — envio de caso para a biblioteca NEUROCASE (Apps Script)
+# ═══════════════════════════════════════════════════════════════════════════
+NEUROCASE_MAX_CHARS = 200_000
+
+
+@router.post("/neurocase")
+@limiter.limit("10/minute")
+async def relay_neurocase(request: Request, user: dict = Depends(require_authorized)):
+    """
+    Encaminha um caso do NEUROCASE ao Apps Script da biblioteca.
+    Requer JWT (Gate A) + permissão própria (NEUROCASE_ALLOWED_EMAILS).
+    O token do Apps Script fica só no servidor e nunca vai ao navegador nem ao log.
+    """
+    trace_id = f"NC-{str(uuid.uuid4())[:8].upper()}"
+    user_email = (user.get("email") or "").lower()
+
+    if user_email not in settings.neurocase_allowed_list:
+        logger.warning("[%s] relay_neurocase: sem permissão (user=%s)", trace_id, user_email)
+        raise HTTPException(status_code=403, detail="Usuário sem permissão para enviar casos ao NEUROCASE.")
+
+    if not settings.NEUROCASE_ENDPOINT or not settings.NEUROCASE_TOKEN:
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "error": "NEUROCASE_NAO_CONFIGURADO", "trace_id": trace_id},
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Body JSON inválido.")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Body JSON inválido.")
+
+    filename, content = body.get("filename"), body.get("content")
+    categoria = body.get("categoria") or "Sem_categoria"
+    if not isinstance(filename, str) or not isinstance(content, str) or not filename.strip() or not content.strip():
+        raise HTTPException(status_code=400, detail="filename e content são obrigatórios.")
+    if len(content) > NEUROCASE_MAX_CHARS:
+        raise HTTPException(status_code=413, detail="Conteúdo acima de 200 KB.")
+
+    payload = {
+        "token": settings.NEUROCASE_TOKEN,
+        "filename": filename[:160],
+        "content": content,
+        "categoria": str(categoria)[:60],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.post(
+                settings.NEUROCASE_ENDPOINT,
+                content=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                headers={"Content-Type": "text/plain;charset=utf-8"},
+            )
+        data = resp.json()
+        if not isinstance(data, dict):
+            raise ValueError("resposta não é objeto JSON")
+    except Exception as exc:
+        logger.warning("[%s] relay_neurocase: integração indisponível (%s)", trace_id, type(exc).__name__)
+        return JSONResponse(
+            status_code=502,
+            content={"ok": False, "error": "INTEGRACAO_INDISPONIVEL", "trace_id": trace_id},
+        )
+
+    ok = data.get("ok") is True
+    logger.info("[%s] relay_neurocase ok=%s user=%s arquivo=%s", trace_id, ok, user_email, filename[:80])
+    resultado = {k: data.get(k) for k in ("ok", "error", "file_id", "file_url", "filename", "categoria") if k in data}
+    resultado["trace_id"] = trace_id
+    return JSONResponse(status_code=200 if ok else 502, content=resultado)
