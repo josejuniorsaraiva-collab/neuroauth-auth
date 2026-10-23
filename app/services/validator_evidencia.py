@@ -582,12 +582,10 @@ def run_evidencia_validation(ctx: dict) -> dict:
     ext_rules = _load_external_evid_rules()
     for ext_rule in sorted(ext_rules, key=lambda r: r.get("priority", 99)):
         try:
-            from app.services.rule_library_adapter import evaluate_condition
-            applies  = evaluate_condition(ext_rule.get("applies_if_json",""), ctx)
-            excludes = evaluate_condition(ext_rule.get("excludes_if_json",""), ctx) if ext_rule.get("excludes_if_json") else False
-            if not applies or excludes:
+            from app.services.rule_library_adapter import avaliar_regra
+            applies, passed = avaliar_regra(ext_rule, ctx)
+            if not applies:
                 continue
-            passed = evaluate_condition(ext_rule.get("validation_logic_json",""), ctx)
             delta  = ext_rule.get("score_impact", 0) if not passed else 0
             results.append({
                 "rule_id": ext_rule["rule_id"], "rule_name": ext_rule["rule_name"],

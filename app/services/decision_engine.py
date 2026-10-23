@@ -411,7 +411,7 @@ def _req_to_ctx(req: Any) -> dict:
     from app.services.engine_v3 import normalize_input  # type: ignore
 
     n = normalize_input(req)
-    return {
+    ctx = {
         # Identidade
         "episodio_id":        n.episodio_id,
         "convenio":           n.convenio,
@@ -440,6 +440,10 @@ def _req_to_ctx(req: Any) -> dict:
         ),
         "cotacoes_opme":      getattr(req, "cotacoes_opme", []) or [],
     }
+    # Campos derivados usados pelas regras da planilha (aba 09_REGRAS_DECISAO)
+    from app.services.rule_library_adapter import contexto_para_regras
+    ctx.update(contexto_para_regras(req, ctx))
+    return ctx
 
 
 def _decision_to_response(d: dict, req: Any) -> Any:

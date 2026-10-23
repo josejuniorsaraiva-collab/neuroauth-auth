@@ -179,6 +179,9 @@ def _normalize_fonte_a(raw: dict) -> dict:
         "operator_name":    raw.get("convenio_id", "GLOBAL"),
         "applies_if_json":  raw.get("if_json", ""),
         "validation_logic_json": raw.get("if_json", ""),
+        # Na aba 09, if_json é um GATILHO: quando casa, a regra dispara (falha).
+        # Avaliada por avaliar_regra(): campo ausente/erro = não dispara.
+        "_trigger":         True,
         "failure_action":   action,
         "gate_if_fail":     "NO_GO" if blocking else "GO_COM_RESSALVAS",
         "score_impact":     -30 if blocking else -10,
@@ -480,3 +483,115 @@ def evaluate_condition(logic: str | dict, ctx: dict) -> bool:
 
     # Formato compacto: dict de campo → {op: val}
     return _eval_condition(parsed, ctx)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GATILHOS (regras da aba 09_REGRAS_DECISAO)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _eval_strict(cond: Any, ctx: dict) -> bool:
+    """Como _eval_condition, mas campo ausente ou erro de comparação = NÃO casa.
+    Usado só em gatilhos, para que dado faltante nunca dispare bloqueio."""
+    if not isinstance(cond, dict) or not cond:
+        return False
+    if "operator" in cond and "conditions" in cond:
+        conds = cond.get("conditions") or []
+        op = str(cond["operator"]).upper()
+        if op == "AND":
+            return bool(conds) and all(_eval_strict(c, ctx) for c in conds)
+        if op == "OR":
+            return any(_eval_strict(c, ctx) for c in conds)
+        return False
+    if "field" in cond and "op" in cond:
+        cond = {cond["field"]: {cond["op"]: cond.get("value")}}
+    for field, esperado in cond.items():
+        valor = _get_nested(ctx, field)
+        if isinstance(esperado, dict):
+            for op_str, alvo in esperado.items():
+                fn = _OP_MAP.get(op_str)
+                if fn is None:
+                    return False
+                if valor is None and op_str != "exists":
+                    return False
+                try:
+                    v = type(alvo)(valor) if isinstance(alvo, (int, float)) and not isinstance(alvo, bool) and valor is not None else valor
+                    if not fn(v, alvo):
+                        return False
+                except Exception:
+                    return False
+        else:
+            if valor is None or valor != esperado:
+                return False
+    return True
+
+
+def avaliar_regra(rule: dict, ctx: dict) -> tuple[bool, bool]:
+    """Avalia uma regra externa. Retorna (aplica, passou).
+
+    - Regra de operadora específica só vale para aquele convenio_id.
+    - Gatilho (aba 09): aplica e falha quando o if_json casa (avaliação estrita).
+    - Demais regras: semântica original (applies_if / excludes_if / validation_logic).
+    """
+    alvo = str(rule.get("operator_name") or "GLOBAL").upper()
+    if alvo not in ("", "GLOBAL") and alvo != str(ctx.get("convenio_id") or "").upper():
+        return False, True
+    if rule.get("_trigger"):
+        try:
+            logic = rule.get("applies_if_json", "")
+            parsed = json.loads(logic) if isinstance(logic, str) else logic
+        except (json.JSONDecodeError, TypeError):
+            return False, True
+        disparou = _eval_strict(parsed, ctx)
+        return disparou, not disparou
+    applies = evaluate_condition(rule.get("applies_if_json", ""), ctx)
+    excludes = evaluate_condition(rule.get("excludes_if_json", ""), ctx) if rule.get("excludes_if_json") else False
+    if not applies or excludes:
+        return False, True
+    return True, evaluate_condition(rule.get("validation_logic_json", ""), ctx)
+
+
+_CONVENIO_IDS = (
+    ("UNIMED", "UNIMED_CARIRI"),
+    ("SULAMERICA", "SULAMERICA"),
+    ("SUL AMERICA", "SULAMERICA"),
+    ("BRADESCO", "BRADESCO_SAUDE"),
+    ("HAPVIDA", "HAPVIDA"),
+    ("AMIL", "AMIL"),
+)
+
+
+def convenio_id_de(convenio: str) -> str:
+    """Normaliza o nome do convênio para o convenio_id usado nas regras da planilha."""
+    import unicodedata
+    txt = unicodedata.normalize("NFKD", convenio or "").encode("ascii", "ignore").decode().upper().strip()
+    for chave, cid in _CONVENIO_IDS:
+        if chave in txt:
+            return cid
+    return "_".join(txt.split()) or "GLOBAL"
+
+
+def contexto_para_regras(req: Any, ctx: dict) -> dict:
+    """Campos derivados usados pelas condições da planilha (aba 09)."""
+    extra: dict[str, Any] = {
+        "convenio_id": convenio_id_de(ctx.get("convenio", "")),
+        "carater": "urgencia" if ctx.get("urgencia") else "eletivo",
+        "clinical_context": {
+            "indicacao_len": len((ctx.get("indicacao_clinica") or "").strip()),
+            "tto_conservador_semanas": ctx.get("semanas_conservador"),
+        },
+        "episodio": {},
+    }
+    numero_guia = (getattr(req, "numero_guia_operadora", "") or "").strip()
+    if numero_guia:
+        extra["episodio"]["numero_guia_operadora"] = numero_guia
+    for campo in ("profile_id", "niveis"):
+        valor = getattr(req, campo, None)
+        if valor not in (None, ""):
+            extra[campo] = valor
+    itens = getattr(req, "opme_items", None) or []
+    if str(ctx.get("necessita_opme", "")).strip().lower() in ("sim", "s", "true", "1") and itens:
+        marcas = {(getattr(i, "fabricante", "") or "").strip().lower() for i in itens}
+        marcas.discard("")
+        cotacoes = ctx.get("cotacoes_opme") or []
+        extra["opme_context"] = {"numero_marcas": max(len(marcas), len(cotacoes)), "itens": len(itens)}
+    return extra

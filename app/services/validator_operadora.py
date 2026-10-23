@@ -670,18 +670,12 @@ def run_operadora_validation(ctx: dict) -> dict:
 
     # Regras externas de operadora (camada OPERADORA da Rule Library)
     try:
-        from app.services.rule_library_adapter import get_rules_by_layer, evaluate_condition
+        from app.services.rule_library_adapter import get_rules_by_layer, avaliar_regra
         ext_op_rules = get_rules_by_layer("OPERADORA")
-        convenio_id  = profile.get("convenio_id","GLOBAL")
         for ext_rule in sorted(ext_op_rules, key=lambda r: r.get("priority", 99)):
-            op_target = ext_rule.get("operator_name","GLOBAL")
-            if op_target not in ("GLOBAL","") and op_target.upper() != convenio_id.upper():
-                if op_target.lower() not in (ctx.get("convenio","") or "").lower():
-                    continue
-            applies = evaluate_condition(ext_rule.get("applies_if_json",""), ctx)
+            applies, passed = avaliar_regra(ext_rule, ctx)
             if not applies:
                 continue
-            passed = evaluate_condition(ext_rule.get("validation_logic_json",""), ctx)
             rule_delta = ext_rule.get("score_impact", 0) if not passed else 0
             delta += rule_delta
             res = {

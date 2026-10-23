@@ -469,12 +469,10 @@ def _apply_external_rule(rule: dict, ctx: dict) -> dict | None:
     Retorna resultado padronizado ou None se a regra não se aplica.
     """
     try:
-        from app.services.rule_library_adapter import evaluate_condition
-        applies = evaluate_condition(rule.get("applies_if_json", ""), ctx)
-        excludes = evaluate_condition(rule.get("excludes_if_json", ""), ctx) if rule.get("excludes_if_json") else False
-        if excludes or not applies:
+        from app.services.rule_library_adapter import avaliar_regra
+        applies, passed = avaliar_regra(rule, ctx)
+        if not applies:
             return None
-        passed = evaluate_condition(rule.get("validation_logic_json", ""), ctx)
         return _resultado(rule, passed,
             rule.get("user_message", "") if not passed else "")
     except Exception as exc:

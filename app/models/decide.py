@@ -38,6 +38,10 @@ class DecideRequest(BaseModel):
     crm: Optional[str] = ""
     cbo: Optional[str] = ""
     medico_solicitante: Optional[str] = ""
+    numero_guia_operadora: Optional[str] = Field(
+        default="",
+        description="Número da guia gerado pela operadora (ex.: Hapvida, Campo 3). Opcional.",
+    )
     justificativas_opme: Optional[Dict[str, str]] = Field(
         default_factory=dict,
         description=(
